@@ -1,0 +1,465 @@
+#!/usr/bin/env python4
+# -*- coding: utf-8 -*-
+
+
+import subprocess
+import threading
+import urllib.request
+import wx
+import wx.html2
+
+import wx.lib.agw.flatnotebook as fnb
+
+from pathlib import Path
+
+
+#+--|---------------------------------------------------------------------------------------->>>>
+#+--| CHAPTER 7 : TOWER
+#+--|---------------------------------------------------------------------------------------->>>>
+#+--|
+
+HOME    = "https://www.youtube.com/watch?v=pgmGoDxMBKc&t=2969s"
+NEW_TAB = "https://www.bing.com/webhp"   # or DuckDuckGo / about:blank
+
+AUDIO_DOWNLOAD = "https://mp3cow.com/"
+VIDEO_DOWNLOAD = "https://vidssave.com/"
+
+DOWNLOADS = Path.home() / "Downloads"
+DOWNLOADS.mkdir(exist_ok=True)
+
+#+--|---------------------------------------------------------------------------------------->>>>
+#+--| CHAPTER 6 : VULTURES class browser and class filepickingdialog init is here to lmfao what a 
+#+--| joke browser by deepseek
+#+--|---------------------------------------------------------------------------------------->>>>
+#+--|
+class FilePickerDialog(wx.Dialog):
+    def __init__(self, parent):
+        super().__init__(parent, title="📂 Files", size=(420, 520))
+        v = wx.BoxSizer(wx.VERTICAL)
+
+        self.path_box = wx.TextCtrl(self, style=wx.TE_PROCESS_ENTER)
+        self.path_box.SetValue(str(Path.home()))
+        self.path_box.Bind(wx.EVT_TEXT_ENTER, self.load_folder)
+        v.Add(self.path_box, 0, wx.EXPAND | wx.ALL, 6)
+
+        self.list = wx.ListBox(self, style=wx.LB_SINGLE)
+        self.list.Bind(wx.EVT_LISTBOX_DCLICK, self.open_selected)
+        v.Add(self.list, 1, wx.EXPAND | wx.ALL, 6)
+
+        row = wx.BoxSizer(wx.HORIZONTAL)
+        for label, fn in (("Up", self.go_up), ("Open", self.open_selected)):
+            b = wx.Button(self, label=label)
+            b.Bind(wx.EVT_BUTTON, lambda e, f=fn: f())
+            row.Add(b, 0, wx.ALL, 4)
+        v.Add(row, 0, wx.ALIGN_RIGHT | wx.ALL, 6)
+
+        self.SetSizer(v)
+        self.current_dir = Path.home()
+        self.load_folder()
+
+    def load_folder(self, event=None):
+        p = Path(self.path_box.GetValue()).expanduser()
+        if not p.is_dir():
+            return
+        self.current_dir = p
+        self.list.Clear()
+        try:
+            for entry in sorted(p.iterdir(), key=lambda x: (x.is_file(), x.name.lower())):
+                self.list.Append("📁 " + entry.name if entry.is_dir() else "📄 " + entry.name)
+        except Exception:
+            pass
+        self.entries = sorted(p.iterdir(), key=lambda x: (x.is_file(), x.name.lower()))
+
+    def go_up(self):
+        self.path_box.SetValue(str(self.current_dir.parent))
+        self.load_folder()
+
+    def open_selected(self, event=None):
+        i = self.list.GetSelection()
+        if i < 0:
+            return
+        entry = self.entries[i]
+        if entry.is_dir():
+            self.path_box.SetValue(str(entry))
+            self.load_folder()
+        else:
+            self.EndModal(wx.ID_OK)
+
+    def selected_file(self):
+        i = self.list.GetSelection()
+        if i < 0:
+            return None
+        entry = self.entries[i]
+        return entry if entry.is_file() else None
+
+
+class Browser(wx.Frame):
+    def __init__(self):
+        super().__init__(None, title="Browser", size=(810, 750))
+
+        panel = wx.Panel(self)
+        root = wx.BoxSizer(wx.VERTICAL)
+
+        # ── nav row ──
+        nav = wx.BoxSizer(wx.HORIZONTAL)
+
+        def btn(label, fn, width=40):
+            b = wx.Button(panel, label=label, size=(width, -1))
+            b.Bind(wx.EVT_BUTTON, lambda e: fn())
+            nav.Add(b, 0, wx.ALL, 2)
+            return b
+
+        # ── Burger Menu Button ──
+        self.burger_btn = wx.Button(panel, label="☰", size=(40, -1))
+        self.burger_btn.Bind(wx.EVT_BUTTON, self.show_burger_menu)
+        nav.Add(self.burger_btn, 0, wx.ALL, 2)
+
+        # (Home button removed from top nav)
+        btn("◀", self.go_back)
+        btn("▶", self.go_fwd)
+        btn("⟳", self.reload)
+        btn("✕", self.stop)
+
+        self.url = wx.TextCtrl(panel, style=wx.TE_PROCESS_ENTER)
+        self.url.SetValue(HOME)
+        self.url.Bind(wx.EVT_TEXT_ENTER, self.on_go)
+        nav.Add(self.url, 1, wx.EXPAND | wx.ALL, 2)
+
+        btn("GO", self.on_go, 50)
+        btn("+", lambda: self.new_tab(), 40)
+
+        # ── keyboard shortcuts ──
+        self.zoom_level = 0.8
+        self.Bind(wx.EVT_CHAR_HOOK, self.on_key_press)
+
+        root.Add(nav, 0, wx.EXPAND)
+        
+#+--|---------------------------------------------------------------------------------------->>>>
+#+--| CHAPTER 5 : PENGUIN CER
+#+--|---------------------------------------------------------------------------------------->>>>
+#+--|
+        # ── tabs (X drawn on each tab) ──
+        self.notebook = fnb.FlatNotebook(
+            panel,
+            agwStyle=fnb.FNB_X_ON_TAB | fnb.FNB_NO_NAV_BUTTONS,
+        )
+        self.notebook.Bind(fnb.EVT_FLATNOTEBOOK_PAGE_CHANGED, self.on_tab_change)
+        self.notebook.Bind(fnb.EVT_FLATNOTEBOOK_PAGE_CLOSING, self.on_tab_closing)
+        root.Add(self.notebook, 1, wx.EXPAND | wx.ALL, 2)
+
+        panel.SetSizer(root)
+        self.CreateStatusBar()
+
+        self.new_tab(HOME)
+        self.Show()
+
+    # ── Burger Menu Logic ──
+    def show_burger_menu(self, event):
+        menu = wx.Menu()
+        
+        # Create the items
+        item_home     = menu.Append(wx.ID_ANY, "⌂ Home")
+        menu.AppendSeparator()
+        item_file     = menu.Append(wx.ID_ANY, "⤓ Download File")
+        item_video    = menu.Append(wx.ID_ANY, "⤓ Download Video")
+        item_audio    = menu.Append(wx.ID_ANY, "⤓ Download Audio")
+        menu.AppendSeparator()
+        item_picker   = menu.Append(wx.ID_ANY, "📂 Open Local File")
+
+        # Bind the items to your actual functions
+        self.Bind(wx.EVT_MENU, lambda e: self.home(), item_home)
+        self.Bind(wx.EVT_MENU, lambda e: self.download_file(), item_file)
+        self.Bind(wx.EVT_MENU, lambda e: self.download_video(), item_video)
+        self.Bind(wx.EVT_MENU, lambda e: self.download_audio(), item_audio)
+        self.Bind(wx.EVT_MENU, lambda e: self.open_file_picker(), item_picker)
+
+        # Pop the menu up exactly below the button
+        pos = self.burger_btn.GetPosition()
+        self.PopupMenu(menu, wx.Point(pos.x, pos.y + self.burger_btn.GetSize().height))
+        menu.Destroy()
+
+    # ── current web view ──
+    def current(self):
+        idx = self.notebook.GetSelection()
+        if idx < 0:
+            return None
+        return self.notebook.GetPage(idx)
+
+    def current_url(self):
+        w = self.current()
+        if w is None:
+            return self.url.GetValue().strip()
+        return w.GetCurrentURL() or self.url.GetValue().strip()
+
+#+--|---------------------------------------------------------------------------------------->>>>
+#+--| CHAPTER 4 : ZETA LOLA ZEBRA
+#+--|---------------------------------------------------------------------------------------->>>>
+#+--|
+    # ── navigation ──
+    def go_back(self):
+        w = self.current()
+        if w and w.CanGoBack():
+            w.GoBack()
+
+    def go_fwd(self):
+        w = self.current()
+        if w and w.CanGoForward():
+            w.GoForward()
+
+    def reload(self):
+        w = self.current()
+        if w:
+            w.Reload()
+
+    def stop(self):
+        w = self.current()
+        if w:
+            w.Stop()
+
+    def home(self):
+        w = self.current()
+        if w:
+            w.LoadURL(HOME)
+
+    def on_go(self, event=None):
+        url = self.url.GetValue().strip()
+        if not url:
+            return
+        if not url.startswith(("http://", "https://", "file://", "about:")):
+            url = "https://" + url
+        w = self.current()
+        if w:
+            w.LoadURL(url)
+
+
+#+--|---------------------------------------------------------------------------------------->>>>
+#+--| CHAPTER 3 : DARWIN 7 DEF LAW
+#+--|---------------------------------------------------------------------------------------->>>>
+#+--|
+    # ── tabs ──
+    def new_tab(self, url=NEW_TAB):
+        w = wx.html2.WebView.New(self.notebook)
+        w.LoadURL(url)
+        w.Bind(wx.html2.EVT_WEBVIEW_LOADED, self.on_loaded)
+        w.Bind(wx.html2.EVT_WEBVIEW_TITLE_CHANGED, self.on_title)
+        w.Bind(wx.html2.EVT_WEBVIEW_NEWWINDOW, self.on_new_window)
+
+        self.notebook.AddPage(w, "New Tab")
+        self.notebook.SetSelection(self.notebook.GetPageCount() - 1)
+        self.url.SetValue(url)
+
+    def on_tab_closing(self, event):
+        if getattr(self, "_closing", False):
+            event.Skip()
+            return
+        self._closing = True
+        try:
+            idx = event.GetSelection()
+            page = self.notebook.GetPage(idx)
+
+            # Last tab: keep it alive, just reset it.
+            if self.notebook.GetPageCount() == 1:
+                page.LoadURL(NEW_TAB)
+                self.url.SetValue(NEW_TAB)
+                event.Veto()
+                return
+
+            # Detach only — never Destroy() the WebView here.
+            self.notebook.DeletePage(idx)
+            event.Veto()
+
+            w = self.current()
+            if w:
+                self.url.SetValue(w.GetCurrentURL() or "")
+        finally:
+            self._closing = False
+
+    def on_new_window(self, event):
+        url = event.GetURL()
+        if url:
+            self.new_tab(url)
+        event.Veto()
+
+    def on_loaded(self, event):
+        w = event.GetEventObject()
+        if w is None:
+            event.Skip()
+            return
+
+        u = w.GetCurrentURL()
+        if w == self.current() and u:
+            self.url.SetValue(u)
+
+        js = r"""
+        (function(){
+          function isSearchPage(h){
+            return /bing\.com\/(search|webhp)/i.test(h)
+                || /google\.[a-z.]+\/search/i.test(h)
+                || /duckduckgo\.com\/\?/i.test(h);
+          }
+          if (!isSearchPage(location.href)) return;
+          if (window.__newTabHook) return;
+          window.__newTabHook = true;
+
+          document.addEventListener('click', function(e){
+            var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+            if (!a) return;
+            var href = a.href;
+            if (!/^https?:/i.test(href)) return;
+            if (href.indexOf(location.hostname) !== -1) return;
+            e.preventDefault();
+            e.stopPropagation();
+            window.open(href, '_blank');
+          }, true);
+        })();
+        """
+        try:
+            w.RunScript(js)
+        except Exception:
+            pass
+
+        event.Skip()
+
+    def on_tab_change(self, event):
+        w = self.current()
+        if w:
+            u = w.GetCurrentURL()
+            if u:
+                self.url.SetValue(u)
+        event.Skip()
+
+    def on_title(self, event):
+        w = event.GetEventObject()
+        if w is None:
+            event.Skip()
+            return
+        t = event.GetString() or "Browser"
+        idx = self.notebook.FindPage(w)
+        if idx >= 0:
+            short = t[:24] + "…" if len(t) > 25 else t
+            self.notebook.SetPageText(idx, short)
+        if w == self.current():
+            self.SetTitle(t)
+
+        try:
+            w.RunScript("document.body.style.zoom = '0.8';")
+        except Exception:
+            pass
+        event.Skip()
+#+--|---------------------------------------------------------------------------------------->>>>
+#+--| CHAPTER 2 : IMPORT ORPHANS
+#+--|---------------------------------------------------------------------------------------->>>>
+#+--|
+    # ── downloads ──
+    def _unique_path(self, name):
+        target = DOWNLOADS / name
+        n = 1
+        stem, suffix = target.stem, target.suffix
+        while target.exists():
+            target = DOWNLOADS / f"{stem} ({n}){suffix}"
+            n += 1
+        return target
+
+#+--|---------------------------------------------------------------------------------------->>>>
+#+--|    def download_file(self):
+#+--|---------------------------------------------------------------------------------------->>>>
+#+--|
+
+    def download_file(self):
+        url = self.current_url()
+        if not url:
+            return
+        name = url.split("/")[-1].split("?")[0] or "download"
+        if "." not in name:
+            name += ".html"
+        target = self._unique_path(name)
+        self.SetStatusText(f"Downloading → {target}")
+        self._run_thread(self._fetch_file, url, target)
+
+    def _fetch_file(self, url, target):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=30) as r, open(target, "wb") as f:
+                while True:
+                    chunk = r.read(65536)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+            wx.CallAfter(self.SetStatusText, f"✅ Saved {target}")
+        except Exception as e:
+            wx.CallAfter(self.SetStatusText, f"⚠ {e}")
+
+    def download_video(self):
+        self._open_downloader(VIDEO_DOWNLOAD, "Video")
+
+#+--|---------------------------------------------------------------------------------------->>>>
+#+--|    def download_audio(self):
+#+--|---------------------------------------------------------------------------------------->>>>
+#+--|
+
+    def download_audio(self):
+        self._open_downloader(AUDIO_DOWNLOAD, "Audio")
+
+
+    def _open_downloader(self, site_url, kind):
+        src = self.current_url()
+        if not src:
+            self.SetStatusText(f"⚠ No URL to send to {kind} downloader")
+            return
+        if wx.TheClipboard.Open():
+            wx.TheClipboard.SetData(wx.TextDataObject(src))
+            wx.TheClipboard.Close()
+        self.new_tab(site_url)
+        self.SetStatusText(f"{kind}: pasting → {src}")
+
+
+    def _run_thread(self, fn, *args):
+        t = threading.Thread(target=fn, args=args, daemon=True)
+        t.start()
+
+
+    def open_file_picker(self):
+        dlg = FilePickerDialog(self)
+        if dlg.ShowModal() == wx.ID_OK:
+            f = dlg.selected_file()
+            if f:
+                self.new_tab(f.as_uri())
+        dlg.Destroy()
+
+
+    def on_key_press(self, event):
+        if event.CmdDown():
+            if event.GetKeyCode() in (wx.WXK_NUMPAD_ADD, ord('='), ord('+')):
+                self.zoom_in()
+                return
+            elif event.GetKeyCode() in (wx.WXK_NUMPAD_SUBTRACT, ord('-')):
+                self.zoom_out()
+                return
+            elif event.GetKeyCode() == ord('0'):
+                self.zoom_reset()
+                return
+        event.Skip()
+
+    def zoom_in(self):
+        self.zoom_level = min(3.0, self.zoom_level + 0.1)
+        self._apply_zoom()
+
+    def zoom_out(self):
+        self.zoom_level = max(0.3, self.zoom_level - 0.1)
+        self._apply_zoom()
+
+    def zoom_reset(self):
+        self.zoom_level = 1.0
+        self._apply_zoom()
+
+    def _apply_zoom(self):
+        w = self.current()
+        if w:
+            w.RunScript(f"document.body.style.zoom = '{self.zoom_level}';")
+#+--|---------------------------------------------------------------------------------------->>>>
+#+--| CHAPTER 1 : TURBO EXECUTION
+#+--|---------------------------------------------------------------------------------------->>>>
+#+--|
+app = wx.App()
+Browser()
+app.MainLoop()
