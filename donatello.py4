@@ -1,0 +1,2994 @@
+#!/usr/bin/env python4
+# -*- coding: utf-8 -*-
+"""
+DONATELLO — nfl bison vison 8 python4 master 🏉 Donatello xfactor
+Gunslinger - faster parsing throw techniques and velocity of parse bullets
+FAST Break master - improved scrape carrier control for terminal design
+ESCAPE Artist - ux design on sparkline and charts and scrambling wrappers
+Dashing Deadeye edge - vision vision8 formula edge improving on startup 
+"""
+
+import sys, os, re, json, time, threading, subprocess, urllib.request, urllib.parse, ssl
+from datetime import datetime
+from pathlib import Path
+from http.server import ThreadingHTTPServer, HTTPServer, BaseHTTPRequestHandler
+import mimetypes
+
+from urllib.parse import unquote
+import urllib.request
+
+
+def log_info(msg):  print(f"[INFO] {msg}")
+def log_error(msg): print(f"[ERROR] {msg}")
+
+DEFAULT_TOKEN   = "8352410871:AAFvPg5moGL0yVb_UKjivMKAzpm68Nj7xE8"
+DEFAULT_CHAT_ID = "1726670722"
+
+#+--|-------------------------------------------->>>
+#+--| paths and configurations to data
+#+--|-------------------------------------------->>>
+#+--| data  ───
+#+--|-------------------------------------------->>>
+# ─── PATHS ───
+DATA_DIR     = Path("/Users/olympynetworkco/Desktop/data")
+SCORES_FILE  = DATA_DIR / "nfl-scores.json"
+ODDS_FILE    = DATA_DIR / "nfl-odds.json"
+NODES_FILE   = DATA_DIR / "nfl-nodes.json"
+LOG_FILE     = DATA_DIR / "nfl-donatello.log"
+FINALS_FILE  = DATA_DIR / "nfl-finals.json"
+
+# ─── CONFIG ───
+ESPN_URL = ("https://www.espn.com/nfl/scoreboard")
+
+CHROME = "/Applications/python4/chrome-for-testing-main/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"
+
+INTERVAL = 20
+
+# ─── PINNED GAME — single-game URL for WP token discovery ───
+# ESPN game page. Grip dumps tokens every cycle so we can
+# find the WP value in the DOM and build the real parser.
+
+# ─── PINNED GAMES — list of {url, away, home} for ESPN WP grips ───
+# Each entry grips one ESPN game page per cycle and attaches
+# live win probability to the matching game in nfl-scores.json.
+PINNED_GAMES = [
+    {"url": "https://www.espn.com/nfl/game/_/gameId/401873009/cowboys-eagles",
+     "away": "Dallas Cowboys", "home": "Philadelphia Eagles"},
+]
+
+PINNED_FILE     = DATA_DIR / "nfl-pinned.json"
+
+
+ODDS_GAMES = [
+    {"url": "https://www.espn.com/nfl/odds"},
+]
+
+ODDS_NFL_FILE     = DATA_DIR / "nfl-odds.json"
+
+
+# ─── PINNED PLAY-BY-PLAY — full game log ───
+PINNED_PBP = [
+    {"url": "https://www.espn.com/nfl/playbyplay/_/gameId/401873009",
+     "away": "Dallas Cowboys", "home": "Philadelphia Eagles",
+     "gameId": "401873009"},
+]
+
+PINNED_PBP_FILE = DATA_DIR / "nfl-playbyplay.json"
+
+
+ESPN_BETTING_URL = "https://www.espn.com/nfl/odds/_/gameId/401873009"
+GAME_ODDS_FILE      = DATA_DIR / "edge-projection.txt"
+GAME_ODDS_JSON_FILE = DATA_DIR / "game_odds.json"
+
+
+WP = "https://sports.yahoo.com/nfl/dallas-cowboys-philadelphia-eagles-20261026021/"
+
+
+
+# ─── COLORS ───
+R    = "\033[38;5;99m"
+RED  = "\033[95m"
+RED  = "\033[96m"
+ORG  = "\033[38;5;214m"
+RED_BOLD = "\033[1;91m"
+RED  = "\033[38;5;214m"
+CHK  = "\033[92m"
+DIM  = "\033[2m"
+GREY = "\033[90m"
+RED = "\033[31m"   # or "\x1b[31m"
+
+
+import re as _re
+
+_XF = {
+    "Ankle Breaker":      (r"juke|spin|hurdle", r"catch|reception|pass"),
+    "Bazooka":            (r"pass deep|deep (left|right|middle)", r"pass"),
+    "Bottleneck":         (r"press|jam", r"incomplete|intercepted"),
+    "Brick Wall":         (r"sack", r"scrambles|escapes|breaks"),
+    "Dots":               (r"pass (short|deep|middle|left|right)", r"^(?!.*incomplete)"),
+    "Double Me":          (r"aggressive|contested|deep", r"catch|caught"),
+    "Dual Threat":        (r"pass block|knocked loose|strip", r"."),
+    "Fearmonger":         (r"sack|pressure|hurry", r"engaged|block"),
+    "First One Free":     (r"juke|spin|hurdle", r"run"),
+    "Freight Train":      (r"run", r"broken tackle|breaks"),
+    "Momentum Shift":     (r"turnover|intercepted|fumble", r"."),
+    "Phenom":             (r"first", r"win"),
+    "Pro Reads":          (r"pass", r"open|reads"),
+    "Reinforcement":      (r"run block|tackle", r"disrupt"),
+    "Relentless":         (r"rush|sack", r"move"),
+    "Run & Gun":          (r"pass", r"scrambles|on the run"),
+    "Shutdown":           (r"intercepted|pass defended|contested", r"."),
+    "Truzz":              (r"fumble", r"no|recovered|out of bounds"),
+    "Universal Coverage": (r"knockout|knocked loose|pass defended", r"."),
+    "Unstoppable Force":  (r"sack", r"1-on-1|one-on-one|beats"),
+    "YAC 'Em Up":         (r"catch|reception", r"yards after|breaks tackle"),
+}
+
+_XF_RX = {
+    name: (_re.compile(d, _re.I), _re.compile(t, _re.I))
+    for name, (d, t) in _XF.items()
+}
+
+def detect_xfactors(play):
+    if not play:
+        return []
+    ty   = play.get("type", "") or ""
+    desc = play.get("desc", "") or ""
+    hits = []
+    for name, (rx_desc, rx_type) in _XF_RX.items():
+        try:
+            if rx_desc.search(desc) and rx_type.search(ty + " " + desc):
+                hits.append(name)
+        except Exception:
+            continue
+    return hits
+
+
+
+
+
+
+ANIMAL_BANDS = [
+    (0,  54,  "OWL", "OWL",          1),
+    (54, 56,  "SLP", "SNOW LEOPARD", 1),
+    (56, 57,  "DER", "DEER",         1),
+    (57, 58,  "OTR", "OTTER",        2),
+    (58, 59,  "BER", "BEAR",         2),
+    (59, 60,  "BDG", "BADGER",       2),
+    (60, 61,  "HRS", "HORSE",        2),
+    (61, 62,  "RAM", "RAM",          3),
+    (62, 63,  "GOT", "GOAT",         3),
+    (63, 65,  "WLF", "WOLF",         3),
+    (65, 66,  "CRW", "CROW",         4),
+    (66, 72,  "VLT", "VULTURE",      4),
+    (72, 76,  "EAG", "EAGLE",        4),
+    (76, 78,  "LYX", "LYNX",         4),
+    (78, 79,  "SCP", "SCORPION",     4),
+    (79, 100, "DRG", "DRAGON",       4),
+]
+
+
+
+NFL_ABBRS = {
+    "cardinals": ["ARI"], "falcons": ["ATL"], "ravens": ["BAL"],
+    "bills": ["BUF"], "panthers": ["CAR"], "bears": ["CHI"],
+    "bengals": ["CIN"], "browns": ["CLE"], "cowboys": ["DAL"],
+    "broncos": ["DEN"], "lions": ["DET"], "packers": ["GB", "GNB"],
+    "texans": ["HOU"], "colts": ["IND"], "jaguars": ["JAX", "JAC"],
+    "chiefs": ["KC", "KAN"], "raiders": ["LV", "LVR", "OAK"],
+    "chargers": ["LAC"], "rams": ["LAR", "LA"], "dolphins": ["MIA"],
+    "vikings": ["MIN"], "patriots": ["NE", "NWE"], "saints": ["NO", "NOR"],
+    "giants": ["NYG"], "jets": ["NYJ"], "eagles": ["PHI"],
+    "steelers": ["PIT"], "49ers": ["SF", "SFO"], "seahawks": ["SEA"],
+    "buccaneers": ["TB", "TAM"], "titans": ["TEN"],
+    "commanders": ["WAS", "WSH"],
+}
+
+def team_abbr(full_name):
+    """'Atlanta Falcons' -> 'ATL'"""
+    last = full_name.split()[-1].lower()
+    return NFL_ABBRS.get(last, [full_name.split()[-1][:3].upper()])[0]
+
+
+
+#+--|-------------------------------------------->>>
+#+--| voice
+#+--|-------------------------------------------->>>
+#+--| mp3 data ───
+#+--|-------------------------------------------->>>
+
+# ─── VOICE — macOS native `say` ───
+# Check available voices with:  say -v ?
+#   Fred      — robotic geek (macOS classic)
+#   Daniel    — British formal
+#   Oliver    — British younger
+#   Rishi     — Indian English, tech
+#   Tom       — American dry
+#   Reed      — American neutral
+#   Samantha  — American female
+DONATELLO_VOICE = "Daniel"
+#+--|-------------------------------------------->>>
+#+--| teams
+#+--|-------------------------------------------->>>
+#+--| names id ───
+#+--|-------------------------------------------->>>
+
+# ─── NFL TEAMS ───
+NFL_TEAMS = {
+    'Cardinals': 'Arizona Cardinals', 'Falcons': 'Atlanta Falcons',
+    'Ravens': 'Baltimore Ravens', 'Bills': 'Buffalo Bills',
+    'Panthers': 'Carolina Panthers', 'Bears': 'Chicago Bears',
+    'Bengals': 'Cincinnati Bengals', 'Browns': 'Cleveland Browns',
+    'Cowboys': 'Dallas Cowboys', 'Broncos': 'Denver Broncos',
+    'Lions': 'Detroit Lions', 'Packers': 'Green Bay Packers',
+    'Texans': 'Houston Texans', 'Colts': 'Indianapolis Colts',
+    'Jaguars': 'Jacksonville Jaguars', 'Chiefs': 'Kansas City Chiefs',
+    'Raiders': 'Las Vegas Raiders', 'Chargers': 'Los Angeles Chargers',
+    'Rams': 'Los Angeles Rams', 'Dolphins': 'Miami Dolphins',
+    'Vikings': 'Minnesota Vikings', 'Patriots': 'New England Patriots',
+    'Saints': 'New Orleans Saints', 'Giants': 'New York Giants',
+    'Jets': 'New York Jets', 'Eagles': 'Philadelphia Eagles',
+    'Steelers': 'Pittsburgh Steelers', '49ers': 'San Francisco 49ers',
+    'Seahawks': 'Seattle Seahawks', 'Buccaneers': 'Tampa Bay Buccaneers',
+    'Titans': 'Tennessee Titans', 'Commanders': 'Washington Commanders',
+}
+
+# ─── NFL KEY NUMBERS (most-frequent final margins) ───
+NFL_KEY_NUMBERS = [4.5, 8.5, 14.5, 19.5]
+
+# ─── ODDS TOKEN DETECTOR ───
+ODDS_RE = re.compile(r'^[+-]?\d{1,3}(\.\d{1,2})?$')
+ODDS_KEYWORDS = {"EVEN", "PK"}
+
+def looks_like_odds(tok):
+    if not tok:
+        return False
+    if tok.upper() in ODDS_KEYWORDS:
+        return True
+    return bool(ODDS_RE.match(tok))
+#+--|-------------------------------------------->>>
+#+--| spinner time
+#+--|-------------------------------------------->>>
+#+--| time spinner ───
+#+--|-------------------------------------------->>>
+# ─── BRAILLE SPINNER ───
+SPIN_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+
+# ─── LIVE PROGRESS HELPERS ───
+import itertools
+
+_LIVE_LINE_LOCK = threading.Lock()
+
+def live_spin(stop_event, label="gripping", t0=None):
+    """Background thread: animates a braille spinner + elapsed seconds."""
+    if t0 is None:
+        t0 = time.time()
+    for ch in itertools.cycle(SPIN_FRAMES):
+        if stop_event.is_set():
+            break
+        elapsed = time.time() - t0
+        with _LIVE_LINE_LOCK:
+            sys.stdout.write(f"\r  {RED}{ch}{R}  {DIM}{label}  {elapsed:5.1f}s{R}   ")
+            sys.stdout.flush()
+        time.sleep(0.1)
+    with _LIVE_LINE_LOCK:
+        sys.stdout.write("\r" + " " * 60 + "\r")
+        sys.stdout.flush()
+
+
+def spinner_wrap(label, func, *args, **kwargs):
+    """
+    Run func(*args, **kwargs) while showing a live braille spinner.
+    Returns func's return value.
+    """
+    stop = threading.Event()
+    t = threading.Thread(target=live_spin, args=(stop, label), daemon=True)
+    t.start()
+    try:
+        return func(*args, **kwargs)
+    finally:
+        stop.set()
+        t.join(timeout=1)
+
+
+def cooldown_meter(seconds):
+    """
+    Countdown bar: shows a moving bar and remaining seconds, one update/sec.
+    Any keypress (Ctrl+C) exits early.
+    """
+    total = seconds
+    for remaining in range(total, 0, -1):
+        frac = (total - remaining) / total
+        width = 40
+        filled = int(frac * width)
+        bar = "█" * filled + "░" * (width - filled)
+        mm, ss = divmod(remaining, 60)
+        with _LIVE_LINE_LOCK:
+            sys.stdout.write(
+                f"\r  {DIM}next cycle in {R}{RED}{mm:02d}:{ss:02d}{R}  "
+                f"{RED}{bar}{R}   ")
+            sys.stdout.flush()
+        time.sleep(1)
+    with _LIVE_LINE_LOCK:
+        sys.stdout.write("\r" + " " * 80 + "\r")
+        sys.stdout.flush()
+
+class Spinner:
+    """Braille spinner that flips to ✓ briefly on score change, then resumes."""
+    def __init__(self):
+        self.frame = 0
+        self.flash = False
+
+    def track(self):
+        if self.flash:
+            return CHK + "✓" + R
+        self.frame = (self.frame + 1) % len(SPIN_FRAMES)
+        return SPIN_FRAMES[self.frame]
+
+    def flash_check(self):
+        self.flash = True
+
+    def resume(self):
+        self.flash = False
+
+#+--|-------------------------------------------->>>
+#+--| state
+#+--|-------------------------------------------->>>
+#+--| state ───
+#+--|-------------------------------------------->>>
+STATE = {
+    "turtle": "Donatello",
+    "chapter": "CH2 — Hippocampus",
+    "role": "espn NFL grip → Mirofish feed",
+    "status": "ALIVE",
+    "interval": INTERVAL,
+    "track": 0,
+    "last_fetch": None,
+    "last_count": 0,
+    "last_source": "espn",
+}
+
+previous_scores = {}
+game_spinners   = {}
+prime_fired     = {}   # key -> last edge we notified for (dedupe bet signals)
+last_node_sig   = {}   # key -> "old→new" sig (dedupe node appends)
+CYCLE_STATS     = {    # per-cycle counters, reset in cycle()
+    "changes": 0, "notify": 0, "voice": 0, "nodes": 0, "odds": 0, "signals": 0
+}
+
+#+--|-------------------------------------------->>>
+#+--| LOG ───
+#+--|-------------------------------------------->>>
+def log(line):
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(f"[{ts}] {line}\n")
+    except Exception:
+        pass
+
+#+--|-------------------------------------------->>>
+#+--| STATE writer ───
+#+--|-------------------------------------------->>>
+
+def write_state():
+    # reformat last_fetch into your preferred style: 6:15pm, Oct 8 2026
+    lf = STATE.get("last_fetch")
+    if lf:
+        try:
+            dt = datetime.fromisoformat(lf)
+            h = dt.hour % 12 or 12
+            ampm = "am" if dt.hour < 12 else "pm"
+            lf_pretty = f"{h}:{dt.strftime('%M')}{ampm}, {dt.strftime('%b')} {dt.day} {dt.year}"
+        except Exception:
+            lf_pretty = lf
+    else:
+        lf_pretty = "—"
+
+    lines = []
+    lines.append(f"track: {STATE['track']}")
+    lines.append(f"last_fetch: {lf_pretty}")
+    lines.append(f"last_count: {STATE['last_count']}")
+    lines.append("previous_scores:")
+    lines.append("─" * 50)
+    for k, v in previous_scores.items():
+        lines.append(f"  {k} = {v}")
+        lines.append("─" * 50)
+    FINALS_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+#+--|-------------------------------------------->>>
+#+--| chapter 6 : vultures swarm 4 brothers - speak 
+#+--|-------------------------------------------->>>
+
+# ─── SPEAK (macOS native `say` — offline, no flags to break) ───
+# voice lock — one say at a time, no overlap
+_VOICE_LOCK = threading.Lock()
+
+def speak_score_change(away, home, old_score, new_score):
+    text = f"Score change detected. {away} at {home}. {old_score} to {new_score}."
+    try:
+        with _VOICE_LOCK:                      # only one say runs at a time
+            subprocess.run(
+                ["say", "-v", DONATELLO_VOICE, text],
+                check=True, timeout=20         # bumped from 15 → 20
+            )
+        print(f"  {RED}🦄 Donatello voice dropped: say -v {DONATELLO_VOICE}{R}")
+        CYCLE_STATS["voice"] += 1
+        log(f"VOICE {away}@{home} {old_score}→{new_score}")
+    except FileNotFoundError:
+        print(f"  {ORG}⚠️  say not found (macOS only){R}")
+    except subprocess.TimeoutExpired:
+        print(f"  {ORG}⚠️  say timeout — voice queue stuck{R}")
+    except Exception as e:
+        print(f"  {ORG}⚠️  speak failed: {e}{R}")
+
+#+--|-------------------------------------------->>>
+#+--| chapter 5 : voice car penguin car Alfred sir  - notifications
+#+--|-------------------------------------------->>>
+#+--|
+# ─── MAC NOTIFICATION (hardened + glue) ───
+def notify(title, message, subtitle=""):
+    """Fire macOS notification. Print confirmation. Bell fallback on failure."""
+    try:
+        script = (f'display notification "{message}" '
+                  f'with title "{title}" subtitle "{subtitle}" sound name "Ping"')
+        r = subprocess.run(['osascript', '-e', script],
+                           capture_output=True, text=True, timeout=5)
+        if r.returncode != 0:
+            log(f"[NOTIFY-FAIL] osascript rc={r.returncode} err={r.stderr.strip()}")
+            print(f"  {RED}🦄 NOTIFY FAILED (rc={r.returncode}){R}")
+            print("\a", end="", flush=True)
+        else:
+            print(f"  {CHK}🦄 NOTIFY: {title} — {message}{R}")
+            CYCLE_STATS["notify"] += 1
+            log(f"[NOTIFY] {title} :: {message} :: {subtitle}")
+    except Exception as e:
+        log(f"[NOTIFY-EXC] {e}")
+        print(f"  {RED}🦄 NOTIFY EXC: {e}{R}")
+        print("\a", end="", flush=True)
+#+--|-------------------------------------------->>>
+#+--| chapter 4 : zeta Lola add-on grip_espn() 
+#+--|-------------------------------------------->>>
+#+--|
+# ─── GRIP ───
+def grip_espn():
+    try:
+        cmd = [
+            CHROME,
+            "--headless=new",
+            "--disable-gpu",
+            "--no-sandbox",
+            "--run-all-compositor-stages-before-draw",
+            "--virtual-time-budget=20000",
+            "--dump-dom",
+            "https://www.espn.com/nfl/odds",
+        ]
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        return r.stdout or ""
+    except Exception as e:
+        print(f"  {RED}chrome fail: {e}{R}")
+        return ""
+#+--|-------------------------------------------->>>
+#+--| chapter 4.1 : zeta Lola add-on as much functions here in your def  
+#+--| write_game_odds() as a txt and json and print html raw
+#+--|-------------------------------------------->>>
+#+--|
+def write_game_odds(games):
+    """
+    Write edge data to edge-projection.txt AND game_odds.json, and print the txt.
+    """
+    import json as _json
+
+    rows = []
+    for g in games:
+        rows.append({
+            "away":        g["away"],
+            "home":        g["home"],
+            "away_score":  g.get("away_score", "0"),
+            "home_score":  g.get("home_score", "0"),
+            "edge":        g.get("edge", 0),
+            "key_number":  g.get("key_number"),
+            "animal":      g.get("animal", ""),
+            "win_loss":    g.get("win_loss", 0),
+            "spring":      g.get("spring", 0.0),
+            "predicted":   g.get("predicted", 0.0),
+            "prime":       g.get("prime", False),
+        })
+
+    # ── txt ──
+    lines = [f"# game_odds · {datetime.now().isoformat()}"]
+    for r in rows:
+        lines.append(
+            f"{r['away']} @ {r['home']} | "
+            f"{r['away_score']}-{r['home_score']} | "
+            f"edge +{r['edge']} | "
+            f"kn {r['key_number'] if r['key_number'] is not None else '—'} | "
+            f"{r['animal']} | "
+            f"diff {r['win_loss']:+d} | "
+            f"spring {r['spring']} | "
+            f"proj {r['predicted']}"
+            + (" | ★ PRIME" if r["prime"] else "")
+        )
+    GAME_ODDS_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    # ── json ──
+    payload = {
+        "source":      "donatello-edge",
+        "fetched_at":  datetime.now().isoformat(),
+        "total_games": len(rows),
+        "games":       rows,
+    }
+    GAME_ODDS_JSON_FILE.write_text(
+        _json.dumps(payload, indent=2), encoding="utf-8"
+    )
+
+    # ── print it so you can see it ──
+    print(f"\n  {RED}══ edge-projection.txt ══{R}")
+    for ln in lines:
+        print(f"  {DIM}{ln}{R}")
+    print()
+#+--|-------------------------------------------->>>
+#+--| paste these two functions: grip_betting_article and divid lines of the 
+#+--| articles grip_betting_articl()
+#+--|-------------------------------------------->>>
+#+--|
+def grip_betting_article(week, quiet=True):
+    """
+    Grip the ESPN NFL Week N betting article.
+    Print from 'Note: Odds by' down to first 'Terms of Use',
+    with a divider before each game's card.
+    """
+    url = ESPN_BETTING_URL.format(week=week)
+    try:
+        cmd = [CHROME, "--headless=new", "--disable-gpu", "--no-sandbox",
+               "--virtual-time-budget=8000",
+               "--run-all-compositor-stages-before-draw",
+               "--dump-dom", url]
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=80)
+        html = r.stdout or ""
+
+        tokens = html_to_tokens(html)
+
+        (DATA_DIR / "espn-betting-article.txt").write_text(
+            "\n".join(tokens), encoding="utf-8"
+        )
+
+        # slice body
+        start_idx = 0
+        for i, ln in enumerate(tokens):
+            if "note: odds by" in (ln or "").lower():
+                start_idx = i
+                break
+
+        end_idx = len(tokens)
+        for i in range(start_idx, len(tokens)):
+            if (tokens[i] or "").strip().lower() == "terms of use":
+                end_idx = i
+                break
+
+        body = tokens[start_idx:end_idx]
+
+        vs_re = re.compile(r'^[+-]\d+(?:\.\d+)?\s+vs\.$')
+        vs_only_re = re.compile(r'^vs\.$')
+        team_re = re.compile(r'^[A-Z][a-zA-Z0-9 .\'\-]+$')
+
+        for i, ln in enumerate(body):
+            is_start = False
+            # shape 1: <Away> / <+spread> vs. / <Home>
+            if (i + 2 < len(body)
+                    and vs_re.match(body[i + 1] or "")
+                    and team_re.match(body[i] or "")
+                    and team_re.match(body[i + 2] or "")):
+                is_start = True
+            # shape 2: <Away> / vs. / <Home> / <+spread>
+            elif (i + 3 < len(body)
+                    and vs_only_re.match(body[i + 1] or "")
+                    and team_re.match(body[i] or "")
+                    and team_re.match(body[i + 2] or "")
+                    and re.match(r'^[+-]\d+(?:\.\d+)?$', body[i + 3] or "")):
+                is_start = True
+
+            if is_start:
+                print(f"{RED}{'─' * 70}{R}")
+            print(ln)
+
+        print(f"{RED}{'═' * 70}{R}")
+        return tokens
+    except Exception as e:
+        print(f"  {RED}ᛉ betting article fail wk{week}: {e}{R}")
+        return []
+#+--|-------------------------------------------->>>
+#+--| paste these two functions: parse_betting_article - 
+#+--| parse_betting_article()
+#+--|-------------------------------------------->>>
+#+--|
+def parse_betting_article(tokens, week):
+    """
+    Placeholder until the real parser lands. Returns empty dict
+    so cycle() continues past the odds block and reaches render_games.
+    """
+    return {}
+    """
+    Walk the betting-article token stream and pull one odds dict per game.
+    Keyed "AwayFull@HomeFull".
+    """
+    out = {}
+    if not tokens:
+        return out
+
+    NICK_TO_FULL = {}
+    for nick, full in NFL_TEAMS.items():
+        NICK_TO_FULL[nick] = full
+        NICK_TO_FULL[full.split()[-1]] = full
+
+    def resolve(name):
+        name = (name or "").strip()
+        if name in NICK_TO_FULL:
+            return NICK_TO_FULL[name]
+        last = name.split()[-1] if name else ""
+        return NICK_TO_FULL.get(last, name)
+
+    i = 0
+    n = len(tokens)
+    while i < n:
+        line = tokens[i]
+        m = _BET_HEADER_RE.match(line)
+        if not m:
+            i += 1
+            continue
+
+        if m.group(1):
+            away_raw, away_spr, home_raw = m.group(1), float(m.group(2)), m.group(3)
+            home_spr = -away_spr
+        else:
+            away_raw, home_raw, home_spr = m.group(4), m.group(5), float(m.group(6))
+            away_spr = -home_spr
+
+        away = resolve(away_raw)
+        home = resolve(home_raw)
+        key  = f"{away}@{home}"
+
+        a_ml = h_ml = total = None
+        j = i + 1
+        while j < n and j - i < 14:
+            t = tokens[j]
+            mm = _ML_RE.search(t)
+            if mm:
+                ml_a_name, ml_a_val, ml_b_name, ml_b_val = mm.groups()
+                if resolve(ml_a_name) == away:
+                    a_ml, h_ml = int(ml_a_val), int(ml_b_val)
+                else:
+                    a_ml, h_ml = int(ml_b_val), int(ml_a_val)
+            mt = _TOT_RE.search(t)
+            if mt:
+                total = float(mt.group(1))
+            if a_ml is not None and total is not None:
+                break
+            j += 1
+
+        out[key] = {
+            "away": away, "home": home,
+            "away_spread": away_spr, "home_spread": home_spr,
+            "total": total,
+            "away_ml": a_ml, "home_ml": h_ml,
+        }
+        i = j
+        continue
+
+    return out
+
+#+--|-------------------------------------------->>>
+#+--| add-on function 1 as much functions here in 
+#+--| your def Darwin chapter 3 grip_pinned_game()
+#+--|-------------------------------------------->>>
+#+--|
+def grip_pinned_game(url, quiet=True):
+    """
+    Grip a single ESPN game URL and dump its DOM tokens to nfl-pinned.json.
+    Doesn't parse anything yet — dumps the tokens so we can find the WP
+    value in the DOM and build the real extractor.
+    """
+    if not url:
+        return None
+    try:
+        cmd = [CHROME, "--headless=new", "--disable-gpu", "--no-sandbox",
+               "--dump-dom", url]
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+        html = r.stdout or ""
+
+
+        # save raw for debugging
+        (DATA_DIR / "espn-odds-raw.html").write_text(html, encoding="utf-8")        
+        tokens = [html]
+
+        payload = {
+            "source": "espn-pinned",
+            "url": url,
+            "fetched_at": datetime.now().isoformat(),
+            "rendered_bytes": len(html),
+            "total_tokens": len(tokens),
+            "tokens": tokens,   # full list — we grep this to find WP
+        }
+        with open(PINNED_FILE, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2)
+
+        # also scan for anything that looks like a WP value right now
+        wp_hits = []
+        for i, t in enumerate(tokens):
+            if re.match(r'^\d{1,3}\.\d$', t):        # e.g. "73.1"
+                wp_hits.append((i, t, tokens[i-1] if i > 0 else ""))
+        if not quiet:
+            print(f"  {RED}📌 PINNED: {len(tokens)} tokens → nfl-pinned.json{R}")
+            if wp_hits:
+                print(f"  {RED}📌 possible WP values (idx, val, prev):{R}")
+                for idx, val, prev in wp_hits[:6]:
+                    print(f"      [{idx}] {val}  ← prev: {prev!r}")
+        return tokens
+    except Exception as e:
+        print(f"  {RED}📌 pinned fail: {e}{R}")
+        return None
+
+#+--|-------------------------------------------->>>
+#+--| add-on function 1.b as much functions  ✓ works for timeline and graph triggers good to connect✓
+#+--| here in your def Darwin chapter 3 grip_pbp_game() ✓
+#+--|-------------------------------------------->>>
+#+--|
+
+def grip_pbp_game(url, quiet=True):
+    """
+    Grip a single ESPN play-by-play URL and dump tokens to nfl-playbyplay.json.
+    Parallel to grip_pinned_game() but for the /playbyplay/_/gameId/ page.
+    """
+    if not url:
+        return None
+    try:
+        cmd = [CHROME, "--headless=new", "--disable-gpu", "--no-sandbox",
+               "--dump-dom", url]
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+        html = r.stdout or ""
+
+        text = re.sub(r'<script[^>]*>.*?</script>', ' ', html, flags=re.DOTALL)
+        text = re.sub(r'<style[^>]*>.*?</style>', ' ', text, flags=re.DOTALL)
+        text = re.sub(r'<[^>]+>', '\n', text)
+        tokens = [t.strip() for t in text.split('\n') if t.strip()]
+
+        payload = {
+            "source": "espn-playbyplay",
+            "url": url,
+            "fetched_at": datetime.now().isoformat(),
+            "rendered_bytes": len(html),
+            "total_tokens": len(tokens),
+            "tokens": tokens,
+        }
+        with open(PINNED_PBP_FILE, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2)
+        # also write a per-gameId copy
+        m = re.search(r'/gameId/(\d+)', url)
+        if m:
+            per_game = DATA_DIR / f"nfl-playbyplay-{m.group(1)}.json"
+            with open(per_game, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2)
+
+        if not quiet:
+            print(f"  {RED}🎬 PBP: {len(tokens)} tokens → nfl-playbyplay.json{R}")
+        return tokens
+    except Exception as e:
+        print(f"  {RED}🎬 pbp grip fail: {e}{R}")
+        return None
+#+--|-------------------------------------------->>>
+#+--| add-on function 2 as much functions here in your def Darwin chapter 3 #+--| parse_pinned_wp ()
+#+--|-------------------------------------------->>>
+#+--|
+
+def parse_pinned_wp(tokens):
+    """
+    Extract team WP percentages from ESPN's live Win Probability panel.
+    Renders (flattened) as one of:
+        "Probabilities Win Probability Cover Probability ATL 88.7% ..."
+        "Probabilities", "Win Probability", "Cover Probability", "ATL", "88.7%", ...
+        "Probabilities", "ATL 88.7%", ...
+    Returns {"ABBR": pct, ...} or {} if not found.
+    """
+    if not tokens:
+        return {}
+
+    # find the anchor — match the actual panel title on ESPN
+    anchor = None
+    for i, t in enumerate(tokens):
+        tl = (t or "").lower()
+        if tl.startswith("probabilities") or tl == "matchup predictor":
+            anchor = i
+            break
+    if anchor is None:
+        return {}
+
+    out = {}
+    n = len(tokens)
+    # walk forward, look for "<ABBR> <float>%" on one token OR split
+    i = anchor
+    while i < n and i < anchor + 40:
+        t = tokens[i] or ""
+
+        # stop if we've clearly left the panel
+        if i > anchor + 1 and ("Game Odds" in t or "Odds by" in t):
+            break
+
+        # case 1: "ATL 88.7%" — abbr + space + pct + % glued into one token
+        m = re.search(r'\b([A-Z]{2,4})\s+(\d{1,3}(?:\.\d+)?)\s*%', t)
+        if m:
+            out.setdefault(m.group(1), float(m.group(2)))
+            i += 1
+            continue
+
+        # case 2: two tokens — "ATL" then "88.7%"
+        if re.fullmatch(r'[A-Z]{2,4}', t):
+            for j in range(i + 1, min(i + 3, n)):
+                m2 = re.fullmatch(r'(\d{1,3}(?:\.\d+)?)\s*%', tokens[j] or "")
+                if m2:
+                    out.setdefault(t, float(m2.group(1)))
+                    break
+            i += 1
+            continue
+
+        i += 1
+
+    return out
+
+
+#+--|-------------------------------------------->>>
+#+--| add-on function 3 as much functions here 
+#+--| in your def Darwin chapter 3 def parse_games()
+#+--|-------------------------------------------->>>
+#+--|
+# ─── PARSE ESPN SCOREBOARD ───
+# ─── PARSE ESPN SCOREBOARD TOKENS ───
+def parse_games(html):
+    """
+    Walk ESPN scoreboard tokens.
+
+    Finished / live games look like:
+        1  2  3  4  T
+        AwayNick ( W-L [Away] ) aQ1 aQ2 aQ3 aQ4 aT
+        HomeNick ( W-L [Home] ) hQ1 hQ2 hQ3 hQ4 hT
+
+    Scheduled games look like:
+        AwayNick ( W-L x-y Away )
+        HomeNick ( W-L x-y Home )
+    """
+    if not html:
+        return []
+
+    # accept either raw html or an already-flattened token list
+    if isinstance(html, list):
+        tokens = html
+    else:
+        text = re.sub(r'<script[^>]*>.*?</script>', ' ', html, flags=re.DOTALL)
+        text = re.sub(r'<style[^>]*>.*?</style>', ' ', text, flags=re.DOTALL)
+        text = re.sub(r'<[^>]+>', '\n', text)
+        tokens = [t.strip() for t in text.split('\n') if t.strip()]
+
+    NICK_TO_FULL = {nick: full for nick, full in NFL_TEAMS.items()}
+    # also allow "Washington" style city-only keys
+    for nick, full in NFL_TEAMS.items():
+        NICK_TO_FULL[full] = full
+        NICK_TO_FULL[full.split()[-1]] = full
+
+    def nick(t):
+        return NICK_TO_FULL.get(t)
+
+    def is_int(t):
+        return t.isdigit() and len(t) <= 3
+
+    games = []
+    seen  = set()
+
+    i = 0
+    n = len(tokens)
+    while i < n:
+        # ── FINISHED / LIVE: anchor on 1 2 3 4 T ──
+        if (i + 4 < n and tokens[i] == "1" and tokens[i+1] == "2"
+                and tokens[i+2] == "3" and tokens[i+3] == "4"
+                and tokens[i+4] == "T"):
+            j = i + 5
+            # skip any junk until first team nick
+            away = home = None
+            while j < n and away is None:
+                away = nick(tokens[j])
+                if away is None:
+                    j += 1
+            if away is None:
+                i += 5
+                continue
+
+            # walk through record fields to the 5 away quarter numbers
+            away_q = []
+            k = j
+            while k < n and len(away_q) < 5:
+                if is_int(tokens[k]):
+                    away_q.append(int(tokens[k]))
+                k += 1
+                if k - j > 20:
+                    break
+            if len(away_q) < 5:
+                i += 5
+                continue
+
+            # next team = home
+            while k < n and home is None:
+                home = nick(tokens[k])
+                if home is None:
+                    k += 1
+            if home is None:
+                i += 5
+                continue
+
+            home_q = []
+            while k < n and len(home_q) < 5:
+                if is_int(tokens[k]):
+                    home_q.append(int(tokens[k]))
+                k += 1
+                if k - j > 40:
+                    break
+            if len(home_q) < 5:
+                i += 5
+                continue
+
+            away_score = str(away_q[4])
+            home_score = str(home_q[4])
+
+            key = f"{away}@{home}"
+            if key not in seen:
+                seen.add(key)
+                games.append({
+                    "away": away, "home": home,
+                    "away_score": away_score,
+                    "home_score": home_score,
+                    "status": "Final",
+                    "week": None,
+                    "line": None, "total": None,
+                    "away_odds": None, "home_odds": None,
+                    "away_qb": "TBD", "home_qb": "TBD",
+                    "q_breakdown": {
+                        "away": away_q,
+                        "home": home_q,
+                    },
+                })
+            i = k
+            continue
+
+
+
+        # ── SCHEDULED: two nicknames, each followed by ( ... Away|Home ) ──
+        a = nick(tokens[i])
+        if a and i + 1 < n and tokens[i+1] == "(":
+            # scan ahead a few tokens for Away or Home tag
+            tag = None
+            j = i + 1
+            while j < n and j - i < 10:
+                if tokens[j] in ("Away", "Home"):
+                    tag = tokens[j]
+                    break
+                j += 1
+            if tag == "Away":
+                # find the matching Home a bit later
+                home = None
+                h = j
+                while h < n and h - i < 30:
+                    hh = nick(tokens[h])
+                    if hh and tokens[h+1:h+2] == ["("]:
+                        # verify Home tag follows within a few tokens
+                        for z in range(h+1, min(h+8, n)):
+                            if tokens[z] == "Home":
+                                home = hh
+                                break
+                    if home:
+                        break
+                    h += 1
+                if home:
+                    key = f"{a}@{home}"
+                    if key not in seen:
+                        seen.add(key)
+                        games.append({
+                            "away": a, "home": home,
+                            "away_score": "0", "home_score": "0",
+                            "status": "Scheduled",
+                            "week": None,
+                            "line": None, "total": None,
+                            "away_odds": None, "home_odds": None,
+                            "away_qb": "TBD", "home_qb": "TBD",
+                        })
+                    i = h
+                    continue
+        i += 1
+
+    return games
+
+
+#+--|-------------------------------------------->>>
+#+--| add-on function 4 — parse_pinned_score()
+#+--| reads the Q1 Q2 Q3 Q4 [OT] T header row
+#+--|-------------------------------------------->>>
+
+def parse_pinned_score(tokens, away, home, scoreboard=None, overtime=False):
+    """
+    Pull the live score + clock + quarter from a pinned ESPN game-page token dump.
+    Returns {"away_score": int, "home_score": int, "status": str,
+             "q_breakdown": {"away": [...], "home": [...]}} or {} if not found.
+    """
+    if not tokens:
+        return {}
+
+    n = len(tokens)
+
+    # ── find the header row: 1 2 3 4 [OT] T ──
+    hdr = None
+    i = 0
+    while i < n - 4:
+        if (tokens[i] == "1" and tokens[i+1] == "2"
+                and tokens[i+2] == "3" and tokens[i+3] == "4"):
+            k = i + 4
+            while k < n and not tokens[k]:
+                k += 1
+            if k < n and tokens[k] == "OT":
+                hdr = {"start": i, "ot": True, "cols": 6}
+            elif k < n and tokens[k] == "T":
+                hdr = {"start": i, "ot": False, "cols": 5}
+            if hdr:
+                break
+        i += 1
+
+    if hdr is None:
+        return {}
+
+    # ── how many ints to collect per team ──
+    # ESPN emits per team:  Q1 Q2 Q3 Q4  T          (header "1 2 3 4 T")
+    #                       Q1 Q2 Q3 Q4 OT T        (header "1 2 3 4 OT T")
+    # so we always grab one cell MORE than the number of quarters — that extra
+    # cell is the T column and must NOT be summed.
+    per_team = 6 if hdr["ot"] else 5
+    total_needed = per_team * 2
+
+    j = hdr["start"] + hdr["cols"]
+    nums = []
+    while j < n and len(nums) < total_needed:
+        t = tokens[j]
+        if t.isdigit() and len(t) <= 3:
+            nums.append(int(t))
+        j += 1
+        if j - hdr["start"] > 80:
+            break
+
+    if len(nums) < total_needed:
+        return {}
+
+    away_cells = nums[0:per_team]         # Q1 Q2 Q3 Q4 [OT] T
+    home_cells = nums[per_team:per_team*2]
+
+    # quarters = every cell except the last (the T column)
+    away_q = away_cells[:-1]
+    home_q = home_cells[:-1]
+
+    # ── always return a 5-slot breakdown so downstream code is stable ──
+    away_q = away_q + [0] * (5 - len(away_q))
+    home_q = home_q + [0] * (5 - len(home_q))
+
+    away_total = sum(away_q)
+    home_total = sum(home_q)
+
+    # ── clock + quarter (live games) ──
+    status = ""
+    for k, t in enumerate(tokens):
+        m = re.match(r'^(\d{1,2}:\d{2})$', t)
+        if m:
+            for q in range(k + 1, min(k + 5, n)):
+                qm = re.match(r'^(1st|2nd|3rd|4th|OT)$', tokens[q])
+                if qm:
+                    status = f"{qm.group(1)} {m.group(1)}"
+                    break
+            if status:
+                break
+
+    if not status:
+        for t in tokens:
+            if t == "Final":
+                status = "Final"
+                break
+
+    return {
+        "away_score":  away_total,
+        "home_score":  home_total,
+        "status":      status or "Live",
+        "q_breakdown": {"away": away_q, "home": home_q},
+    }
+#+--|-------------------------------------------->>>
+#+--| add-on function 4 as 
+#+--| much functions here in compute_edge()
+#+--|-------------------------------------------->>>
+#+--|
+import math
+
+def compute_edges(games):
+    for g in games:
+        try:
+            a = int(g["away_score"]); h = int(g["home_score"])
+        except (ValueError, KeyError, TypeError):
+            g.update({"win_loss": 0, "spring": 0.0, "predicted": 22.5,
+                      "edge": 0.0, "animal": "DRAGON", "animal_abbr": "DRG",
+                      "animal_tier": 4, "prime": False, "key_number": None})
+            continue
+
+        # 1. WIN / LOSS
+        diff = h - a
+
+        # 2. SPRING (Mx¨(t) + fvx˙(t) + Kx(t) = f(t))
+        spring = diff * 0.4 + (h + a) * 0.05
+
+        # 3. PREDICTION (85th % Percentile of L10)
+        predicted = round(22.5 + diff * 0.6, 1)
+
+        # 4. PROBABILITY (Z = (Odd Line - Spring) / 4)
+        odd_line = g.get("home_spread")
+        
+        if odd_line is None:
+            # If no line, edge is 0.0 (no false signals)
+            edge = 0.0
+        else:
+            # Z-Score
+            z = (odd_line - spring) / 4.0
+            
+            # Φ(Z) - Standard Normal CDF
+            phi_z = 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
+            
+            # Edge = Φ(Z) * 100 (Convert to percentage)
+            edge = round(phi_z * 100, 1)
+
+        # 5. KEY NUMBERS (from your JSON: [3, 7, 10, 14])
+        key_numbers = [3, 7, 10, 14]
+        absdiff = abs(diff)
+        nearest = min(key_numbers, key=lambda k: abs(absdiff - k))
+        distance = abs(absdiff - nearest)
+
+        # 6. ANIMAL (winProb = 0.50 + (margin * 0.20))
+        win_prob = 0.50 + (absdiff * 0.20)
+        win_prob_pct = min(99.0, win_prob * 100)
+
+        animal = "DRAGON"
+        animal_abbr = "DRG"
+        animal_tier = 4
+        for lo, hi, abbr, name, tier in ANIMAL_BANDS:
+            if lo <= win_prob_pct < hi:
+                animal      = name
+                animal_abbr = abbr
+                animal_tier = tier
+                break
+
+        g["win_loss"]    = diff
+        g["spring"]      = round(spring, 2)
+        g["predicted"]   = predicted
+        g["edge"]        = edge
+        g["key_number"]  = nearest if distance <= 0.5 else None
+        g["animal"]      = animal
+        g["animal_abbr"] = animal_abbr
+        g["animal_tier"] = animal_tier
+        g["prime"]       = (edge >= 70.0 and animal in
+                            ("SCORPION", "EAGLE", "VULTURE", "CROW", "LYNX"))
+#+--|-------------------------------------------->>>
+#+--| add-on function 5 as much functions 
+#+--| here in your def Darwin chapter 3 check_bet_signal() all games are prime not one game
+#+--|-------------------------------------------->>>
+#+--|
+def check_bet_signals(games):
+    for g in games:
+        key  = f"{g['away']}@{g['home']}"
+        edge = g.get("edge", 0)
+        status = g.get("status", "")
+
+        # Print every game to terminal
+        print(f"  {RED}ᛉ POST MORTEM BULLETS MEMORY: {key}  edge +{edge}  "
+              f"{g.get('animal','')}  proj {g.get('predicted',0)}  "
+              f"{status}{R}")
+
+        # ONLY notify if Edge is high AND game is live (not Scheduled/Final)
+        is_live = "Final" not in status and "Scheduled" not in status
+        if edge >= 60.0 and is_live:
+            if prime_fired.get(key) == edge:
+                continue
+            prime_fired[key] = edge
+
+            notify(
+                "🦄 TOP BULLET",
+                f"{g['away']} @ {g['home']}",
+                f"edge {edge}% · {g.get('animal','')}"
+            )
+            CYCLE_STATS["signals"] += 1
+            log(f"BET SIGNAL {key} edge {edge} {g.get('animal','')}")
+#+--|-------------------------------------------->>>
+#+--| add-on function 6 as much functions here scores connected to dashboard header this is good ✓
+#+--| in your def Darwin chapter 3 - write_scores() ✓ json is good to go to dashboard for header
+#+--|-------------------------------------------->>>
+#+--|
+
+# ─── WRITE MIROFISH SCORES ─── ✓
+def write_scores(games):
+    payload = {
+        "fetched_at": datetime.now().isoformat(),
+        "total": len(games),
+        "games": [
+            {
+                "away": g["away"],
+                "home": g["home"],
+                "away_score": g.get("away_score", "0"),
+                "home_score": g.get("home_score", "0"),
+                "status": g.get("status", ""),
+                "edge": g.get("edge", 0),
+                "animal": g.get("animal", ""),
+                "wp_away": g.get("wp_away"),
+                "wp_home": g.get("wp_home"),
+                "game_id": g.get("game_id"),
+                "is_live": g.get("is_live", False),
+            }
+            for g in games
+        ],
+    }
+    SCORES_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    print(f"  {CHK}✓ wrote {len(games)} games → nfl-scores.json{R}")
+    print(f"{RED}{'═' * 70}{R}")
+#+--|-------------------------------------------->>>
+#+--| add-on function 7 as much functions
+#+--| in your def Darwin chapter 3 - write_odds()
+#+--|-------------------------------------------->>>
+#+--|
+
+def write_odds(games):
+    # only write if games actually have odds fields populated
+    enriched = [g for g in games
+                if g.get("away_spread") is not None or g.get("total") is not None]
+    if not enriched:
+        return
+    payload = {
+        "source":     "https://www.espn.com/nfl/odds",
+        "total":      len(enriched),
+        "games":      enriched,
+        "fetched_at": datetime.now().strftime("%Y-%m-%d %I:%M %p"),
+    }
+    ODDS_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    print(f"  {RED}ᛉ ODDS → nfl-odds.json{R}")
+
+#+--|-------------------------------------------->>>
+#+--| add-on function 8 as much 
+#+--| in your def Darwin chapter 3 - append_nodes()
+#+--|-------------------------------------------->>>
+#+--|
+# ─── APPEND NODE (append-only + dedupe) ───
+def append_node(change, game):
+    key = f"{change['away']}@{change['home']}"
+    sig = f"{change['old']}→{change['new']}"
+    if last_node_sig.get(key) == sig:
+        return
+    last_node_sig[key] = sig
+    line = (f"{datetime.now().isoformat()} | {key} | "
+            f"{change['old']}→{change['new']} | "
+            f"{game.get('status','')} | edge+{game.get('edge',0)} {game.get('animal','')}")
+    with open(NODES_FILE, "a", encoding="utf-8") as f:
+        f.write(line + "\n")
+    print(f"  {ORG}🦄 NODE: {line}{R}")
+#+--|-------------------------------------------->>>
+#+--| add-on function 9 as much functions 
+#+--| in your def Darwin chapter 3 - write_timeline()
+#+--|-------------------------------------------->>>
+#+--|
+
+# ─── WRITE TIMELINE (per-cycle WP + score sample) ───
+TIMELINE_FILE = DATA_DIR / "nfl-timeline.json"
+def write_timeline(games):
+    with open(TIMELINE_FILE, "a", encoding="utf-8") as f:
+        ts = datetime.now().strftime("%H:%M:%S")
+        for g in games:
+            wp_a = g.get("wp_away")
+            wp_h = g.get("wp_home")
+
+            # fallback: derive from live_wp (set in compute_edges)
+            if wp_a is None or wp_h is None:
+                live = g.get("live_wp")
+                if live is None:
+                    # last resort — from score diff
+                    try:
+                        a = int(g["away_score"]); h = int(g["home_score"])
+                        live = min(95.0, max(5.0, 50 + (h - a) * 2.0))
+                    except (ValueError, KeyError, TypeError):
+                        live = 50.0
+                wp_h = round(live, 1)
+                wp_a = round(100 - live, 1)
+
+            f.write(f"{ts} | {g['away']}@{g['home']} | "
+                    f"{g.get('away_score','0')}-{g.get('home_score','0')} | "
+                    f"wp {wp_a}/{wp_h}\n")
+    print(f"  {RED}🦄 TIMELINE → edge-projection.txt{R}")
+
+
+#+--|-------------------------------------------->>>
+#+--| add-on function 10 as much 
+#+--| in your def Darwin chapter 3 - _read_timeline_for()
+#+--|-------------------------------------------->>>
+#+--| in your def Darwin chapter 3 - graph the football field()
+#+--|-------------------------------------------->>>
+
+# ─── FIELD GRAPH GLYPHS (render_sparkline) ───
+# The field is 4 quarter columns × 2 lanes (away top, home bottom).
+# Skeleton is +--+--+--+--+ per lane, mid divider matches with + tracks.
+FIELD_AWAY_LABEL = f"{DIM}away {R}"     # left gutter, away lane
+FIELD_HOME_LABEL = f"{DIM}home {R}"     # left gutter, home lane
+FIELD_GUTTER     = f"{DIM}     {R}"     # 5-space blank gutter (mid + labels)
+FIELD_track       = f"{DIM}+{R}"         # quarter boundary track
+FIELD_RAIL       = f"{DIM}-{R}"         # field rail between tracks
+FIELD_MARK_AWAY  = "\033[94m🏉\033[0m"   # away score mark (blue)
+FIELD_MARK_HOME  = "\033[91m🏉\033[0m"   # home score mark (red)
+FIELD_MARK_TIE   = "\033[90m🏉\033[0m"   # tie score mark (grey)
+FIELD_LABEL_Q    = f"{DIM}Q{{n}}{R}"    # quarter label template
+
+def _read_timeline_for(key):
+    """Read the last N samples for a game key from nfl-timeline.json."""
+    try:
+        data = json.loads(TIMELINE_FILE.read_text(encoding="utf-8"))
+        return data.get("games", {}).get(key, [])
+    except Exception:
+        return []
+#+--|-------------------------------------------->>>
+#+--| render_sparkline()
+#+--|-------------------------------------------->>>
+#+--|
+Q_COL = {"Q1": 0, "Q2": 1, "Q3": 2, "Q4": 3}
+
+def render_sparkline(key, game=None, max_dots=24):
+    events = []
+
+    # source 1: live score-change log
+    try:
+        for line in NODES_FILE.read_text(encoding="utf-8").splitlines():
+            parts = [p.strip() for p in line.split("|")]
+            if len(parts) < 4 or parts[1] != key:
+                continue
+            old, _, new = parts[2].partition("→")
+            oa, oh = map(int, old.split("-")); na, nh = map(int, new.split("-"))
+            q = None
+            for qk in ("Q1","Q2","Q3","Q4"):
+                if qk in parts[3]: q = qk; break
+            if q is None and "Final" in parts[3]: q = "Q4"
+            if q is None: continue
+            team = "away" if na > oa else "home" if nh > oh else None
+            if team: events.append({"q": q, "team": team})
+    except Exception:
+        pass
+
+    # source 2: quarter breakdown from the game itself
+    if not events and game:
+        qb = game.get("q_breakdown")
+        if qb and "away" in qb and "home" in qb:
+            for i, qk in enumerate(["Q1","Q2","Q3","Q4"]):
+                if qb["away"][i] > 0: events.append({"q": qk, "team": "away"})
+                if qb["home"][i] > 0: events.append({"q": qk, "team": "home"})
+
+    width = 62
+    col_w = width // 4
+
+    away_row = list(" " * width)
+    home_row = list(" " * width)
+
+    for q_i in range(4):
+        start = q_i * col_w
+        for i in range(col_w):
+            if start + i >= width: break
+            ch = "+" if i == 0 else "-"
+            away_row[start + i] = ch
+            home_row[start + i] = ch
+
+    col_use = {"away": [0, 0, 0, 0], "home": [0, 0, 0, 0]}
+    for ev in events:
+        q_i = Q_COL[ev["q"]]
+        offset = col_use[ev["team"]][q_i]
+        pos = q_i * col_w + 2 + offset * 3
+        if pos < width:
+            mark = FIELD_MARK_AWAY if ev["team"] == "away" else FIELD_MARK_HOME
+            (away_row if ev["team"] == "away" else home_row)[pos] = mark
+        col_use[ev["team"]][q_i] += 1
+
+    mid_chars = list("-" * width)
+    for q_i in range(4):
+        pos = q_i * col_w
+        if pos < width: mid_chars[pos] = "+"
+    mid = "".join(mid_chars)
+
+    q_labels = ""
+    for lbl, start in zip(["[Q1]", "[Q2]", "[Q3]", "[Q4]"],
+                          [i * col_w for i in range(4)]):
+        q_labels += " " * max(0, start - len(q_labels)) + lbl
+
+    return (FIELD_AWAY_LABEL + "".join(away_row) + "\n" +
+            FIELD_GUTTER     + mid            + "\n" +
+            FIELD_HOME_LABEL + "".join(home_row) + "\n" +
+            FIELD_GUTTER     + q_labels)
+
+#+--|-------------------------------------------->>>
+#+--| render_field_description()
+#+--|-------------------------------------------->>>
+#+--|
+
+def render_field_description(key):
+    state = {}
+    try:
+        for line in PINNED_FILE.read_text(encoding="utf-8").splitlines():
+            if line.startswith("state."):
+                k, _, v = line.partition(":")
+                state[k.replace("state.", "").strip()] = v.strip() or None
+    except Exception:
+        pass
+    if not state:
+        return ""
+
+    parts = []
+
+    dd   = state.get("down_distance")
+    spot = state.get("ball_on")
+    if dd and spot:
+        parts.append(f"{dd} at {spot}")
+    elif dd:
+        parts.append(dd)
+
+    if state.get("clock") and state.get("quarter"):
+        parts.append(f"{state['clock']} {state['quarter']}")
+
+    play = state.get("last_play")
+    if play:
+        if len(play) > 70:
+            play = play[:69] + "…"
+        parts.append(play)
+
+    if not parts:
+        return ""
+
+    body = " · ".join(parts)
+    return f"{ORG}✓ 🎤︎︎{R} {DIM}{body}{R}"
+
+#+--|-------------------------------------------->>>
+#+--| add-on function 14 dif_and_alert() 
+#+--|-------------------------------------------->>>
+#+--|
+# ─── DIFF + ALERT + FLASH + NODE ───
+def diff_and_alert(games):
+    global previous_scores
+
+    for g in games:
+        key   = f"{g['away']}@{g['home']}"
+        score = f"{g['away_score']}-{g['home_score']}"
+
+        if key not in game_spinners:
+            game_spinners[key] = Spinner()
+
+        if key in previous_scores and previous_scores[key] != score:
+            old_score = previous_scores[key]
+            sp = game_spinners[key]
+            sp.flash_check()
+
+            change = {"away": g["away"], "home": g["home"],
+                      "old": old_score, "new": score, "key": key}
+
+            print(f"  {ORG}🦄 SCORE CHANGE: {g['away']} @ {g['home']} "
+                  f"{old_score} → {score}{R}")
+            log(f"SCORE CHANGE {key} {old_score} → {score}")
+            CYCLE_STATS["changes"] += 1
+
+            notify(
+                "⚡ SCORE CHANGE",
+                f"{g['away']} {g['away_score']} - {g['home_score']} {g['home']}",
+                f"was {old_score}"
+            )
+
+            threading.Thread(
+                target=speak_score_change,
+                args=(g['away'], g['home'], old_score, score),
+                daemon=True
+            ).start()
+
+            append_node(change, g)
+
+            threading.Timer(4.0, sp.resume).start()
+
+        previous_scores[key] = score
+#+--|-------------------------------------------->>>
+#+--| add-on function 15 as much functions render_games()
+#+--|-------------------------------------------->>>
+#+--|render game is your extension hand now
+#+--|-------------------------------------------->>>
+#+--|
+# ─── RENDER GAME ROW WITH SPINNER ───
+
+def render_games(games):
+    divider = f"{DIM}{'─' * 78}{R}"
+    pinned_keys = {f"{p['away']}@{p['home']}" for p in PINNED_GAMES}
+    for g in games:
+        key = f"{g['away']}@{g['home']}"
+        # ONLY render the pinned game(s). Skip everything else.
+        if key not in pinned_keys:
+            continue
+
+        print(f"  {divider}")
+        status = g.get("status", "")
+        is_final  = "Final" in status
+        is_live   = not is_final and "Scheduled" not in status and "vs" not in status
+        is_pinned = g.get("wp_home") is not None
+        try:
+            a_int = int(g["away_score"]); h_int = int(g["home_score"])
+        except (ValueError, KeyError, TypeError):
+            a_int = h_int = 0
+
+        away_name = g["away"]
+        home_name = g["home"]
+        if is_live:
+            if a_int > h_int:
+                away_name = f"{RED_BOLD}{g['away']}{R}"
+            elif h_int > a_int:
+                home_name = f"{RED_BOLD}{g['home']}{R}"
+
+        edge   = g.get("edge", 0)
+        animal = g.get("animal", "")
+        gid    = g.get("game_id")
+        id_tag = f"{DIM}#{gid}{R} " if gid else ""
+        stat_tag = g.get("status_tag", "") + " "
+        today_tag = f"{RED}ᛉ TODAY {R}" if g.get("is_today") else ""
+        edge_tag = f"{stat_tag}{id_tag}{today_tag}{RED_BOLD}[edge+{edge}]{R} "
+        prime  = "🦄" if g.get("prime") else "  "
+        kn     = g.get("key_number")
+        kntag  = f"🦄{kn}" if kn else "   "
+        wp_away_tag = wp_home_tag = ""
+        if is_pinned:
+            if g.get("wp_away") is not None:
+                wp_away_tag = f" {RED}[{g['wp_away']}%]{R}"
+            if g.get("wp_home") is not None:
+                wp_home_tag = f" {RED}[{g['wp_home']}%]{R}"
+
+        if is_pinned and g.get("away_spread") is not None:
+            ab = g["away"].split()[-1][:3].upper()
+            hb = g["home"].split()[-1][:3].upper()
+            print(f"       {RED}ᛉ{R} {DIM}"
+                  f"{ab} {g['away_spread']:+.1f}  ·  "
+                  f"O/U {g['total']}  ·  "
+                  f"ML {g['away_ml']:+d}/{g['home_ml']:+d}  ·  "
+                  f"{hb} {g['home_spread']:+.1f}{R}")
+
+        def pad(name):
+            visible = re.sub(r'\033\[[0-9;]*m', '', name)
+            return name + ' ' * max(0, 22 - len(visible))
+
+
+        print(f"    {edge_tag} {pad(away_name)} [{g['away_score']}]{wp_away_tag} - "
+
+              f"[{g['home_score']}]{wp_home_tag} {pad(home_name)} "
+              f"{prime} {kntag} {animal}")
+
+
+#+--|--------->
+#+--| render charts graphs probabilties your scores everything is what turns on from here function 
+#+--|turn on turnoff turn on turn on
+#+--| chapter :GLASH CHAPTER FLASH
+#+--|--------->
+#+--|
+
+        key_tl = f"{g['away']}@{g['home']}"
+        spark = render_sparkline(key_tl, g)
+        if spark:
+            print(f"       {spark}")
+            if is_live:
+                desc = render_field_description(key_tl)
+                if desc:
+                    print(f"       {desc}")
+                if status:
+                    print(f"       {DIM}⏱ {status}{R}")
+
+            qb = g.get("q_breakdown")
+            if qb:
+                av = qb["away"]; hv = qb["home"]
+                a_total = av[0] + av[1] + av[2] + av[3] + av[4]
+                h_total = hv[0] + hv[1] + hv[2] + hv[3] + hv[4]
+                abbr_a = g["away"].split()[-1][:3].upper()
+                abbr_h = g["home"].split()[-1][:3].upper()
+                print(f"       {DIM}       1   2   3   4   T{R}")
+                print(f"       {DIM}{abbr_a:<5} {av[0]:>3} {av[1]:>3} {av[2]:>3} {av[3]:>3} {a_total:>3}{R}")
+                print(f"       {DIM}{abbr_h:<5} {hv[0]:>3} {hv[1]:>3} {hv[2]:>3} {hv[3]:>3} {h_total:>3}{R}")
+
+            # ── WP CHART ──
+            chart = render_wp_chart(key_tl)
+            if chart:
+                print(f"       {chart}")
+
+#+--|-------------------------------------------->>>
+#+--| add-on function 16 as much functions here parse_pinned_state() 
+#+--|-------------------------------------------->>>
+#+--|
+def parse_pinned_state(tokens):
+    """
+    Extract live play-by-play state from pinned ESPN tokens:
+      down_distance, ball_on, clock, quarter, last_play
+    """
+    state = {
+        "down_distance": None,
+        "ball_on": None,
+        "clock": None,
+        "quarter": None,
+        "last_play": None,
+    }
+    if not tokens:
+        return state
+
+    for t in tokens:
+        m = re.match(r'^(\d(?:st|nd|rd|th) & \d+)$', t)
+        if m:
+            state["down_distance"] = m.group(1)
+            break
+
+    for i, t in enumerate(tokens):
+        m = re.match(r'^(\d{1,2}:\d{2})$', t)
+        if m:
+            state["clock"] = m.group(1)
+            for j in range(i + 1, min(i + 4, len(tokens))):
+                q = re.match(r'^(1st|2nd|3rd|4th)$', tokens[j])
+                if q:
+                    state["quarter"] = q.group(1)
+                    break
+            if state["quarter"]:
+                break
+
+    for i, t in enumerate(tokens):
+        if t.rstrip(':') == "Ball on":
+            for j in range(i + 1, min(i + 4, len(tokens))):
+                m = re.match(r'^([A-Z]{2,3}) (\d{1,2})$', tokens[j])
+                if m:
+                    state["ball_on"] = tokens[j]
+                    break
+            break
+
+    for i, t in enumerate(tokens):
+        if t == "Last Play":
+            for j in range(i + 1, min(i + 6, len(tokens))):
+                if len(tokens[j]) > 15:
+                    state["last_play"] = tokens[j]
+                    break
+            break
+
+    return state
+
+#+--|-------------------------------------------->>>
+#+--| add-on function 16.5 as much functions here in your def Darwin chapter
+#+--| PARSE PBP TOKENS → structured plays ───
+#+--| play by play to the graph auto auto auto
+#+--|-------------------------------------------->>>
+#+--|
+# ─── PARSE PBP TOKENS → structured plays ───
+import math, html as _html
+
+PBP_CLOCK_RE = re.compile(r'^(\d{1,2}:\d{2}) - (?:(\d)(?:st|nd|rd|th)|(OT))$')
+PBP_SIT_RE   = re.compile(r'^\d(?:st|nd|rd|th) & (?:\d+|Goal) at (?:([A-Z]{2,3}) )?(\d+)$')
+PBP_DRIVE_RE = re.compile(r'^(\d+) plays?, (-?\d+) yards?, (\d+:\d+)$')
+
+
+#+--|-------------------------------------------->>>
+#+--| add-on function 17 as much html_to_tokens()
+#+--|-------------------------------------------->>>
+#+--|
+
+def html_to_tokens(html_text):
+    t = re.sub(r'<script[^>]*>.*?</script>', ' ', html_text, flags=re.DOTALL)
+    t = re.sub(r'<style[^>]*>.*?</style>', ' ', t, flags=re.DOTALL)
+    t = re.sub(r'<[^>]+>', '\n', t)
+    return [_html.unescape(x).strip() for x in t.split('\n') if x.strip()]
+
+#+--|-------------------------------------------->>>
+#+--| add-on function 17 as much _side_of()
+#+--|-------------------------------------------->>>
+#+--|
+
+def _side_of(name, away, home):
+    last = name.strip().split()[-1].lower() if name.strip() else ""
+    if last == away.split()[-1].lower(): return "away"
+    if last == home.split()[-1].lower(): return "home"
+    return None
+
+#+--|-------------------------------------------->>>
+#+--| add-on function 17 as much est_wp_home()
+#+--|-------------------------------------------->>>
+#+--|
+
+def est_wp_home(a, h, secs, off, z):
+    """Rough home win-prob (0-100): score diff + possession value, normal CDF."""
+    ep = 0.7
+    if off and z is not None:
+        y = (z + 50) if off == "away" else (50 - z)       # yards from offense's own goal
+        ep = -0.6 + 0.07 * y
+    ep *= min(1.0, secs / 600.0)                          # possession matters less late
+    eff = (h - a) + (ep if off == "home" else -ep if off == "away" else 0)
+    sd = 13.5 * math.sqrt(max(secs, 1) / 3600.0)
+    wp = 0.5 * (1 + math.erf(eff / (sd * math.sqrt(2)))) * 100
+    return round(max(0.5, min(99.5, wp)), 1)
+
+#+--|-------------------------------------------->>>
+#+--| add-on function 17 as much _pts()
+#+--|-------------------------------------------->>>
+#+--|
+def _pts(ty, desc):
+    t, d = ty.lower(), desc.lower()
+    if "touchdown" in t:
+        if "extra point is good" in d: return 7
+        if "attempt succeeds" in d:    return 8
+        return 6
+    if "field goal" in t: return 3
+    if "safety" in t:     return 2
+    if "extra point" in t: return 1
+    return 0
+
+#+--|-------------------------------------------->>>
+#+--| add-on function 17 as much parse_pbp_tokens()
+#+--|-------------------------------------------->>>
+#+--|
+def parse_pbp_tokens(tokens, away, home):
+    toks = [_html.unescape(t).strip() for t in (tokens or [])]
+    n = len(toks)
+    away_ab = NFL_ABBRS.get(away.split()[-1].lower(), [away.split()[-1][:3].upper()])
+    home_ab = NFL_ABBRS.get(home.split()[-1].lower(), [home.split()[-1][:3].upper()])
+
+    # pass 1 — drive headers: <team> <result> "N plays, N yards, M:SS" <score> <abbr> <score> <abbr>
+    drives = []
+    for j in range(2, n - 4):
+        if not PBP_DRIVE_RE.match(toks[j]):
+            continue
+        end = None
+        try:
+            s1, s2 = int(toks[j+1]), int(toks[j+3])
+            end = (s2, s1) if toks[j+2] in home_ab else (s1, s2)   # (away, home)
+        except ValueError:
+            pass
+        drives.append({"i": j, "team": toks[j-2], "result": toks[j-1],
+                       "side": _side_of(toks[j-2], away, home), "end": end})
+
+    # pass 2 — plays: [type, "M:SS - Nth", desc, situation]
+    plays, d, before, ptr = [], None, (0, 0), 0
+    for i in range(1, n - 2):
+        while ptr < len(drives) and drives[ptr]["i"] < i:
+            if d and d["end"]:
+                before = d["end"]
+            d = drives[ptr]; ptr += 1
+
+        m = PBP_CLOCK_RE.match(toks[i])
+        if not m:
+            continue
+        q = int(m.group(2)) if m.group(2) else 5
+        mm, ss = map(int, m.group(1).split(":"))
+        clk  = mm * 60 + ss
+        secs = clk if q == 5 else (4 - q) * 900 + clk
+
+        ty, desc, sit = toks[i-1], toks[i+1], toks[i+2]
+        z = None
+        sm = PBP_SIT_RE.match(sit)
+        sit_def_ab = None
+        if sm:
+            y, sit_def_ab = int(sm.group(2)), sm.group(1)
+            z = 0 if not sit_def_ab else (50 - y if sit_def_ab in home_ab else -50 + y)
+        else:
+            sit = ""
+
+        is_score = bool(re.search(r'touchdown|field goal|extra point|safety', ty, re.I)
+                        and not re.search(r'no good|blocked|missed', desc, re.I))
+        a, h = before
+        if is_score and d and d["end"]:
+            a, h = d["end"]
+        off = None if is_score else (d["side"] if d else None)
+
+        # derive side: drive side first, else infer from the situation string.
+        # "4th & 5 at DEN 37" means the ball is on DEN's 37 → DEN is on defense → away has it.
+        side = d["side"] if d else None
+        if side is None and sit_def_ab:
+            if sit_def_ab in home_ab:
+                side = "away"
+            elif sit_def_ab in away_ab:
+                side = "home"
+
+        wp_h = est_wp_home(a, h, secs, off, z)
+        plays.append({
+            "q": q, "clock": m.group(1), "secs_left": secs, "type": ty,
+            "desc": desc[:200], "sit": sit, "z": z, "score": is_score,
+            "team": d["team"] if d else "", "drive_result": d["result"] if d else "",
+            "away_score": a, "home_score": h,
+            "wp_home": wp_h, "wp_away": round(100 - wp_h, 1),
+            "side": side,
+            "pts":  _pts(ty, desc) if is_score else 0,
+            "t_el": ((q - 1) * 900 + (900 - clk)) if q <= 4 else (3600 + 600 - clk),
+        })
+
+    # live pages list newest-first → flip to game order, then rebuild score + WP
+    if len(plays) > 1 and plays[0]["t_el"] > plays[-1]["t_el"]:
+        plays.reverse()
+    plays.sort(key=lambda p: p["t_el"])          # stable
+    a = h = 0
+    for p in plays:
+        if p["score"] and p["side"]:
+            if p["side"] == "away": a += p["pts"]
+            else:                   h += p["pts"]
+        p["away_score"], p["home_score"] = a, h
+        wp = est_wp_home(a, h, p["secs_left"], None if p["score"] else p["side"], p["z"])
+        p["wp_home"], p["wp_away"] = wp, round(100 - wp, 1)
+
+    # closing point so the line ends at the final result
+    if drives and drives[-1]["result"] == "End of Game" and drives[-1]["end"]:
+        a, h = drives[-1]["end"]
+        wp_h = est_wp_home(a, h, 0, None, None)
+        plays.append({"q": plays[-1]["q"] if plays else 4, "clock": "0:00", "secs_left": 0,
+                      "type": "End of Game", "desc": f"Final {a}-{h}", "sit": "", "z": None,
+                      "score": False, "team": "", "drive_result": "End of Game",
+                      "away_score": a, "home_score": h,
+                      "wp_home": wp_h, "wp_away": round(100 - wp_h, 1)})
+    return plays
+#+--|-------------------------------------------->>>
+#+--| add-on function 17 as much functions here parse_scoreboard_quarters() 
+#+--|-------------------------------------------->>>
+#+--|
+
+def parse_scoreboard_quarters(tokens):
+    if not tokens:
+        return {}
+    out = {}
+    i = 0
+    n = len(tokens)
+    while i < n - 4:
+        if (tokens[i] == "1" and tokens[i+1] == "2" and
+            tokens[i+2] == "3" and tokens[i+3] == "4" and
+            tokens[i+4] == "T"):
+            # collect next 10 ints after the header (5 away + 5 home)
+            j = i + 5
+            nums = []
+            while j < n and len(nums) < 10:
+                t = tokens[j]
+                if t.isdigit() and len(t) <= 3:
+                    nums.append(int(t))
+                j += 1
+            if len(nums) == 10:
+                away_q = nums[0:5][:-1] + [0]*(4-len(nums[0:5][:-1]))
+                home_q = nums[5:10][:-1] + [0]*(4-len(nums[5:10][:-1]))
+                # need team names — walk backwards/forwards from header
+                # (kept minimal here; your current nickname resolution is fine)
+                ...
+            i += 5
+            continue
+        i += 1
+    return out
+#+--|-------------------------------------------->>>
+#+--| add-on function 18 — def parse_yahoo_wp(html)
+#+--|-------------------------------------------->>>
+#+--|
+
+def parse_yahoo_wp(html):
+    """
+    Extracts the live Win Probability from the Yahoo Sports page.
+    Looks for the "GB 100%" or "DAL 0%" text and returns {"away": 0.0, "home": 100.0}
+    """
+    if not html:
+        return {}
+    
+    # Strip HTML to simple text
+    text = re.sub(r'<script[^>]*>.*?</script>', ' ', html, flags=re.DOTALL)
+    text = re.sub(r'<style[^>]*>.*?</style>', ' ', text, flags=re.DOTALL)
+    text = re.sub(r'<[^>]+>', '\n', text)
+    
+    # Look for the exact Win Probability block (e.g., "GB 100%" or "DAL 0%")
+    # Yahoo puts the away team on top and home team on bottom in the chart
+    away_match = re.search(r'\b([A-Z]{2,3})\s+(\d{1,3})%', text)
+    if away_match:
+        # Yahoo lists the away team first in the chart block
+        return {
+            "away_abbr": away_match.group(1),
+            "away_pct": float(away_match.group(2))
+        }
+        
+    return {}
+
+#+--|-------------------------------------------->>>
+#+--| add-on function 18 — parse_probabilities(game, chart, win_probability)
+#+--| reads ESPN game page PROBABILITIES panel → away/home WP
+#+--|-------------------------------------------->>>
+#+--|
+def parse_probabilities(game, chart, win_probability):
+    """
+    Read the PROBABILITIES panel from ESPN game page tokens.
+
+      game              : {"away": "Buccaneers", "home": "Cowboys"}
+      chart             : tokens of the WP chart section (or None)
+      win_probability   : tokens of the PROBABILITIES block (or None)
+
+    Returns {"away": pct, "home": pct} or {} if not found.
+
+    Panel renders flat as:
+        "PROBABILITIES"
+        "Win Probability"
+        "Cover Probability"
+        "Tampa Bay Buccaneers logo"
+        "TB"
+        "100%"
+        "1st" "2nd" "3rd" "4th"
+        "100" "50" "100"
+        "Dallas Cowboys logo"
+        "DAL"
+        "0%"
+    """
+    tokens = win_probability or chart or []
+    if not tokens or not game:
+        return {}
+
+    n = len(tokens)
+
+    # ── anchor on "PROBABILITIES" ──
+    anchor = None
+    for i, t in enumerate(tokens):
+        tl = (t or "").lower()
+        if tl.startswith("probabilities"):
+            anchor = i
+            break
+    if anchor is None:
+        return {}
+
+    away_abbr = game["away"].split()[-1][:3].upper()
+    home_abbr = game["home"].split()[-1][:3].upper()
+
+    out = {}
+
+    i = anchor
+    while i < n and i < anchor + 40:
+        t = (tokens[i] or "").strip()
+
+        # single-token: "TB 100%"
+        m = re.search(r'\b([A-Z]{2,4})\s+(\d{1,3}(?:\.\d+)?)\s*%', t)
+        if m:
+            out.setdefault(m.group(1), float(m.group(2)))
+            i += 1
+            continue
+
+        # two-token: "TB" then "100%"
+        if re.fullmatch(r'[A-Z]{2,4}', t):
+            for j in range(i + 1, min(i + 3, n)):
+                m2 = re.fullmatch(r'(\d{1,3}(?:\.\d+)?)\s*%', (tokens[j] or "").strip())
+                if m2:
+                    out.setdefault(t, float(m2.group(1)))
+                    break
+            i += 1
+            continue
+
+        i += 1
+
+
+
+    away_pct = out.get(away_abbr)
+    home_pct = out.get(home_abbr)
+    if away_pct is None and home_pct is None:
+        return {}
+
+    # ESPN leaves the closing WP panel rendered on Final games.
+    if {away_pct, home_pct} == {100.0, 0.0}:
+        return {}
+
+    return {"away": away_pct, "home": home_pct}
+
+#+--|-------------------------------------------->>>
+#+--| add-on function 19 as much functions here in your def Darwin chapter 3 
+#+--|-------------------------------------------->>>
+#+--|PHI AWAY_C = "\033[94m"   # blue
+#+--||▔▔▔|▔▔▔▔▔▔▔|▔▔▔▔▔▔▔|▔▔▔▔▔|▔▔▔|
+#+--|▁▂▃▄▅▆▇█▇▆
+#+--||▔▔▔|▔▔▔▔▔▔▔|▔▔▔▔▔▔▔|▔▔▔▔▔|▔▔▔| 
+#+--|▂▃▄▅▆▇▆▅▄▃
+#+--||▔▔▔|▔▔▔▔▔▔▔|▔▔▔▔▔▔▔|▔▔▔▔▔|▔▔▔|
+#+--|CHI HOME_C = "\033[91m"   # red
+#+--|f"{AWAY_C}{away_abbr}{R}\n" + ... + f"{HOME_C}{home_abbr}{R}"
+#+--|-------------------------------------------->>>
+#+--|
+def render_wp_chart(key, width=62):
+    wp_a, wp_h = [], []
+    try:
+        for line in TIMELINE_FILE.read_text(encoding="utf-8").splitlines():
+            parts = [p.strip() for p in line.split("|")]
+            if len(parts) < 4 or parts[1] != key:
+                continue
+            # format: HH:MM:SS | key | A-H | wp A/H
+            wp_field = parts[3]              # "wp 12.3/20.6"
+            m = re.match(r'wp\s+([\d.]+)/([\d.]+)', wp_field)
+            if m:
+                wp_a.append(float(m.group(1)))
+                wp_h.append(float(m.group(2)))
+    except Exception:
+        pass
+    if not wp_a or not wp_h:
+        return ""
+
+    def stretch(vals, w):
+        n = len(vals)
+        if n == 0:
+            return []
+        if n == 1:
+            return [vals[0]] * w
+        out = []
+        for i in range(w):
+            src = i * (n - 1) / (w - 1)
+            lo = int(src)
+            hi = min(lo + 1, n - 1)
+            frac = src - lo
+            out.append(vals[lo] * (1 - frac) + vals[hi] * frac)
+        return out
+
+    BLOCKS = "▁▂▃▄▅▆▇█"
+
+    def render_line(vals, w):
+        out = []
+        for v in stretch(vals, w):
+            v = max(0.0, min(100.0, v))
+            idx = int(v / 100.0 * (len(BLOCKS) - 1))
+            out.append(BLOCKS[idx])
+        return "".join(out)
+
+    away_line = render_line(wp_a, width)
+    home_line = render_line(wp_h, width)
+
+    # ruler — 16 marks (4 per quarter), evenly spaced across width
+    marks = 16
+    ruler = ["▔"] * width
+    for i in range(marks + 1):
+        pos = round(i * (width - 1) / marks)
+        if 0 <= pos < width:
+            ruler[pos] = "|"
+    ruler_str = "".join(ruler)
+
+#+--|-------------------------------------------->>>
+#+--| chart index render my chart the %
+#+--|-------------------------------------------->>>
+#+--|
+
+    away_abbr = key.split("@")[0].split()[-1][:3].upper()
+    home_abbr = key.split("@")[1].split()[-1][:3].upper()
+
+    AWAY_C = "\033[94m"   # blue
+    HOME_C = "\033[91m"   # red
+
+    # ── diagnostics: show what's actually being plotted ──
+    def _stat(vals):
+        return (f"n={len(vals)} "
+                f"min={min(vals):5.1f}% "
+                f"max={max(vals):5.1f}% "
+                f"last={vals[-1]:5.1f}%")
+
+    away_stat = _stat(wp_a)
+    home_stat = _stat(wp_h)
+
+    return (
+        f"{AWAY_C}{away_abbr}{R}  {DIM}{away_stat}{R}\n" +
+        ruler_str + "\n" +
+        f"{AWAY_C}{away_line}{R}\n" +
+        ruler_str + "\n" +
+        f"{HOME_C}{home_line}{R}\n" +
+        ruler_str + "\n" +
+        f"{HOME_C}{home_abbr}{R}  {DIM}{home_stat}{R}"
+    )
+
+#+--|-------------------------------------------->>>
+#+--| add-on function 20 : RAPHAEL : the food is on the table pops 
+#+--| always mr.raphy — grip_odds_game_json()
+#+--|-------------------------------------------->>>
+#+--|
+def grip_odds_game(url, quiet=False):
+    """
+    Grip a single ESPN odds game URL, dump tokens to nfl-odds.json.
+    Parallel to grip_pinned_game() but for the /odds/_/gameId/ page.
+    """
+    if not url:
+        return None
+    try:
+        cmd = [CHROME, "--headless=new", "--disable-gpu", "--no-sandbox",
+               "--virtual-time-budget=8000",
+               "--run-all-compositor-stages-before-draw",
+               "--dump-dom", url]
+
+
+
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+        html = r.stdout or ""
+
+        text = re.sub(r'<script[^>]*>.*?</script>', ' ', html, flags=re.DOTALL)
+        text = re.sub(r'<style[^>]*>.*?</style>', ' ', text, flags=re.DOTALL)
+        text = re.sub(r'<[^>]+>', '\n', text)
+        tokens = [t.strip() for t in text.split('\n') if t.strip()]
+
+        # preserve any existing odds payload if the file already has one
+        existing = {"source": "espn-odds", "games": []}
+        try:
+            existing = json.loads(ODDS_NFL_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+        existing["url"]        = url
+        existing["fetched_at"] = datetime.now().isoformat()
+        existing["rendered_bytes"] = len(html)
+        existing["total_tokens"]   = len(tokens)
+        existing["tokens"]         = tokens
+
+        with open(ODDS_NFL_FILE, "w", encoding="utf-8") as f:
+            json.dump(existing, f, indent=2)
+
+        if not quiet:
+            print(f"  {RED}ᛉ ODDS GRIP: {len(tokens)} tokens → nfl-odds.json{R}")
+        return tokens
+    except Exception as e:
+        print(f"  {RED}ᛉ odds grip fail: {e}{R}")
+        return None
+#+--|-------------------------------------------->>>
+#+--| add-on function 20.5 : RAPHAEL — parse_odds_page()
+#+--| full /nfl/odds page → list of games with spread/total/ML
+#+--|-------------------------------------------->>>
+
+#+--|-------------------------------------------->>>
+#+--| add-on function 20.5 : RAPHAEL — parse_odds_page()
+#+--| parses ESPN scoreboard tokens → odds per game
+#+--|-------------------------------------------->>>
+#+--|
+_ODDS_RECORD_RE = re.compile(r'^\(\d+-\d+.*\)$')
+_ODDS_SPREAD_RE = re.compile(r'^([A-Z]{2,4})\s+([+-]?\d+(?:\.\d+)?)$')
+#+--|-------------------------------------------->>>
+
+def parse_odds_page(tokens):
+    """
+    Parse ESPN /nfl/odds page tokens into per-game dicts.
+
+    Real Week-6 shape:
+        Seattle Seahawks
+        (3-2, 2-1 Away)
+        -2.5        open
+        -105        open juice
+        -3          spread
+        -102        spread juice
+        o40.5       total (over)
+        -118        total juice
+        -155        ML
+        Denver Broncos
+        (3-2, 2-0 Home)
+        u43.5       ← under total leaks onto home row
+        -110
+        +3
+        -118
+        u40.5
+        -102
+        +130
+
+    So: anchor on <TeamName> + (W-L ...), grab up to 12 tokens after
+    the record until the next <TeamName>+(W-L ...), then classify:
+        ^[+-]\\d{3,4}$        → ML      (|v| >= 100)
+        ^[ou]\\d+(\\.\\d+)?$   → total
+        ^[+-]\\d+(\\.\\d+)?$   → spread  (first signed small num)
+        ^-1\\d{2}$            → juice   (ignored)
+    """
+    if not tokens:
+        return []
+
+    NAME_RE   = re.compile(r'^[A-Za-z][A-Za-z0-9 .\'\-]+$')
+    RECORD_RE = re.compile(r'^\(\d+-\d+.*\)$')
+    SPREAD_RE = re.compile(r'^[+-]\d+(?:\.\d+)?$')
+    TOTAL_RE  = re.compile(r'^[ou]\d+(?:\.\d+)?$', re.I)
+    ML_RE     = re.compile(r'^[+-]\d{3,4}$')
+    JUICE_RE  = re.compile(r'^-1\d{2}$')
+
+
+    def classify(block):
+        spread = total = ml = None
+        ml_candidates = []
+        for x in block:
+            x = x.strip()
+            if not x:
+                continue
+            # total: o40.5 / u43.5
+            if TOTAL_RE.match(x) and total is None:
+                total = float(x[1:])
+                continue
+            # spread: signed number with abs < 100 (excludes -155, +130)
+            if SPREAD_RE.match(x) and abs(float(x)) < 100 and spread is None:
+                spread = float(x)
+                continue
+            # ML: signed 3-4 digit token — collect all, take last
+            if ML_RE.match(x):
+                ml_candidates.append(int(x))
+        if ml_candidates:
+            ml = ml_candidates[-1]
+        return spread, total, ml
+
+
+    def is_team_start(i):
+        return (i + 1 < len(tokens)
+                and NAME_RE.match(tokens[i] or "")
+                and RECORD_RE.match(tokens[i+1] or ""))
+
+    games = []
+    i, n = 0, len(tokens)
+    while i < n - 1:
+        if not is_team_start(i):
+            i += 1
+            continue
+
+        away_name = tokens[i].strip()
+        away_rec  = tokens[i+1].strip()
+
+        # collect away block until next team start
+        away_block = []
+        j = i + 2
+        while j < n - 1 and len(away_block) < 14:
+            if is_team_start(j):
+                break
+            away_block.append(tokens[j])
+            j += 1
+
+        # must be followed by a home team
+        if not is_team_start(j):
+            i += 1
+            continue
+
+        home_name = tokens[j].strip()
+        home_rec  = tokens[j+1].strip()
+
+        home_block = []
+        k = j + 2
+        while k < n - 1 and len(home_block) < 14:
+            if is_team_start(k):
+                break
+            home_block.append(tokens[k])
+            k += 1
+
+        a_spread, a_total, a_ml = classify(away_block)
+        h_spread, h_total, h_ml = classify(home_block)
+
+        # ESPN leaks the under onto the home row — pick whichever side got it
+        total = a_total if a_total is not None else h_total
+        if total is None:
+            i = k
+            continue
+
+        games.append({
+            "away":        away_name,
+            "away_record": away_rec,
+            "away_spread": a_spread,
+            "away_total":  a_total,
+            "away_ml":     a_ml,
+            "home":        home_name,
+            "home_record": home_rec,
+            "home_spread": h_spread,
+            "home_total":  h_total,
+            "home_ml":     h_ml,
+            "total":       total,
+        })
+        i = k
+
+    return games
+#+--|-------------------------------------------->>>
+#+--| add-on function 21 : RAPHAEL GRIP — parse single-game odds
+#+--|-------------------------------------------->>>
+#+--|
+SPREAD_RE   = re.compile(r'^[+-]\d+(\.\d+)?$')
+OVER_RE     = re.compile(r'^o\d+(\.\d+)?$')
+UNDER_RE    = re.compile(r'^u\d+(\.\d+)?$')
+ML_RE       = re.compile(r'^[+-]\d{2,4}$')     # ML always |v| >= 100
+
+
+#+--|-------------------------------------------->>>
+#+--| parse odds parse odds parse_odds_game()
+#+--|-------------------------------------------->>>
+#+--|
+
+def parse_odds_game(tokens, away, home):
+    """
+    Parse the Game Odds table from an ESPN game page dump.
+    Reads the flat-text section after 'Game Odds' and pulls
+    the first block of odds tokens it finds.
+    """
+    out = {
+        "away": away, "home": home,
+        "away_spread": None, "home_spread": None,
+        "total": None, "away_ml": None, "home_ml": None,
+        "over_odds": -110, "under_odds": -110,
+    }
+    if not tokens:
+        return out
+
+    html = tokens[0]
+
+    # strip tags, keep text
+    text = re.sub(r'<script[^>]*>.*?</script>', ' ', html, flags=re.DOTALL)
+    text = re.sub(r'<style[^>]*>.*?</style>', ' ', text, flags=re.DOTALL)
+    text = re.sub(r'<[^>]+>', '\n', text)
+    lines = [l.strip() for l in text.split('\n') if l.strip()]
+
+    # find "Game Odds" (case-insensitive)
+    start = None
+    for i, l in enumerate(lines):
+        if "game odds" in l.lower():          # was: l.lower() == "game odds"
+            start = i
+            break
+
+    if start is None:
+        print(f"  {DIM}odds · per-game page has no Game Odds block · "
+              f"falling through to week article{R}")
+        return out
+
+    # scan the next ~40 lines for odds tokens
+    tail = lines[start:start+40]
+
+    # walk: after each team name row, gather that row's odds numbers
+    # ESPN order per row: openTotal openJuice spread spreadJuice total totalJuice ml
+    ODDS = re.compile(r'^[+-]?\d+(\.\d+)?$|^[ou]\d+(\.\d+)?$')
+    rows = []
+    cur = []
+    for l in tail:
+        if ODDS.match(l):
+            cur.append(l)
+        else:
+            if cur:
+                rows.append(cur)
+                cur = []
+    if cur:
+        rows.append(cur)
+
+    # need at least two rows (away and home)
+    if len(rows) < 2:
+        print(f"  [odds] only {len(rows)} odds rows found — need 2")
+        return out
+
+    a_nums = rows[0]
+    h_nums = rows[1]
+
+    def pick(nums):
+        spr = None
+        tot = None
+        ml  = None
+        for x in nums:
+            if spr is None and re.match(r'^[+-]\d+\.\d+$', x):
+                spr = float(x)
+                continue
+            if tot is None and re.match(r'^[ou]\d+(\.\d+)?$', x):
+                tot = float(x[1:])
+                continue
+            if re.match(r'^[+-]\d{3}$', x):
+                ml = int(x)
+        return spr, tot, ml
+
+    a_spr, a_tot, a_ml = pick(a_nums)
+    h_spr, h_tot, h_ml = pick(h_nums)
+
+    out["away_spread"] = a_spr
+    out["home_spread"] = h_spr
+    out["total"]       = a_tot or h_tot
+    out["away_ml"]     = a_ml
+    out["home_ml"]     = h_ml
+
+    print(f"  [odds] {away.split()[-1][:3].upper()} row: {a_nums}")
+    print(f"  [odds] {home.split()[-1][:3].upper()} row: {h_nums}")
+    print(f"  [odds] → {out['away_spread']} / {out['home_spread']}  "
+          f"O/U {out['total']}  ML {out['away_ml']}/{out['home_ml']}")
+    return out
+#+--|-------------------------------------------->>>
+#+--| chapter 3.5 : stamp_game_status() than its this bullshit?
+#+--|-------------------------------------------->>>
+#+--|
+def stamp_game_status(games):
+    """
+    Enrich each game with:
+      - game_id     : ESPN gameId if known (from PINNED_GAMES / ODDS_GAMES)
+      - status_tag  : colorized [LIVE Q3 08:42] / [FINAL] / [SCHEDULED]
+      - is_today    : True if game date == today
+    Falls back gracefully if we don't have the ESPN id for a game.
+    """
+    # colorize everything purple for now — RED from the top of the file
+    def _tag(text):
+        return f"{RED}{text}{R}"
+
+    # build a lookup of espn id by "Away@Home" from pinned + odds configs
+    id_lookup = {}
+    for src in (PINNED_GAMES, ODDS_GAMES):
+        for entry in src:
+            url = entry.get("url", "")
+            m = re.search(r'/gameId/(\d+)', url)
+            if not m:
+                continue
+            key = f"{entry['away']}@{entry['home']}"
+            id_lookup[key] = m.group(1)
+
+    for g in games:
+        key = f"{g['away']}@{g['home']}"
+        g["game_id"] = id_lookup.get(key)
+
+        status = (g.get("status") or "").strip()
+
+        # classify — all purple for now
+        if "Final" in status:
+            g["status_tag"] = _tag("[FINAL]")
+            g["is_live"]    = False
+        elif re.match(r'^(Q[1-4]|OT|Halftime|HALF)', status) or ":" in status:
+            g["status_tag"] = _tag(f"[LIVE {status}]")
+            g["is_live"]    = True
+        elif "Scheduled" in status or not status:
+            g["status_tag"] = _tag("[SCHEDULED]")
+            g["is_live"]    = False
+        else:
+            g["status_tag"] = _tag(f"[{status}]")
+            g["is_live"]    = False
+
+        # today tag — purple too
+        g["is_today"] = g.get("is_live", False) or g.get("status_tag", "").find("SCHEDULED") != -1
+
+
+#+--|-------------------------------------------->>>
+#+--| middle ground dev notes between edits
+#+--|-------------------------------------------->>>
+#+--|
+
+# in here is nothing but now I write to you what's working from terminal there is no need for a server I have my own habit server I don't need you asking constant do a server. Its local files done.
+
+#+--|-------------------------------------------->>>
+#+--| chapter 3 Darwin def law cycle() cycle() cycle() cycle() cycle() I fucking hate this part 
+#+--| always hate cycle I hate cycle I hate this function shit cycle
+#+--|-------------------------------------------->>>
+#+--|
+# ─── CYCLE CYCLE CYCLE CYCLE (formula FIRST, then shock, then notify) ───
+
+def cycle():
+    STATE["track"] += 1
+    for k in CYCLE_STATS: CYCLE_STATS[k] = 0
+
+    print(f"\n{RED}=== DONATELLO — {RED_BOLD}GRIPPING...{R}{RED} · "
+          f"{datetime.now().strftime('%I:%M:%S %p')} ==={R}")
+    print("═" * 70)
+#+--|-------------------------------------------->>>
+
+    # 1. GRIP — fetch, flatten to tokens, save readable .txt (no cache file)
+    html = fetch(ESPN_URL)
+    print("═" * 70)
+
+
+    sb_tokens = html_to_tokens(html)
+#+--|-------------------------------------------->>>
+
+    # ── 1-PRE. ODDS — grip ESPN /nfl/odds, parse, write nfl-odds.json ──
+    odds_html   = fetch("https://www.espn.com/nfl/odds")
+    odds_tokens = html_to_tokens(odds_html)
+    odds_games  = parse_odds_page(odds_tokens)      # ← the broken function
+
+    payload = {
+        "source":     "https://www.espn.com/nfl/odds",
+        "total":      len(odds_games),
+        "games":      odds_games,
+        "fetched_at": datetime.now().strftime("%Y-%m-%d %I:%M %p"),
+    }
+    ODDS_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+#+--|-------------------------------------------->>>
+    payload = {
+        "source":     "https://www.espn.com/nfl/odds",
+        "total":      len(odds_games),
+        "games":      odds_games,
+        "fetched_at": datetime.now().strftime("%Y-%m-%d %I:%M %p"),
+    }
+    ODDS_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+    # ── SCOREBOARD header — gameId from the pinned PBP url ──
+    _sb_gid = "—"
+    if PINNED_PBP:
+        _m = re.search(r'/gameId/(\d+)', PINNED_PBP[0]["url"])
+        if _m:
+            _sb_gid = _m.group(1)
+    print(f"  {RED}ᛉ RAPHAEL PLAY BY PLAY PBP → gameId {_sb_gid} → nfl-playbyplay.json{R}")
+#+--|-------------------------------------------->>>
+#+--| has a print 70 in the end on every thing so I can see like a paper 
+#+--| print dividers dividers 
+#+--|-------------------------------------------->>>
+#+--|
+    # 1a. PLAY-BY-PLAY — grip, parse, PRINT
+    for idx, pbp in enumerate(PINNED_PBP, 1):
+        mg  = re.search(r'/gameId/(\d+)', pbp["url"])
+        gid = mg.group(1) if mg else str(idx)
+        html_pbp = fetch(pbp["url"])
+        tokens   = html_to_tokens(html_pbp)
+        plays    = parse_pbp_tokens(tokens, pbp["away"], pbp["home"])
+
+        print(f"\n  {RED}══ {pbp['away']} @ {pbp['home']} ══{R}")
+        print(f" 🦄 {RED}plays: {len(plays)}{R}\n")
+        print(f"{RED}{'═' * 70}{R}")
+
+        for p in plays:
+            qtag = "OT" if p.get("q") == 5 else f"Q{p.get('q')}"
+
+            if p.get("score"):
+                line = (f"  {RED}ᛉ {qtag} {p.get('clock',''):>6}  "
+                        f"{p.get('type',''):<14}  {p.get('desc','')[:100]}{R}")
+            else:
+                line = (f"    {qtag} {p.get('clock',''):>6}  "
+                        f"{p.get('type',''):<14}  {p.get('desc','')[:100]}")
+            print(line)
+
+            xf = detect_xfactors(p)
+            if xf:
+                print(f"       {ORG}" + "  ".join(f"⚡ {b}" for b in xf) + f"{R}")
+
+            if p.get("score"):
+                CYCLE_STATS["changes"] += 1
+            print("═" * 70)
+
+
+        payload = {
+            "source": "espn-playbyplay", "url": pbp["url"], "game_id": gid,
+            "away": pbp["away"], "home": pbp["home"],
+            "fetched_at": datetime.now().isoformat(),
+            "total_tokens": len(tokens), "total_plays": len(plays),
+            "plays": plays, "tokens": tokens,
+        }
+        txt = json.dumps(payload, indent=2)
+        PINNED_PBP_FILE.write_text(txt, encoding="utf-8")
+        (DATA_DIR / f"nfl-playbyplay-{gid}.json").write_text(txt, encoding="utf-8")
+        print(f"\n  {RED}🎬 wrote {len(plays)} plays → nfl-playbyplay-{gid}.json{R}\n")
+        print(f"{RED}{'═' * 70}{R}")
+        print("═" * 70)
+
+
+    # 1b. PINNED GAMES — grip each, collect WP per game (braille spinner)
+    pinned_wps = {}
+    pinned_scores = {}
+
+    # 1ba. PINNED GAMES — grip each, collect WP per game (braille spinner)
+
+    if PINNED_GAMES:
+        n = len(PINNED_GAMES)
+        for idx, pin in enumerate(PINNED_GAMES, 1):
+            t0 = time.time()
+            stop = threading.Event()
+            _tt = threading.Thread(
+                target=live_spin,
+                args=(stop, f"gripping {idx}/{n}"),
+                kwargs={"t0": t0},
+                daemon=True,
+            )
+            _tt.start()
+
+#+--|-------------------------------------------->>>
+#+--| has a PDF PDF PDF NO CACHE html pdf is better
+#+--|-------------------------------------------->>>
+            m = re.search(r'/gameId/(\d+)', pin["url"])
+            gid = m.group(1) if m else str(idx)
+
+            # grip the pinned game page fresh each cycle
+            html_pin = fetch(pin["url"])
+
+            # save raw HTML as .txt (editable source, opens in your editor)
+            if html_pin:
+                (DATA_DIR / f"espn-pinned-{gid}.txt").write_text(
+                    html_pin, encoding="utf-8"
+                )
+
+            # flatten to readable text and write as .txt
+            tokens = html_to_tokens(html_pin)
+            (DATA_DIR / f"espn-pinned-{gid}.txt").write_text(
+                "\n".join(tokens), encoding="utf-8"
+            )
+
+            tokens = []
+            if html_pin:
+                text = re.sub(r'<script[^>]*>.*?</script>', ' ', html_pin, flags=re.DOTALL)
+                text = re.sub(r'<style[^>]*>.*?</style>', ' ', text, flags=re.DOTALL)
+                text = re.sub(r'<[^>]+>', '\n', text)
+                tokens = [t.strip() for t in text.split('\n') if t.strip()]
+
+            # ── WP from the game page (PROBABILITIES panel) ──
+            wp = {}
+            if tokens:
+                wp = parse_probabilities(pin, None, tokens)
+
+                state = parse_pinned_state(tokens)
+                try:
+                    payload = json.loads(PINNED_FILE.read_text(encoding="utf-8"))
+                    payload["state"] = state
+                    PINNED_FILE.write_text(json.dumps(payload, indent=2),
+                                           encoding="utf-8")
+                except Exception:
+                    pass
+
+            if wp and wp.get("away") is not None and wp.get("home") is not None:
+                key = f"{pin['away']}@{pin['home']}"
+                pinned_wps[key] = {
+                    "away": wp["away"],
+                    "home": wp["home"],
+                }
+
+            # ── SCORE + q_breakdown — derive from the play-by-play we already grip ──
+            #   The pinned game page's box score is unreliable (ESPN swaps in a
+            #   stripped 2-column scoreboard strip early in the game, and a
+            #   field-yard graphic "10 20 30 40 50 ..." later on the page).
+            #   The play-by-play page always lists every scoring play with its
+            #   points, so it's the only stable source for score.
+            pin_score = {}
+            pbp_url = f"https://www.espn.com/nfl/playbyplay/_/gameId/{gid}"
+            try:
+                html_pbp_pin = fetch(pbp_url)
+                pbp_tokens_pin = html_to_tokens(html_pbp_pin)
+                plays_pin = parse_pbp_tokens(pbp_tokens_pin, pin["away"], pin["home"])
+
+                if plays_pin:
+                    last = plays_pin[-1]
+                    q_break = {"away": [0, 0, 0, 0, 0], "home": [0, 0, 0, 0, 0]}
+                    for pl in plays_pin:
+                        if pl.get("score") and pl.get("pts"):
+                            qi = (pl["q"] - 1) if 1 <= pl.get("q", 0) <= 4 else 4
+                            if pl["side"] == "away":
+                                q_break["away"][qi] += pl["pts"]
+                            else:
+                                q_break["home"][qi] += pl["pts"]
+
+                    away_total = sum(q_break["away"])
+                    home_total = sum(q_break["home"])
+
+                    # status: prefer the game-page clock if we have one
+                    status = ""
+                    if tokens:
+                        for k, t in enumerate(tokens):
+                            mm = re.match(r'^(\d{1,2}:\d{2})$', t)
+                            if mm:
+                                for qq in range(k + 1, min(k + 5, len(tokens))):
+                                    qm = re.match(r'^(1st|2nd|3rd|4th|OT)$', tokens[qq])
+                                    if qm:
+                                        status = f"{qm.group(1)} {mm.group(1)}"
+                                        break
+                                if status:
+                                    break
+
+                    pin_score = {
+                        "away_score":  away_total,
+                        "home_score":  home_total,
+                        "status":      status or f"Q{last.get('q', 1)} {last.get('clock', '')}".strip(),
+                        "q_breakdown": q_break,
+                    }
+            except Exception as e:
+                log_error(f"pbp-derived score failed for {gid}: {e}")
+
+            # ── WP from the game page (Win Prob. panel via parse_pinned_wp) ──
+            if tokens:
+                wp2 = parse_pinned_wp(tokens)
+                if wp2:
+                    key = f"{pin['away']}@{pin['home']}"
+                    away_abbr = team_abbr(pin["away"])
+                    home_abbr = team_abbr(pin["home"])
+                    pinned_wps[key] = {
+                        "away": wp2.get(away_abbr),
+                        "home": wp2.get(home_abbr),
+                    }
+
+            # ── stash the score we derived from pbp ──
+            if pin_score:
+                pinned_scores[f"{pin['away']}@{pin['home']}"] = pin_score
+
+#+--|-------------------------------------------->>>
+    # ── odds_lookup ──
+    odds_lookup = {}
+    for pg in odds_games:
+        # Force abbreviations to full names using the exact function your file already has
+        away_abbr = pg['away'].strip().upper()
+        home_abbr = pg['home'].strip().upper()
+        
+        away_full = None
+        home_full = None
+        
+        for last_name, abbrs in NFL_ABBRS.items():
+            for abbr in abbrs:
+                if abbr == away_abbr:
+                    away_full = NFL_TEAMS.get(last_name.capitalize())
+                if abbr == home_abbr:
+                    home_full = NFL_TEAMS.get(last_name.capitalize())
+                    
+        if away_full and home_full:
+            key = f"{away_full}@{home_full}"
+            odds_lookup[key] = pg
+
+    print(f"  {RED}ᛉ ODDS → {len(odds_lookup)} games matched{R}")
+#+--|-------------------------------------------->>>
+#+--| odds_lookup.items() key
+#+--|-------------------------------------------->>>
+#+--|
+#+--|-------------------------------------------->>>
+    for key, p in odds_lookup.items():
+        if p.get("away_spread") is None and p.get("total") is None:
+            continue
+        ab = p["away"].split()[-1][:3].upper()
+        hb = p["home"].split()[-1][:3].upper()
+
+        def s(v):
+            if v is None: return "  —  "
+            return f"{v:+g}"
+
+        def m(v):
+            if v is None: return "   —  "
+            return f"{v:+d}"
+
+        spr_a = p.get("away_spread")
+        spr_h = p.get("home_spread")
+        tot   = p.get("total")
+        ml_a  = p.get("away_ml")
+        ml_h  = p.get("home_ml")
+
+        print(f"  {DIM}{'─' * 70}{R}")
+        print(f"  {RED}ᛉ {ab:<4} {s(spr_a):>5}   o{tot}   {m(ml_a):>6}{R}")
+        print(f"  {RED}  {hb:<4} {s(spr_h):>5}   u{tot}   {m(ml_h):>6}{R}")
+    print(f"  {DIM}{'─' * 70}{R}")
+#+--|-------------------------------------------->>>
+#+--| # 1b3. WEEK ODDS — art token 
+#+--|-------------------------------------------->>>
+#+--|
+    # 1b3. WEEK ODDS — grip betting article, parse all games' lines
+    week_odds = {}
+    wn = 1
+    art_tokens = []
+    wn = 3
+    try:
+        wk_str = parse_week(html) or ""
+        m_wn = re.search(r'Week\s+(\d+)', wk_str)
+        if m_wn:
+            wn = int(m_wn.group(1))
+    except Exception:
+        wn = 1
+    art_tokens = []
+    if art_tokens:
+        week_odds = parse_betting_article(art_tokens, wn)
+        print(f"  {RED}ᛉ week {wn} odds parsed: {len(week_odds)} games{R}")
+
+        # 1.d print checkmark per successful pin
+        for pin in PINNED_GAMES:
+            key = f"{pin['away']}@{pin['home']}"
+            if key in pinned_wps:
+                abbr = (team_abbr(pin["away"]) + "@" +
+                        team_abbr(pin["home"]))
+                w = pinned_wps[key]
+                print(f"  {ORG}✓{R} {DIM}WP {abbr} = "
+                      f"{w.get('away')}% / {w.get('home')}%{R}")
+            else:
+                abbr = (team_abbr(pin["away"]) + "@" +
+                        team_abbr(pin["home"]))
+                print(f"  {ORG}⚠{R} {DIM}{abbr} — no WP parsed{R}")
+
+    # 1e. FLATTEN scoreboard HTML to tokens for parse_scoreboard_quarters
+    sb_text = re.sub(r'<script[^>]*>.*?</script>', ' ', html, flags=re.DOTALL)
+    sb_text = re.sub(r'<style[^>]*>.*?</style>', ' ', sb_text, flags=re.DOTALL)
+    sb_text = re.sub(r'<[^>]+>', '\n', sb_text)
+    sb_tokens = [t.strip() for t in sb_text.split('\n') if t.strip()]
+
+    try:
+        payload = json.loads(PINNED_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        payload = {"source": "espn-pinned"}
+    payload["scoreboard_tokens"] = sb_tokens
+    PINNED_FILE.write_text(
+        f"# nfl-pinned · {datetime.now().isoformat()}\n"
+        f"url: {pin['url']}\n"
+        f"bytes: {len(html_pin)}\n"
+        f"state.down_distance: {state.get('down_distance')}\n"
+        f"state.ball_on: {state.get('ball_on')}\n"
+        f"state.clock: {state.get('clock')}\n"
+        f"state.quarter: {state.get('quarter')}\n"
+        f"state.last_play: {state.get('last_play')}\n"
+        f"wp: {wp}\n",
+        encoding="utf-8"
+    )
+
+    # 1f. PARSE GAME QUARTER SCORE (from pinned game page, not scoreboard)
+    quarters = {}
+    for pin in PINNED_GAMES:
+        key = f"{pin['away']}@{pin['home']}"
+        if key in pinned_scores and "q_breakdown" in pinned_scores[key]:
+            quarters[key] = pinned_scores[key]["q_breakdown"]
+    print(f"  {RED}game quarter scores parsed: {len(quarters)}{R}")
+
+
+    # 2. PARSE — read the token stream already proven to parse (boxscores work)
+
+    games = parse_games(sb_tokens)          # not from disk, from memory
+
+    scoreboard = parse_games(sb_tokens)
+    games      = scoreboard
+
+    # ── NEW: Yahoo WP Grip ──
+    yahoo_wp_data = {}
+    if WP:
+        yahoo_html = fetch(WP)
+        yahoo_wp_data = parse_yahoo_wp(yahoo_html)
+        if yahoo_wp_data.get("away_pct") is not None:
+            # Map Yahoo's away percentage to your game dict
+            # We assume the Yahoo link is for the pinned game
+            if PINNED_GAMES:
+                pin = PINNED_GAMES[0]
+                key = f"{pin['away']}@{pin['home']}"
+                away_pct = yahoo_wp_data["away_pct"]
+                home_pct = 100.0 - away_pct
+                yahoo_wp_data[key] = {"away": away_pct, "home": home_pct}
+                print(f"  {CHK}✓ YAHOO WP GRIPPED: {key} → {away_pct}% / {home_pct}%{R}")
+
+
+
+
+    # 2b. INJECT PINNED GAMES — today's game(s) come from the pinned list
+    existing_keys = {f"{g['away']}@{g['home']}" for g in games}
+    for pin in PINNED_GAMES:
+        key = f"{pin['away']}@{pin['home']}"
+        if key in existing_keys:
+            continue
+        games.append({
+            "away": pin["away"], "home": pin["home"],
+            "away_score": "0", "home_score": "0",
+            "status": "Scheduled",
+            "line": None, "total": None,
+            "away_odds": None, "home_odds": None,
+            "away_qb": "TBD", "home_qb": "TBD",
+        })
+
+    # 3a. FORMULA
+    compute_edges(games)
+    print(f"  {RED}◆ formulas computed{R}")
+
+    # 3a.5 GAME STATUS STAMP
+    stamp_game_status(games)
+
+
+    # 3b + 3c. ATTACH WP AND ODDS to matching games
+    for g in games:
+        key = f"{g['away']}@{g['home']}"
+
+        # ── NEW: live score from pinned game page wins over scoreboard ──
+        if key in pinned_scores:
+            ps = pinned_scores[key]
+            g["away_score"] = str(ps["away_score"])
+            g["home_score"] = str(ps["home_score"])
+            g["status"]     = ps["status"]
+            if "q_breakdown" in ps:
+                g["q_breakdown"] = ps["q_breakdown"]      # ← this already covers it
+
+        if key in pinned_wps:
+            w = pinned_wps[key]
+            if w.get("away") is not None and w.get("home") is not None:
+                g["wp_away"] = round(w["away"], 1)
+                g["wp_home"] = round(w["home"], 1)
+                g["wp_source"] = "espn"
+
+        # ── NEW: Attach Yahoo WP if available (OVERRIDES ESPN) ──
+        if key in yahoo_wp_data:
+            g["wp_away"] = yahoo_wp_data[key]["away"]
+            g["wp_home"] = yahoo_wp_data[key]["home"]
+            g["wp_source"] = "yahoo"
+
+#+--|-------------------------------------------->>>
+#+--|if in odds_lookup keys
+#+--|-------------------------------------------->>>
+#+--|
+        # ── ODDS ──
+        if key in odds_lookup:
+            o = odds_lookup[key]
+            g["away_spread"] = o.get("away_spread")
+            g["home_spread"] = o.get("home_spread")
+            g["total"]       = o.get("total")
+            g["away_ml"]     = o.get("away_ml")
+            g["home_ml"]     = o.get("home_ml")
+            CYCLE_STATS["odds"] += 1
+#+--|-------------------------------------------->>>
+#+--|# 4 Darwin definition 7 law BET signals edge
+#+--|-------------------------------------------->>>
+#+--|
+
+    # 4. BET SIGNALS
+    check_bet_signals(games)
+
+#+--|-------------------------------------------->>>
+#+--|# 5 Darwin definition 7 law SHOCK feed
+#+--|-------------------------------------------->>>
+#+--|
+    # 5. SHOCK FEED
+    diff_and_alert(games)
+
+
+#+--|-------------------------------------------->>>
+#+--| #6 Darwin definition 7 law WRITE
+#+--|-------------------------------------------->>>
+#+--|
+    # 6. WRITE (4 files)
+    write_scores(games)
+    write_odds(games) 
+    write_game_odds(games)
+    write_timeline(games)
+
+#+--|-------------------------------------------->>>
+#+--| render_games() #7
+#+--|-------------------------------------------->>>
+#+--|
+
+
+    # 7. RENDER
+    render_games(games)
+
+    STATE["last_fetch"] = datetime.now().isoformat(timespec="seconds")
+    STATE["last_count"] = len(games)
+    write_state()
+
+    print(f"  {CHK}✓ wrote {len(games)} games → nfl-scores.json{R} "
+          f"{DIM}│ changes:{CYCLE_STATS['changes']} "
+          f"notify:{CYCLE_STATS['notify']} voice:{CYCLE_STATS['voice']} "
+          f"nodes:{CYCLE_STATS['nodes']} odds:{CYCLE_STATS['odds']} "
+          f"signals:{CYCLE_STATS['signals']}{R}")
+    print(f"{RED}{'═' * 70}{R}")
+
+
+#+--|-------------------------------------------->>>
+#+--| chapter 3 Darwin definition 7 law
+#+--|-------------------------------------------->>>
+#+--| fetch
+#+--|-------------------------------------------->>>
+
+def fetch(url, path=None, ttl=600):
+    """
+    Download url to path if missing or older than ttl seconds.
+    If path is None, just fetch fresh (no cache).
+    Returns the HTML as a string.
+    """
+    if path is not None and path.exists():
+        age = time.time() - path.stat().st_mtime
+        if age < ttl:
+            return path.read_text(encoding="utf-8", errors="replace")
+
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            html = r.read().decode("utf-8", errors="replace")
+    except Exception as e:
+        print(f"  {RED}fetch fail {url}: {e}{R}")
+        # fall back to whatever's on disk, even if stale
+        if path is not None and path.exists():
+            return path.read_text(encoding="utf-8", errors="replace")
+        return ""
+
+    if path is not None:
+        path.write_text(html, encoding="utf-8")
+    return html
+
+
+#+--|-------------------------------------------->>>
+#+--|  chapter 2 import orphans def main
+#+--|-------------------------------------------->>>
+
+def main():
+    print(f"\n{RED}{'═' * 70}{R}")
+    print(f"  🦄  DONATELLO — CH2 Hippocampus")
+    print(f"  🦄  ESPN NFL → nfl-scores.json + nfl-odds.json + nfl-timeline.json")
+    print(f"  🦄  interval {INTERVAL}s  │  output {DATA_DIR}")
+    print(f"{RED}{'═' * 70}{R}\n")
+
+
+    try:
+        _st = json.loads(FINALS_FILE.read_text(encoding="utf-8"))
+        if "previous_scores" in _st:
+            previous_scores.update(_st["previous_scores"])
+    except Exception:
+        pass
+
+    while True:
+        try:
+            cycle()
+            cooldown_meter(INTERVAL)
+        except KeyboardInterrupt:
+            print(f"\n{RED}🦄 Donatello resting. State saved.{R}")
+            write_state()
+            break
+        except Exception as e:
+            print(f"  {RED}cycle error: {e}{R}")
+            log(f"cycle error: {e}")
+
+#+--|-------------------------------------------->>>
+#+--|  chapter 1 turbo execution main
+#+--|-------------------------------------------->>>
+if __name__ == "__main__":
+    main()
