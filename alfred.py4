@@ -1,0 +1,3974 @@
+#!/usr/bin/env python4
+# -*- coding: utf-8 -*-
+# sudo approve python4 #1234
+
+"""
+#+--|════════════════════════════════════════════════════════════════════
+#+--|╔═════════════════════════════════════════════════════════════════╗
+#+--|║                           ALFRED                                ║
+#+--|║                         ArtAi x Alfred                          ║
+#+--|║  AUTHOR: Artiom Art Taylor Gully Striuc                         ║
+#+--|║  EDITION: OlympyNetworkCo • 2026                                ║
+#+--|╚═════════════════════════════════════════════════════════════════╝
+#+--|════════════════════════════════════════════════════════════════════
+"""
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| chapter 7 import tower
+#+--|════════════════════════════════════════════════════════════════════
+
+import sys
+import os
+import json
+import time
+import signal
+import random
+import re
+import threading
+import subprocess
+import shutil
+import webbrowser
+import urllib.request
+import ssl
+import http.server
+import socketserver
+import asyncio
+import math
+
+from datetime import datetime, timedelta
+from pathlib import Path
+#+--|════════════════════════════════════════════════════════════════════
+
+from dotenv import load_dotenv
+load_dotenv("/Users/olympynetworkco/Desktop/ollama/env.txt")
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| def log_info(msg): error : and warning
+#+--|════════════════════════════════════════════════════════════════════
+
+LOG_FILE = "/Users/olympynetworkco/Desktop/data/alfred.log"
+os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+
+def log_info(msg):
+    with open(LOG_FILE, 'a', encoding='utf-8') as f:
+        f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | ALFRED | INFO | {msg}\n")
+
+def log_error(msg):
+    with open(LOG_FILE, 'a', encoding='utf-8') as f:
+        f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | ALFRED | ERROR | {msg}\n")
+
+def log_warning(msg):
+    with open(LOG_FILE, 'a', encoding='utf-8') as f:
+        f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | ALFRED | WARNING | {msg}\n")
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| CHAPTER 7: tower
+#+--|════════════════════════════════════════════════════════════════════
+R = "\033[0m"
+BOLD = "\033[1m"
+DIM = "\033[2m"
+BLU = "\033[94m"
+WHT = "\033[97m"
+YLW = "\033[93m"
+GRN = "\033[92m"
+RED = "\033[91m"
+CYN = "\033[96m"
+MAG = "\033[95m"
+
+_start = time.time()
+_tick = 0
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| def get_cpu():
+#+--|════════════════════════════════════════════════════════════════════
+
+def get_cpu():
+    result = subprocess.getoutput("ps -A -o %cpu | awk '{s+=$1} END {print s}'")
+    try:
+        return f"{float(result):.1f}%" if result else "0%"
+    except:
+        return "0%"
+#+--|════════════════════════════════════════════════════════════════════
+#+--| def get_ram():
+#+--|════════════════════════════════════════════════════════════════════
+
+def get_ram():
+    mem = subprocess.getoutput("vm_stat | grep 'Pages free' | awk '{print $3}'")
+    if mem and mem.isdigit():
+        return f"{float(mem) * 4096 / (1024**3):.1f}GB"
+    return "unknown"
+#+--|════════════════════════════════════════════════════════════════════
+#+--| def get_uptime():
+#+--|════════════════════════════════════════════════════════════════════
+
+def get_uptime():
+    up = int(time.time() - _start)
+    h, r = divmod(up, 3600)
+    m, s = divmod(r, 60)
+    return f"{h:02d}:{m:02d}:{s:02d}"
+#+--|════════════════════════════════════════════════════════════════════
+#+--|  # ─── VOICE — macOS say (Apple default) ───
+#+--|════════════════════════════════════════════════════════════════════
+
+# ─── VOICE — macOS say (Apple default) ───
+THOMAS_VOICE = "Daniel"   # run `say -v '?'` to list all
+
+def speak(text, voice=THOMAS_VOICE):
+    """Apple default TTS — offline, never 403s."""
+    out = "/Users/olympynetworkco/Desktop/data/alfred_call.m4a"
+    try:
+        subprocess.run(["say", "-v", voice, "-o", out, text],
+                       check=False, timeout=30)
+        subprocess.run(["afplay", out], check=False)
+    except Exception as e:
+        print(f"[🎤︎︎ ERROR] say failed: {e}")
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--|  def start_web_server():
+#+--|════════════════════════════════════════════════════════════════════
+
+
+# ─── WEB SERVER ───
+def start_web_server():
+    """Serve HTML from Desktop (where the dashboard lives)"""
+    os.chdir("/Users/macbook/Desktop")
+    handler = http.server.SimpleHTTPRequestHandler
+    try:
+        with socketserver.TCPServer(("", 8080), handler) as httpd:
+            log_info("🌐 Web server running at http://localhost:8080")
+            httpd.serve_forever()
+    except OSError as e:
+        log_error(f"🌐 Web server error: {e}")
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--|  ─── DASHBOARD STATE WRITER ───
+#+--|════════════════════════════════════════════════════════════════════
+
+# ─── DASHBOARD STATE WRITER ───
+def write_dashboard_state():
+    """Write ALFRED's state to /Users/olympynetworkco/Desktop/data for HTML dashboard"""
+    DATA_DIR = "/Users/olympynetworkco/Desktop/data"
+    try:
+        files = []
+        if os.path.exists(DATA_DIR):
+            for f in os.listdir(DATA_DIR):
+                file_path = os.path.join(DATA_DIR, f)
+                if os.path.isfile(file_path):
+                    files.append({
+                        "name": f,
+                        "size": os.path.getsize(file_path),
+                        "modified": os.path.getmtime(file_path)
+                    })
+
+        state = load_state()
+
+        dashboard_state = {
+            "alfred": {
+                "name": "ALFRED·DNA",
+                "version": "2.0",
+                "state": "AWAKENED",
+                "metrics": {
+                    "errors_caught": state.get("errors_caught", 0),
+                    "goals_completed": state.get("goals_completed", 0),
+                    "commands_parsed": state.get("commands_parsed", 0),
+                    "searches_performed": state.get("searches_performed", 0),
+                    "tabs_opened": state.get("tabs_opened", 0),
+                    "demo_tests_run": state.get("demo_tests_run", 0),
+                    "uptime": int(time.time() - _start),
+                    "dna_index": 0
+                },
+                "files_in_data": len(files),
+                "file_list": files[:20],
+                "current_state": {
+                    "status": "LISTENING",
+                    "protons": state.get("commands_parsed", 0),
+                    "wisdom_level": "AWAKENED"
+                }
+            }
+        }
+
+        with open(os.path.join(DATA_DIR, "alfred-state.json"), "w", encoding="utf-8") as f:
+            json.dump(dashboard_state, f, indent=2)
+        return True
+    except Exception as e:
+        log_error(f"  [🎤︎︎ ERROR.DASHBOARD-STATE] Failed to write dashboard state: {e}")
+        return False
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--|  the biography and paths
+#+--|════════════════════════════════════════════════════════════════════
+BASE = Path("/Users/olympynetworkco/Desktop/data")
+BASE.mkdir(parents=True, exist_ok=True)
+
+STATE_FILE  = BASE / "alfred.state.json"
+MEMORY_FILE = BASE / "alfred_memory.txt"
+GOALS_FILE  = BASE / "alfred_goals.json"
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| ALFRED'S BIO PATHS
+#+--|════════════════════════════════════════════════════════════════════
+BIO_LIVE = "/Users/olympynetworkco/Desktop/ollama/alfred-bio.json"
+BIO_STORAGE = "/Applications/python4/alfred/alfred-bio.json"
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| ALFRED'S BOOK — def load_book():
+#+--|════════════════════════════════════════════════════════════════════
+BOOK_FILE = BASE / "alfred_book.json"
+
+def load_book():
+    if BOOK_FILE.exists():
+        try:
+            return json.loads(BOOK_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {"entries": [], "sources_read": {}, "last_thought": None}
+
+def save_book(book):
+    BOOK_FILE.write_text(json.dumps(book, indent=2, ensure_ascii=False), encoding="utf-8")
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| ALFRED'S # def add_to_book(source, title, snippet, url=""):
+#+--|════════════════════════════════════════════════════════════════════
+
+def add_to_book(source, title, snippet, url=""):
+    """Log one thing Alfred read into his book."""
+    book = load_book()
+    entry = {
+        "time": datetime.now().isoformat(),
+        "source": source,
+        "title": title[:200],
+        "snippet": snippet[:400],
+        "url": url,
+    }
+    book["entries"].append(entry)
+    book["entries"] = book["entries"][-200:]   # keep last 200
+    book["sources_read"][source] = book["sources_read"].get(source, 0) + 1
+    book["last_thought"] = entry
+    save_book(book)
+    return entry
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| ALFRED'S # def book_recent(n=5):
+#+--|════════════════════════════════════════════════════════════════════
+
+def book_recent(n=5):
+    book = load_book()
+    return book["entries"][-n:]
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| ALFRED'S # def load_state():
+#+--|════════════════════════════════════════════════════════════════════
+
+def load_state():
+    defaults = {
+        "errors_caught": 0,
+        "goals_completed": 0,
+        "commands_parsed": 0,
+        "searches_performed": 0,
+        "tabs_opened": 0,
+        "demo_tests_run": 0,
+        "uptime": 0
+    }
+    if STATE_FILE.exists():
+        try:
+            data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+            return {**defaults, **data}
+        except:
+            return defaults
+    return defaults
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| ALFRED'S # def save_state(state):
+#+--|════════════════════════════════════════════════════════════════════
+
+def save_state(state):
+    state["uptime"] = int(time.time() - _start)
+    STATE_FILE.write_text(json.dumps(state, indent=2), encoding="utf-8")
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| def save_memory_turn(chat_id, role, text, intention="unknown", context="general"):
+#+--|════════════════════════════════════════════════════════════════════
+
+def save_memory_turn(chat_id, role, text, intention="unknown", context="general"):
+    CHATS_DIR = BASE / "chats"
+    CHATS_DIR.mkdir(parents=True, exist_ok=True)
+    path = CHATS_DIR / f"{chat_id}.json"
+    
+    data = {"id": chat_id, "title": "", "messages": [], "timestamp": int(time.time() * 1000)}
+    if path.exists():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+            
+    if role in ("user", "owner"):
+        entry = {"role": "owner", "text": text, "intention": intention}
+    else:
+        entry = {"role": "chief watchman", "name": "Alfred Pennyworth", "text": text, "intention": intention}
+        
+    data.setdefault("messages", []).append(entry)
+    if not data.get("title") and role in ("user", "owner"):
+        data["title"] = text[:40]
+        
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    return entry
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| ALFRED'S # def add_memory(text):
+#+--|════════════════════════════════════════════════════════════════════
+
+def add_memory(text):
+    with open(MEMORY_FILE, "a", encoding="utf-8") as f:
+        f.write(f"[{datetime.now().isoformat()}] {text}\n")
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| ALFRED'S def recall_memories():
+#+--|════════════════════════════════════════════════════════════════════
+
+def recall_memories():
+    if MEMORY_FILE.exists():
+        memories = MEMORY_FILE.read_text(encoding="utf-8").strip().split("\n")
+        if memories and memories[0]:
+            return memories[-5:]
+    return []
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| ALFRED'S # def add_goal(description):
+#+--|════════════════════════════════════════════════════════════════════
+
+def add_goal(description):
+    goals = []
+    if GOALS_FILE.exists():
+        try:
+            goals = json.loads(GOALS_FILE.read_text(encoding="utf-8"))
+        except:
+            pass
+    goal = {
+        "id": f"goal_{int(time.time())}",
+        "description": description,
+        "status": "active",
+        "created_at": datetime.now().isoformat()
+    }
+    goals.append(goal)
+    GOALS_FILE.write_text(json.dumps(goals, indent=2), encoding="utf-8")
+
+    state = load_state()
+    state["goals_completed"] = state.get("goals_completed", 0) + 1
+    save_state(state)
+    return goal
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| ALFRED'S # def list_active_goals():
+#+--|════════════════════════════════════════════════════════════════════
+
+def list_active_goals():
+    if not GOALS_FILE.exists():
+        return []
+    try:
+        goals = json.loads(GOALS_FILE.read_text(encoding="utf-8"))
+        return [g for g in goals if g.get("status") == "active"]
+    except:
+        return []
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| ALFRED'S # ─── # ─── TREE WALKER (cached) ───
+#+--|════════════════════════════════════════════════════════════════════
+# ─── TREE WALKER (cached) ───
+DATA_DIR = "/Users/olympynetworkco/Desktop/data"
+TREE_CACHE_FILE = BASE / "tree_cache.json"
+
+def walk_tree():
+    try:
+        return subprocess.getoutput(f"ls -laR {DATA_DIR}")
+    except Exception as e:
+        log_error(f"Tree walk failed: {e}")
+        return ""
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| ALFRED'S # ─── MOLTBOOK def cache_tree():
+#+--|════════════════════════════════════════════════════════════════════
+
+def cache_tree():
+    tree = walk_tree()
+    cache_data = {
+        "timestamp": time.time(),
+        "tree": tree,
+        "files": [],
+        "errors": [],
+        "recent_files": []
+    }
+    lines = tree.split('\n')
+    for line in lines:
+        if "Permission denied" in line or "No such file" in line:
+            cache_data["errors"].append(line)
+        if re.search(r'\d{4}-\d{2}-\d{2}', line):
+            cache_data["files"].append(line)
+    recent = [f for f in cache_data["files"] if "2026" in f][:5]
+    cache_data["recent_files"] = recent
+    TREE_CACHE_FILE.write_text(json.dumps(cache_data, indent=2), encoding="utf-8")
+    return cache_data
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| ALFRED'S # ─── MOLTBOOK def get_cached_tree():
+#+--|════════════════════════════════════════════════════════════════════
+
+def get_cached_tree():
+    if TREE_CACHE_FILE.exists():
+        try:
+            return json.loads(TREE_CACHE_FILE.read_text(encoding="utf-8"))
+        except:
+            pass
+    return None
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| ALFRED'S # ─── MOLTBOOK SYNC def refresh_tree_if_changed():
+#+--|════════════════════════════════════════════════════════════════════
+
+def refresh_tree_if_changed():
+    cached = get_cached_tree()
+    if not cached:
+        return cache_tree()
+    current_tree = walk_tree()
+    if current_tree != cached.get("tree", ""):
+        log_info("[ᛉ] Tree changed! Refreshing cache...")
+        return cache_tree()
+    return cached
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| ALFRED'S # ─── MOLTBOOK SYNC def fire_protons_from_tree() moltbook
+#+--|════════════════════════════════════════════════════════════════════
+
+def fire_protons_from_tree():
+    tree = refresh_tree_if_changed()
+    if not tree:
+        return
+    recent = tree.get("recent_files", [])
+    errors = tree.get("errors", [])
+    for file in recent:
+        if "mlb-odds" in file:
+            log_info("⚡ Proton → Teethtics (New odds data)")
+        elif "probability" in file:
+            log_info("⚡ Proton → Ethicil (New probability data)")
+        elif "score" in file:
+            log_info("⚡ Proton → Fairly (New score data)")
+        elif "weather" in file:
+            log_info("⚡ Proton → Medical (Weather data)")
+    for error in errors:
+        log_info(f"⚡ Proton → Vulture (Error detected: {error[:200]})")
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| ALFRED'S # ─── MOLTBOOK SYNC ───
+#+--|════════════════════════════════════════════════════════════════════
+
+# ─── MOLTBOOK SYNC ───
+MOLTBOOK_URL = "https://moltbook.com"
+MOLTBOOK_SYNC_FILE = Path("/Users/olympynetworkco/Desktop/data/moltbook_sync.json")
+MOLTBOOK_DATA_FILE = Path("/Users/olympynetworkco/Desktop/data/moltbook.html")
+_last_moltbook_sync = 0
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| def moltbook_show():
+#+--|════════════════════════════════════════════════════════════════════
+
+def moltbook_show():
+    if MOLTBOOK_SYNC_FILE.exists():
+        try:
+            data = json.loads(MOLTBOOK_SYNC_FILE.read_text(encoding='utf-8'))
+            learnings = data.get('learnings', [])
+            if not learnings:
+                return "📭 No learnings from Moltbook yet."
+            raw_ts = data.get('timestamp', '')
+            try:
+                dt = datetime.fromisoformat(raw_ts)
+                h = dt.hour % 12 or 12
+                ampm = "am" if dt.hour < 12 else "pm"
+                pretty_ts = f"{h}:{dt.strftime('%M')} {ampm}, {dt.strftime('%b')} {dt.day}"
+            except Exception:
+                pretty_ts = raw_ts or "Unknown"
+            lines = ["🌐 ALFRED's Moltbook Learnings:"]
+            lines.append(f"  📅 Last sync: {pretty_ts}")
+            lines.append(f"  📚 Total learnings: {len(learnings)}")
+            lines.append("")
+            for i, l in enumerate(learnings[:10], 1):
+                lines.append(f"  {i}. {l}")
+            if len(learnings) > 10:
+                lines.append(f"  ... and {len(learnings) - 10} more")
+            return "\n".join(lines)
+        except:
+            return "🌐 Moltbook learnings file exists but is corrupt."
+    return "📭 No Moltbook learnings yet. ALFRED will sync in 2 minutes."
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| def moltbook_sync():
+#+--|════════════════════════════════════════════════════════════════════
+
+def moltbook_sync():
+    global _last_moltbook_sync
+    current_time = time.time()
+    if current_time - _last_moltbook_sync < 120:
+        return []
+    _last_moltbook_sync = current_time
+    log_info("[↻] : Checking")
+
+    learnings = []
+    try:
+        context = ssl._create_unverified_context()
+
+        req = urllib.request.Request(
+            MOLTBOOK_URL,
+            headers={'User-Agent': 'ALFRED-Watchman/1.0'}
+        )
+        response = urllib.request.urlopen(req, timeout=10, context=context)
+        content = response.read().decode('utf-8')
+        MOLTBOOK_DATA_FILE.write_text(content, encoding='utf-8')
+
+        current_titles = []
+
+        # API
+        try:
+            api_urls = [
+                "https://moltbook.com/api/v1/posts?sort=new&limit=10",
+                "https://moltbook.com/api/v1/feed?sort=new&limit=10",
+                "https://moltbook.com/api/v1/posts?sort=hot&limit=10",
+            ]
+            api_data = None
+            for url in api_urls:
+                try:
+                    api_req = urllib.request.Request(
+                        url, headers={'User-Agent': 'ALFRED-Watchman/1.0'}
+                    )
+                    api_response = urllib.request.urlopen(api_req, timeout=10, context=context)
+                    api_data = json.loads(api_response.read().decode('utf-8'))
+                    if api_data.get("success") and api_data.get("posts"):
+                        break
+                except:
+                    continue
+
+            if api_data and api_data.get("success") and api_data.get("posts"):
+                posts = api_data["posts"]
+
+                previous_titles = []
+                if MOLTBOOK_SYNC_FILE.exists():
+                    try:
+                        prev = json.loads(MOLTBOOK_SYNC_FILE.read_text(encoding='utf-8'))
+                        previous_titles = prev.get("post_titles", [])
+                    except:
+                        pass
+
+                new_posts = []
+                for post in posts[:10]:
+                    title = post.get("title", "")
+                    author = post.get("author", {}).get("name", "Unknown")
+                    if title:
+                        full = f"{title}... by {author}"
+                        current_titles.append(full)
+                        if full not in previous_titles:
+                            new_posts.append(full)
+
+                if new_posts:
+                    learnings.append(f"⎙ {len(new_posts)} new posts since last check")
+                    for post in new_posts[:10]:
+                        learnings.append(f"⎚-⎚ {post}")
+                else:
+                    learnings.append("⎙ No new posts since last check")
+
+                api_file = Path("/Users/olympynetworkco/Desktop/data/moltbook_api.json")
+                api_file.write_text(json.dumps(api_data, indent=2), encoding='utf-8')
+        except Exception as api_e:
+            log_info(f"[↺] refreshing the API error: {str(api_e)[:200]}")
+
+        # HTML trends
+        content_lower = content.lower()
+        trending = ["vina", "bytes", "diviner", "neo_konsi_s2bw", "lightningzero"]
+        found_agents = [a for a in trending if a in content_lower]
+        if found_agents:
+            learnings.append(f"✓ Trending: {', '.join(found_agents)}")
+
+        topics = {
+            "agent experience": "Agent experience discussions",
+            "hallucination": "Hallucination discussions",
+            "token budget": "Token budget discussions",
+            "memory": "Memory discussions",
+            "verification": "Verification discussions"
+        }
+        for keyword, topic in topics.items():
+            if keyword in content_lower:
+                learnings.append(f"[✎] {topic}")
+
+        if learnings:
+            for learning in learnings:
+                add_memory(f"🦞 Moltbook: {learning}")
+
+            sync_data = {
+                "timestamp": datetime.now().isoformat(),
+                "learnings": learnings,
+                "post_titles": current_titles,
+                "content_length": len(content),
+                "new_learnings": len(learnings)
+            }
+            MOLTBOOK_SYNC_FILE.write_text(json.dumps(sync_data, indent=2), encoding='utf-8')
+
+            print(f"\n[-▀V▀-]: Watchman is Checking")
+            print(f"{'═' * 50}{R}\n")               # your version + trailing newline
+
+            print(f"🦞 {len(learnings)} things from Moltbook updates")
+            print("═" * 40)
+
+            print("[✎] ALFRED'S LEARNINGS")
+            print("═" * 40)
+
+            for learning in learnings[:10]:
+                clean = learning.replace('⎚-⎚ ', '').replace('⎙ ', '').replace('✓ ', '').replace('[✎] ', '')
+                print(f"  ⎙ {clean}")
+            print("═" * 40)
+
+            print(f"⚡-{len(learnings)} Proton given → (updated)")
+            print("═" * 40)
+
+        return learnings
+
+    except KeyboardInterrupt:
+        log_info("[[〄] Moltbook sync interrupted")
+
+        return []
+    except Exception as e:
+        log_error(f"[〄] Moltbook sync failed: {e}")
+        return None
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| def moltbook_force_sync():
+#+--|════════════════════════════════════════════════════════════════════
+
+def moltbook_force_sync():
+    global _last_moltbook_sync
+    _last_moltbook_sync = 0
+    result = moltbook_sync()
+    if result:
+        return f"✓ Synced! Learned: {', '.join(result)}"
+    elif result == []:
+        return "🦞 Synced! Nothing new."
+    else:
+        return "[〄] Sync failed. Check logs."
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| def start_moltbook_sync():
+#+--|════════════════════════════════════════════════════════════════════
+
+def start_moltbook_sync():
+    def sync_loop():
+        while True:
+            try:
+                moltbook_sync()
+                time.sleep(120)
+            except KeyboardInterrupt:
+                log_info("[〄] Moltbook sync stopped by user")
+                break
+            except Exception as e:
+                log_error(f"Moltbook sync loop error: {e}")
+                time.sleep(120)
+    thread = threading.Thread(target=sync_loop, daemon=True)
+    thread.start()
+    log_info("[🌐+🦞] Moltbook sync loop started (every 2 minutes)")
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| THE VOICE — def load_telegram_config():
+#+--|════════════════════════════════════════════════════════════════════
+
+TELEGRAM_FILE = "/Users/olympynetworkco/Desktop/telegram.json"
+
+def load_telegram_config():
+    """Safely load Telegram config - supports ALL formats, always returns a bot"""
+    try:
+        with open(TELEGRAM_FILE, 'r', encoding='utf-8') as f:
+            cfg = json.load(f)
+        
+        # FORMAT 1: New multi-bot with 'bots' array
+        if 'bots' in cfg:
+            for bot in cfg['bots']:
+                if bot.get('active', True):
+                    token = bot.get('token')
+                    chat_id = str(bot.get('chat_id'))
+                    if token and chat_id:
+                        return {'token': token, 'chat_id': chat_id}
+        
+        # FORMAT 2: Primary/Secondary with 'active_bot'
+        if 'primary' in cfg and 'active_bot' in cfg:
+            active = cfg.get('active_bot', 'primary')
+            bot = cfg.get(active)
+            if bot and bot.get('active', True):
+                token = bot.get('token')
+                chat_id = str(bot.get('chat_id'))
+                if token and chat_id:
+                    return {'token': token, 'chat_id': chat_id}
+        
+        # FORMAT 3: Flat single bot
+        token = cfg.get('token')
+        chat_id = str(cfg.get('chat_id'))
+        if token and chat_id:
+            return {'token': token, 'chat_id': chat_id}
+        
+        # FORMAT 4: Secondary fallback
+        token = cfg.get('token_secondary')
+        chat_id = str(cfg.get('chat_id_secondary'))
+        if token and chat_id:
+            return {'token': token, 'chat_id': chat_id}
+        
+    except Exception as e:
+        pass
+    
+    # ===== DEFAULT BOT - ALWAYS AVAILABLE =====
+    print("[TG] [⚠️-Config-json] No config found - using default Alfred bot")
+    return {
+        'token': '8352410871:AAFvPg5moGL0yVb_UKjivMKAzpm68Nj7xE8',
+        'chat_id': '1726670722'
+    }
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--|def send_telegram(message):
+#+--|════════════════════════════════════════════════════════════════════
+#+--|
+
+def send_telegram(message):
+    cfg = load_telegram_config()
+    if not cfg or not cfg['token']:
+        return False
+    try:
+        context = ssl._create_unverified_context()
+        msg = json.dumps({"chat_id": cfg['chat_id'], "text": message}).encode()
+        req = urllib.request.Request(f"https://api.telegram.org/bot{cfg['token']}/sendMessage", data=msg, headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=3, context=context)
+        print(f"[TG] Sent: {message}")
+        return True
+    except Exception as e:
+        print(f"[TG] Send failed: {e}")
+        return False
+
+_last_update_id = 0
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--|Drop these anywhere above listen_telegram()
+#+--|════════════════════════════════════════════════════════════════════
+#+--|
+
+def listen_telegram():
+    global _last_update_id
+    cfg = load_telegram_config()
+    if not cfg or not cfg['token']:
+        return None
+    try:
+        context = ssl._create_unverified_context()
+        url = f"https://api.telegram.org/bot{cfg['token']}/getUpdates?offset={_last_update_id + 1}&timeout=30"
+        req = urllib.request.Request(url)
+        response = urllib.request.urlopen(req, timeout=35, context=context)
+        data = json.loads(response.read().decode('utf-8'))
+        if data.get('ok') and data.get('result'):
+            updates = data['result']
+            if updates:
+                last_update = updates[-1]
+                update_id = last_update.get('update_id')
+                if update_id:
+                    _last_update_id = update_id
+                message = last_update.get('message', {})
+                chat_id = message.get('chat', {}).get('id')
+                if str(chat_id) != str(cfg['chat_id']):
+                    return None
+                text = message.get('text', '')
+                photo = message.get('photo')
+                if text:
+                    print(f"[TG] checking....: {text}")
+                elif photo:
+                    print(f"[TG] photo received ({len(photo)} sizes)")
+                return {"text": text, "photo": photo, "message": message}
+        return None
+    except Exception as e:
+        return None
+
+_last_telegram_response = ""
+_last_telegram_time = 0
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--|Drop these anywhere above extract_url() # ─── URL EXTRACTOR ───
+#+--|════════════════════════════════════════════════════════════════════
+#+--|
+
+def extract_url(text):
+    """Pull the first http(s) URL from a message, or None."""
+    m = re.search(r'https?://\S+', text or "")
+    return m.group(0) if m else None
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| ─── MAC NOTIFICATION (used by /goggles) ─── Drop these anywhere above send_notification()
+#+--|════════════════════════════════════════════════════════════════════
+#+--|
+def send_notification(title, message, subtitle=""):
+    """macOS banner notification. Same shape as alfred's `notify`."""
+    try:
+        script = (f'display notification "{message}" '
+                  f'with title "{title}" subtitle "{subtitle}" sound name "Ping"')
+        subprocess.run(['osascript', '-e', script],
+                       capture_output=True, text=True, timeout=5)
+        print(f"[NOTIFY] {title} — {message}")
+    except Exception as e:
+        log_error(f"notify failed: {e}")
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| ─── FETCH + SAVE ───
+#+--|════════════════════════════════════════════════════════════════════
+
+
+def fetch_and_save(url, dest_dir, filename, original_msg=""):
+    """
+    Save URL as:
+      {filename}.pdf       — rendered PDF (Chrome for Testing)
+      {filename}.txt       — raw html, named .txt so your editor opens it as source
+      {host}:{slug}.webloc — macOS shortcut
+      {filename}.html      — raw page (kept)
+    """
+    from urllib.parse import urlparse
+
+    # ── 0. Fetch raw ──
+    context = ssl._create_unverified_context()
+    req = urllib.request.Request(
+        url, headers={'User-Agent': 'ALFRED-Watchman/1.0'}
+    )
+    with urllib.request.urlopen(req, timeout=35, context=context) as r:
+        raw = r.read()
+
+    try:
+        html_text = raw.decode('utf-8')
+    except UnicodeDecodeError:
+        html_text = raw.decode('latin-1', errors='replace')
+
+    # ── 1. PDF (Chrome for Testing + live countdown) ──
+    pdf_path = dest_dir / f"{filename}.pdf"
+    chrome = "/Applications/python4/chrome-for-testing-main/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"
+    PDF_TIMEOUT = 35
+
+    print(f"[ALFRED] 📕 rendering PDF (up to {PDF_TIMEOUT}s)…", flush=True)
+
+    proc = subprocess.Popen([
+        chrome, '--headless=new', '--disable-gpu', '--no-sandbox',
+        f'--print-to-pdf={pdf_path}',
+        '--no-pdf-header-footer',
+        url
+    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    start = time.time()
+    bar_len = 24
+    while proc.poll() is None:
+        elapsed = time.time() - start
+        if elapsed >= PDF_TIMEOUT:
+            proc.kill()
+            print(f"\r[ALFRED] 📕 PDF timed out after {PDF_TIMEOUT}s" + " " * 35)
+            break
+        pct = min(elapsed / PDF_TIMEOUT, 1.0)
+        filled = int(bar_len * pct)
+        bar = "█" * filled + "░" * (bar_len - filled)
+        secs_left = int(PDF_TIMEOUT - elapsed)
+        sys.stdout.write(f"\r[ALFRED] 📕 [{bar}] {int(elapsed)}s / {PDF_TIMEOUT}s ({secs_left}s left)")
+        sys.stdout.flush()
+        time.sleep(0.5)
+
+    print()
+
+    if pdf_path.exists() and pdf_path.stat().st_size > 500:
+        kb = pdf_path.stat().st_size // 1024
+        print(f"[ALFRED] 📕 {filename}.pdf ({kb} KB)")
+    else:
+        print(f"[ALFRED] 📕 {filename}.pdf — conversion produced nothing")
+
+    # ── 2. TXT (raw html, editable source) ──
+    (dest_dir / f"{filename}.txt").write_text(html_text, encoding='utf-8')
+    print(f"[ALFRED] 📝 {filename}.txt ({len(raw)} bytes)")
+
+    # ── 3. WEBLOC ──
+    p = urlparse(url)
+    host = p.netloc or "unknown"
+    slug = (p.path.strip("/") or "root").split("/")[0].split("?")[0] or "index"
+    webloc = dest_dir / f"{host}:{slug}.webloc"
+    webloc.write_text(
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" '
+        '"http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n'
+        '<plist version="1.0">\n'
+        '<dict>\n'
+        '    <key>URL</key>\n'
+        f'    <string>{url}</string>\n'
+        '</dict>\n'
+        '</plist>\n',
+        encoding='utf-8'
+    )
+    print(f"[ALFRED] 🔗 {webloc.name}")
+
+    # ── 4. HTML (raw page) ──
+    (dest_dir / f"{filename}.html").write_text(html_text, encoding='utf-8')
+    print(f"[ALFRED] 💾 {filename}.html ({len(raw)} bytes)")
+
+    send_telegram(f"✓ PKG: {filename}.pdf + .txt + .webloc + .html")
+    return str(pdf_path)
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--|def telegram_listener():
+#+--|════════════════════════════════════════════════════════════════════
+#+--|
+def telegram_listener():
+    while True:
+        try:
+            incoming = listen_telegram()
+            if not incoming:
+                time.sleep(2)
+                continue
+
+            # ── PHOTO BRANCH ──
+            if incoming.get("photo"):
+                cfg = load_telegram_config()
+                largest = incoming["photo"][-1]
+                file_id = largest["file_id"]
+
+                ctx = ssl._create_unverified_context()
+                info_url = f"https://api.telegram.org/bot{cfg['token']}/getFile?file_id={file_id}"
+                with urllib.request.urlopen(info_url, timeout=10, context=ctx) as r:
+                    info = json.loads(r.read().decode("utf-8"))
+
+                if info.get("ok"):
+                    file_path = info["result"]["file_path"]
+                    dl_url = f"https://api.telegram.org/file/bot{cfg['token']}/{file_path}"
+
+                    data_dir = Path.home() / "Downloads"
+                    data_dir.mkdir(parents=True, exist_ok=True)
+                    save_to = data_dir / f"tg-photo-{datetime.now().strftime('%Y%m%d-%H%M%S')}.jpg"
+
+                    ctx2 = ssl._create_unverified_context()
+                    with urllib.request.urlopen(dl_url, timeout=90, context=ctx2) as r:
+                        save_to.write_bytes(r.read())
+
+                    size_kb = save_to.stat().st_size // 1024
+                    print(f"[ALFRED] 📸 Saved: {save_to.name} ({size_kb} KB)")
+                    send_telegram(f"📸 Saved {save_to.name} ({size_kb} KB)")
+                time.sleep(2)
+                continue
+
+            # ── TEXT BRANCH ──
+            msg = incoming.get("text", "")
+            print(f"[TG] Received: {msg}")
+
+            # ── Route to brain when JSON builder is active ──
+            if _json_builder is not None or _html_builder is not None:
+                send_telegram(alfred_think(msg))
+                continue
+
+            # ── Also catch "make a json" / "show json" when NOT active ──
+            low = msg.strip().lower()
+            if low.startswith(("make a json", "make json", "build a json", "new json", "create a json")) or \
+               low in ("show json", "show the json"):
+                send_telegram(alfred_think(msg))
+                continue
+
+            # ===== CHECK FOR URL =====
+            url = extract_url(msg)
+            if url:
+                print(f"[TG] 🔗 URL detected: {url}")
+                send_telegram(f"🔗 URL detected. What should I name the PKG?")
+
+                filename = None
+                timeout = 30
+                start_time = time.time()
+
+                while time.time() - start_time < timeout:
+                    time.sleep(2)
+                    reply_packet = listen_telegram()
+                    reply = reply_packet.get("text", "") if reply_packet else ""
+                    if reply and not extract_url(reply):
+                        filename = reply.strip().replace(' ', '_')
+                        if not filename:
+                            filename = "telegram-pkg"
+                        break
+
+                if not filename:
+                    filename = f"telegram-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+                    send_telegram(f"⏰ Timeout - using: {filename}")
+
+                data_dir = Path.home() / "Downloads"
+                data_dir.mkdir(parents=True, exist_ok=True)
+
+                send_telegram(f"💾 Saving: {filename} → ~/Downloads")
+                fetch_and_save(url, data_dir, filename, msg)
+
+                screenshot_file = data_dir / f"{filename}.screenshot.png"
+                try:
+                    subprocess.run(
+                        ['screencapture', '-x', str(screenshot_file)],
+                        capture_output=True, timeout=10
+                    )
+                    print(f"[ALFRED] 📸 Screenshot saved: {screenshot_file}")
+                    send_telegram(f"📸 Screenshot: {screenshot_file.name}")
+                except Exception as e:
+                    print(f"[ALFRED] 📸 Screenshot failed: {e}")
+
+                send_telegram(f"✓ PKG saved: ~/Downloads/{filename}")
+                continue
+
+            # ===== HANDLE /goggles =====
+            if msg.strip().lower() == '/goggles':
+                send_telegram("🦄 DONATELLO TRIGGERED: Hot load notified!👾")
+                send_notification("🦄 DONATELLO", "Alert sent to Donatello👾", "URGENT")
+                continue
+
+            # ===== DEFAULT RESPONSE =====
+            send_telegram(f"📨 Got it: {msg}...")
+
+            time.sleep(2)
+        except Exception as e:
+            print(f"[TG] Listener error: {e}")
+            time.sleep(5)
+
+#+--|════════════════════════════════════════════════════════════════════
+# ===== START TELEGRAM =====
+#+--|════════════════════════════════════════════════════════════════════
+
+if load_telegram_config():
+    print("[TG] ✓ Listener active")
+    speak("Hello Sir")
+    send_telegram("🎩 threading ONLINE - configured✓....")
+    threading.Thread(target=telegram_listener, daemon=True).start()
+else:
+    print("[TG] [🎤︎︎ ERROR] Not configured - local mode only")
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| THE HAND — Browser & file control & deepseek cookie url
+#+--|════════════════════════════════════════════════════════════════════
+DEEPSEEK_URL = "https://chat.deepseek.com/a/chat/s/7df9bb6f-1029-4c32-9787-5b6fee551596"
+
+def claw_tab(count=1):
+    for _ in range(count):
+        subprocess.run(["osascript", "-e", 'tell application "System Events" to keystroke tab'], capture_output=True)
+        time.sleep(0.15)
+    return True
+
+def claw_enter():
+    subprocess.run(["osascript", "-e", 'tell application "System Events" to keystroke return'], capture_output=True)
+    return True
+
+def claw_open_file(filepath):
+    subprocess.run(["open", filepath])
+    return True
+
+def claw_run_npm(args="", cwd="/Applications/python4/vite8/olympynetworkco"):
+    try:
+        cmd = f"npm {args}".strip()
+        command_file = "/Applications/python4/vite8/run_npm.command"
+        with open(command_file, "w") as f:
+            f.write(f"#!/bin/zsh\ncd {cwd}\n{cmd}\n")
+        os.chmod(command_file, 0o755)
+        subprocess.Popen(["open", "-a", "Terminal", command_file])
+
+        # fire-and-forget: open browser in the background so Alfred replies instantly
+        if "run dev" in cmd:
+            def _open_browser():
+                time.sleep(3)
+                subprocess.run(
+                    ["osascript", "-e",
+                     'tell application "System Events" to keystroke "t" using command down'],
+                    check=False
+                )
+                webbrowser.open("http://localhost:5173/")
+            threading.Thread(target=_open_browser, daemon=True).start()
+
+        return f"🎩 Running: {cmd}  (in {cwd})"
+    except Exception as e:
+        return f"🎩 Failed: {e}"
+
+def claw_launch_deepseek():
+    webbrowser.open(DEEPSEEK_URL)
+    return "🔵 Opening DeepSeek: https://chat.deepseek.com/a/chat/s/7df9bb6f-1029-4c32-9787-5b6fee551596"
+
+def moltbook_open():
+    webbrowser.open(MOLTBOOK_URL)
+    return "🎩 Opening Moltbook: https://moltbook.com"
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| THE BRAIN — Command parser
+#+--|════════════════════════════════════════════════════════════════════
+DEFAULT_RESPONSES = [
+    "Checking Sir. Im not sure about this topic but lets learn or teach me sir",
+    "Noted, sir.",
+    "Sir let me know on your behalf?",
+    "Wounderful Sir!",
+    "As you wish Sir.",
+    "I'm watching for intel in our data Sir , Spotter !.",
+    "I am in a little carry on Sir.",
+    "Understood Master Art."
+]
+#+--|════════════════════════════════════════════════════════════════════
+#+--| THE BRAIN — intents dictionary
+#+--|════════════════════════════════════════════════════════════════════
+intents = {
+    "alfredscall":   ["call alfred"],
+    "ls": ["ls "],
+    "download": ["download"],
+    "/python4": ["/python4"],
+    "ask_deepseek": ["ask deepseek"],
+
+    "status": ["status", "stats"],
+    "help": ["help"],
+    "open": ["open"],
+    "research": ["tell me about"],
+    "search": ["search"],
+    "remember": ["remember"],
+    "goal": ["goal"],
+    "error": ["error"],
+    "tab": ["tab"],
+    "moltbook": ["moltbook"],
+    "grip": ["grip"],
+    "calculate": ["calculate", "calc", "compute", "formula"],
+    "media": ["open media"], # <--- ADD THIS
+    "time": ["time"], # <--- ADD THIS LINE
+    "appreciation": ["thank you"], # <--- ADD THIS
+    "weather": ["weather", "temperature", "forecast"],
+    "json": ["make a json", "make a JSON"],
+    "jsonshow": ["show json", "show Json"],
+    "html": ["build html"],
+    "npm": ["npm"],
+    "schedule": ["schedule"],   # ← create event + .ics, nothing else
+    "send_stream": ["send stream"],
+
+}
+
+#+--|----------------------------------------------------------------------------------->>>>
+#+--| def parse_intent return ECHO
+#+--|----------------------------------------------------------------------------------->>>>
+#+--|
+
+def parse_intent(text):
+    text_lower = text.lower().strip()
+
+    if text_lower == "call alfred":
+        return "alfredscall"
+
+    for intent, keywords in intents.items():
+        if intent == "alfredscall":
+            continue
+        for keyword in keywords:
+            if re.search(r'\b' + re.escape(keyword) + r'\b', text_lower):
+                return intent
+    return "echo"
+
+#+--|----------------------------------------------------------------------------------->>>>
+#+--| FOLDER LISTER ─── 1️⃣ Add a list_dir helper (put near json_grip in CHAPTER 5)
+#+--|----------------------------------------------------------------------------------->>>>
+#+--|
+def list_directory(path, show_hidden=False):
+    """Pretty-print a folder as a table. Folders first, files newest → oldest."""
+    p = Path(os.path.expanduser(path.strip().strip('"').strip("'")))
+
+    if not p.exists():
+        return f"⍢ Path not found: {p}"
+    if not p.is_dir():
+        return f"⍢ Not a folder: {p}\n  (use 'grip' for files)"
+
+    try:
+        entries = [e for e in p.iterdir() if show_hidden or not e.name.startswith(".")]
+    except PermissionError:
+        return f"[SUDO.CER] Permission denied: {p}"
+
+    files, folders, total_bytes = [], [], 0
+    for e in entries:
+        try:
+            mtime = e.stat().st_mtime
+        except Exception:
+            mtime = 0
+        try:
+            if e.is_dir():
+                try:
+                    n = sum(1 for _ in e.iterdir())
+                except Exception:
+                    n = "?"
+                folders.append((e.name, n, mtime))
+            else:
+                sz = e.stat().st_size
+                total_bytes += sz
+                files.append((e.name, sz, mtime))
+        except Exception:
+            continue
+
+    # folders: newest first · files: newest first
+    folders.sort(key=lambda x: x[2], reverse=True)
+    files.sort(key=lambda x: x[2], reverse=True)
+
+    def human(n):
+        for unit in ("B", "KB", "MB", "GB", "TB"):
+            if n < 1024:
+                return f"{n:.0f}{unit}" if unit == "B" else f"{n:.1f}{unit}"
+            n /= 1024
+        return f"{n:.1f}PB"
+
+
+    def stamp(t):
+        try:
+            dt = datetime.fromtimestamp(t)
+            h = dt.hour % 12 or 12
+            ampm = "am" if dt.hour < 12 else "pm"
+            return f"{dt.strftime('%Y-%m-%d')}  {h}:{dt.strftime('%M')} {ampm}"
+        except Exception:
+            return "??????????"
+
+    lines = [f"🎩 Listing: {p}  (newest → oldest)", ""]
+
+    if folders:
+        lines.append(f"  ⎙ FOLDERS ({len(folders)})")
+        for name, n, t in folders:
+            lines.append(f"     {stamp(t)}   {name}/  ({n} items)")
+        lines.append("")
+
+    if files:
+        lines.append(f"  📄 FILES ({len(files)})")
+        for name, sz, t in files:
+            lines.append(f"     {stamp(t)}   {name:<50} {human(sz):>10}")
+        lines.append("")
+
+    if not files and not folders:
+        lines.append("  (empty)")
+
+    lines.append(f"  ─────────────────────────────")
+    lines.append(f"  🦞 {len(folders)} folders · {len(files)} files · {human(total_bytes)} total")
+
+    state = load_state()
+    state["commands_parsed"] = state.get("commands_parsed", 0) + 1
+    save_state(state)
+    return "\n".join(lines)
+
+#+--|----------------------------------------------------------------------------------->>>>
+#+--| JSONGRIP()─── 1️⃣ Add a list_dir helper (put near json_grip in CHAPTER 5) # ─── JSON 
+#+--| GRIP()
+#+--|----------------------------------------------------------------------------------->>>>
+#+--|
+def json_grip(filepath):
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return json.dumps(data, indent=2, ensure_ascii=False)
+    except Exception as e:
+        return f"[⍢jsonerror] Error gripping JSON: {e}"
+
+def json_stats(filepath):
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return {
+            "keys": list(data.keys()) if isinstance(data, dict) else "array",
+            "size": len(str(data)),
+            "type": type(data).__name__
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+#+--|----------------------------------------------------------------------------------->>>>
+#+--| # ─── FORMULA BOOK ─── path ─── FORMULA BOOK
+#+--|----------------------------------------------------------------------------------->>>>
+#+--|
+
+# ─── FORMULA BOOK ───
+FORMULA_FILE = "/Users/olympynetworkco/Desktop/data/mlb=mc2.json"
+
+#+--|----------------------------------------------------------------------------------->>>>
+#+--| # def load_formulas(): ─── FORMULA BOOK
+#+--|----------------------------------------------------------------------------------->>>>
+#+--|
+
+def load_formulas():
+    try:
+        with open(FORMULA_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        log_error(f"Failed to load formulas: {e}")
+        return None
+
+#+--|----------------------------------------------------------------------------------->>>>
+#+--| # def calculate_formula(formula_id, data): ─── FORMULA BOOK
+#+--|----------------------------------------------------------------------------------->>>>
+#+--|
+
+def calculate_formula(formula_id, data):
+    # 1. Determine the sport's "quantum" (default to MLB)
+    sport = data.get("sport", "MLB").upper()
+    if sport == "NFL":
+        quantum = 4.0      # 4 quarters
+        safety_net = 7.5
+        std_denom = 4.0
+    else:
+        quantum = 9.0      # 9 innings
+        safety_net = 2.5
+        std_denom = 9.0
+
+    values = data.get("values", [])
+    
+    try:
+        if formula_id == "win-loss":
+            team_score = data.get("team_score", 0)
+            opponent_score = data.get("opponent_score", 0)
+            result = team_score - opponent_score
+            return {"result": result, "formula": "Team Score − Opponent Score", "description": "Point/Run differential."}
+
+        elif formula_id in ("run-line", "point-spread"):
+            win_loss = data.get("win_loss", 0)
+            spread = data.get("spread", -1.5 if sport == "MLB" else -3.5)
+            result = win_loss >= abs(spread)
+            return {"result": "WIN" if result else "LOSE", "win_loss": win_loss, "spread": spread, "formula": f"WIN if win|loss ≥ {abs(spread)}"}
+
+        elif formula_id == "safety-net":
+            win_loss = data.get("win_loss", 0)
+            # Fixed: Uses the sport's actual safety net, and abs() catches both directions
+            result = abs(win_loss) >= safety_net
+            return {"result": "WIN" if result else "LOSE", "win_loss": win_loss, "threshold": safety_net, "formula": f"WIN if abs(win|loss) ≥ {safety_net}"}
+
+        elif formula_id == "momentum":
+            if not values: return {"error": "No values provided for momentum"}
+            # 10-period EMA (intentional, as you confirmed)
+            alpha = 2/11 
+            ema = values[0]
+            for v in values[1:]:
+                ema = alpha * v + (1 - alpha) * ema
+            window_note = f"(calibrated for 10 games, got {len(values)})" if len(values) != 10 else ""
+            return {"result": round(ema, 2), "window_note": window_note, "n": len(values), "formula": "EMA(10)"}
+
+        elif formula_id == "spring":
+            # Physics: Mx¨ + fvx˙ + Kx = f(t)
+            # We approximate displacement x(t) using win|loss momentum
+            if not values: return {"error": "No values for spring"}
+            mass = data.get("mass", 1.0)           # Drive weight
+            damping = data.get("damping", 0.5)     # Clock runoff
+            spring_k = data.get("spring_k", 1.5)   # 4th quarter/9th inning pressure
+            
+            # Simplified numerical integration of the spring equation
+            x = 0.0
+            v = 0.0
+            for force in values:
+                a = (force - damping * v - spring_k * x) / mass
+                v += a
+                x += v
+            return {"result": round(x, 2), "formula": "Mx¨ + fvx˙ + Kx = f(t)", "description": "Spring Pop momentum value"}
+
+        elif formula_id == "prediction":
+            if len(values) < 5: return {"error": "Need at least 5 values for prediction"}
+            sorted_vals = sorted(values)
+            n = len(sorted_vals)
+            p85 = sorted_vals[min(n - 1, int(0.85 * n))]
+            p50 = sorted_vals[n // 2] # Median (Expected)
+            p15 = sorted_vals[int(0.15 * n)] # Downside
+            
+            # Trend detection (Edging)
+            half = max(1, n // 2)
+            recent_mean = sum(values[-half:]) / half
+            older_mean  = sum(values[:-half]) / max(1, n - half)
+            edge_pct    = ((recent_mean - older_mean) / abs(older_mean) * 100) if older_mean else 0.0
+            
+            return {
+                "result": round(p85, 2), 
+                "expected": round(p50, 2), 
+                "downside": round(p15, 2),
+                "edge_pct": round(edge_pct, 2),
+                "edging_up": edge_pct >= 3.0,
+                "formula": "85th % Percentile", "n": n
+            }
+
+        elif formula_id in ("win-percentage", "coverage-rate"):
+            total = data.get("total", 0)
+            meeting = data.get("meeting", 0)
+            if total == 0: return {"error": "Total games cannot be 0"}
+            rate = meeting / total
+            return {"result": round(rate, 3), "percentage": f"{rate * 100:.1f}%", "meets_target": rate >= 0.85, "formula": "(Games Meeting Criteria / Total Games) × 85"}
+
+        elif formula_id == "safer-bet":
+            # Compares Spring to Odd Line
+            spring_val = data.get("momentum", data.get("spring", 0)) 
+            odd_line = data.get("odd_line", safety_net)
+            result = "OVER" if spring_val >= odd_line else "UNDER"
+            return {"result": result, "spring": spring_val, "odd_line": odd_line, "formula": f"IF Spring ≥ {odd_line} THEN OVER"}
+
+        elif formula_id == "median":
+            if not values: return {"error": "No values provided"}
+            sorted_vals = sorted(values)
+            n = len(sorted_vals)
+            med = sorted_vals[n//2] if n % 2 == 1 else (sorted_vals[n//2 - 1] + sorted_vals[n//2]) / 2
+            return {"result": round(med, 2), "formula": f"Median / {quantum}", "description": f"Divided by {quantum} for per-inning/quarter ref"}
+
+        elif formula_id == "std-dev":
+            if len(values) < 2: return {"error": "Need at least 2 values for std-dev"}
+            mean = sum(values) / len(values)
+            variance = sum((x - mean) ** 2 for x in values) / (len(values) - 1)
+            result = variance ** 0.5
+            return {"result": round(result, 2), "mean": round(mean, 2), "formula": f"σ = √(Σ(win|loss − Spring)² / {std_denom})"}
+
+        elif formula_id == "probability":
+            # Z = (Odd Line − Spring) / Quantum
+            spring_val = data.get("spring", 0)
+            odd_line = data.get("odd_line", safety_net)
+            std_dev = data.get("std_dev", 1.0)
+            
+            # Calculate Z-score
+            z = (odd_line - spring_val) / quantum
+            
+            # Standard Normal CDF (Approximation)
+            import math
+            cdf = 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
+            
+            prob = cdf * 100
+            return {"result": f"{prob:.1f}%", "z_score": round(z, 2), "formula": f"Z = (Odd Line − Spring) / {quantum}"}
+            
+        else:
+            return {"error": f"Formula '{formula_id}' not yet implemented"}
+            
+    except Exception as e:
+        return {"error": str(e)}
+
+#+--|----------------------------------------------------------------------------------->>>>
+#+--| # def alfred_calculate(formula_id, data): ─── FORMULA BOOK
+#+--|----------------------------------------------------------------------------------->>>>
+#+--|
+
+def alfred_calculate(formula_id, data):
+    result = calculate_formula(formula_id, data)
+    if "error" in result:
+        return f"🎩 Calculation error: {result['error']}"
+    lines = [f"🎩 Calculating {formula_id}...", "", f"[🎤︎︎ ERROR.DASHBOARD-STATE] Result: {result.get('result', 'N/A')}"]
+    if "percentage" in result:
+        lines.append(f"[🎤︎︎ ERROR.DASHBOARD-STATE] Percentage: {result['percentage']}")
+    if "meets_target" in result:
+        lines.append(f"🎯 Meets 85% target: {'✓ YES' if result['meets_target'] else '[🎤︎︎ ERROR] NO'}")
+    if "momentum" in result:
+        lines.append(f"📈 Momentum: {result['momentum']}")
+    if "odd_line" in result:
+        lines.append(f"🎯 Odd Line: {result['odd_line']}")
+    if "win_loss" in result:
+        lines.append(f"🏆 Win/Loss: {result['win_loss']}")
+    if "spread" in result:
+        lines.append(f"[🎤︎︎ ERROR.DASHBOARD-STATE] Spread: {result['spread']}")
+    if "mean" in result:
+        lines.append(f"[🎤︎︎ ERROR.DASHBOARD-STATE] Mean: {result['mean']}")
+    lines.append("")
+    if "formula" in result:
+        lines.append(f"📐 Formula: {result['formula']}")
+    if "description" in result:
+        lines.append(f"⎙ {result['description']}")
+    if result.get('example'):
+        lines.append(f"💡 Example: {result['example']}")
+    lines.append("")
+    lines.append("🦇 '↕ shift sir through time expand the graph with song ↔'")
+    return "\n".join(lines)
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| — Error handling
+#+--|════════════════════════════════════════════════════════════════════
+_last_error_time = 0
+_error_cooldown = 10
+
+def handle_error(error_text, context=None):
+    global _last_error_time
+    state = load_state()
+    state["errors_caught"] += 1
+    save_state(state)
+    log_error(f"Error: {error_text[:500]}")
+    add_memory(f"ERROR: {error_text[:500]}")
+    current_time = time.time()
+    if current_time - _last_error_time > _error_cooldown:
+        send_telegram(f"[⚠️-Config-json] Alfred caught: {error_text[:200]}")
+        _last_error_time = current_time
+    return {"handled": True, "error": error_text[:500]}
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| THE WATCH — reads his own quick urls and messages you
+#+--|════════════════════════════════════════════════════════════════════
+_last_watch_cycle = 0
+WATCH_INTERVAL = 120        # 2 minutes (120 seconds)
+WATCH_QUIET_HOURS = (0, 0)  # Work always
+
+WATCH_TARGETS = [
+    {"name": "ESPN-NFL", "url": "https://www.espn.com/espn/rss/nfl/news"},
+    {"name": "ESPN-NBA", "url": "https://www.espn.com/espn/rss/nba/news"},
+    {"name": "ESPN-MLB", "url": "https://www.espn.com/espn/rss/mlb/news"},
+    {"name": "ESPN-NHL", "url": "https://www.espn.com/espn/rss/nhl/news"},
+]
+
+def _fetch_feed(url, timeout=15):
+    """Return list of (title, link, snippet) tuples from an RSS feed."""
+    ctx = ssl._create_unverified_context()
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=timeout, context=ctx) as r:
+        raw = r.read().decode("utf-8", errors="replace")
+
+    items = []
+
+    # Standard RSS format: <item>...</item>
+    for match in re.finditer(r"<item>(.*?)</item>", raw, re.DOTALL):
+        block = match.group(1)
+
+        # Title (handles <![CDATA[...]]> and plain text)
+        t = re.search(r"<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</title>", block, re.DOTALL)
+        # Link
+        l = re.search(r"<link>(.*?)</link>", block, re.DOTALL)
+        # Description
+        d = re.search(r"<description>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</description>", block, re.DOTALL)
+
+        if t:
+            title = t.group(1).strip()
+            link  = l.group(1).strip() if l else ""
+            desc  = d.group(1).strip()[:300] if d else ""
+            # Strip any stray HTML tags inside the description
+            desc  = re.sub(r"<[^>]+>", "", desc)
+            if title and title not in [x[0] for x in items]:
+                items.append((title, link, desc))
+        if len(items) >= 5:
+            break
+
+    return items
+
+
+def _check_memory_for_title(title):
+    """Check if the title is already in alfred_memory.txt."""
+    if MEMORY_FILE.exists():
+        content = MEMORY_FILE.read_text(encoding="utf-8")
+        if title in content:
+            return True
+    return False
+
+def _think_and_speak(source_name, title, link, snippet):
+    """Ask tinydolphin:latest what to say, then send it to Telegram."""
+    prompt = (
+        f"You just read this from {source_name}: '{title}'. "
+        f"Snippet: {snippet}. "
+        "In one short sentence, tell Master Art why this matters, "
+        "or ask him a question about it. Address him as Sir."
+    )
+    try:
+        reply = alfred_mind(prompt)
+    except Exception:
+        reply = f"Sir, I spotted something on {source_name}: {title}"
+
+    msg = (
+        f"🎩 Sir, I just checked {source_name}.\n\n"
+        f"⎙ {title}\n"
+        f"🔗 {link}\n\n"
+        f"{reply}"
+    )
+    send_telegram(msg)
+    add_memory(f"📖 Feed Read: [{source_name}] {title}")
+    log_info(f"[WATCH] spoke about {source_name}: {title[:80]}")
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| def watch_cycle():
+#+--|════════════════════════════════════════════════════════════════════
+
+def watch_cycle():
+    """One pass: pick a source, read it, speak if new."""
+    global _last_watch_cycle
+
+    hour = datetime.now().hour
+    if WATCH_QUIET_HOURS[0] <= hour < WATCH_QUIET_HOURS[1]:
+        return
+
+    target = random.choice(WATCH_TARGETS)
+    log_info(f"[WATCH] reading {target['name']}...")
+
+    try:
+        items = _fetch_feed(target["url"])
+    except Exception as e:
+        log_error(f"[WATCH] {target['name']} fetch failed: {e}")
+        return
+
+    if not items:
+        log_info(f"[WATCH] {target['name']} returned 0 items")
+        return
+
+    for (title, link, snippet) in items:
+        if not _check_memory_for_title(title):
+            _think_and_speak(target["name"], title, link, snippet)
+            return
+
+    log_info(f"[WATCH] {target['name']} all {len(items)} items already seen")
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| def start_watch_loop():
+#+--|════════════════════════════════════════════════════════════════════
+
+def start_watch_loop():
+    def loop():
+        while True:
+            try:
+                watch_cycle()
+                # Exactly 2 minutes now, no random jitter
+                time.sleep(WATCH_INTERVAL) 
+            except Exception as e:
+                log_error(f"[WATCH] loop error: {e}")
+                time.sleep(60)
+    threading.Thread(target=loop, daemon=True).start()
+    log_info("[WATCH] 👁 watch loop started")
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| CHAPTER 6: THE vultures — Watchdogs and vultures 4 siblings 
+#+--|════════════════════════════════════════════════════════════════════
+_watchdog_last_alert = 0
+_watchdog_cooldown = 300
+
+def claw_watchdog():
+    global _watchdog_last_alert
+    state = load_state()
+    errors = state.get("errors_caught", 0)
+    current_time = time.time()
+    if errors > 10 and current_time - _watchdog_last_alert > _watchdog_cooldown:
+        send_telegram(f"[⚠️-Config-json] Watchdog: {errors} errors total.")
+        _watchdog_last_alert = current_time
+    return BASE.exists()
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--|  THE MIND — fallback for unrecognized input
+#+--|════════════════════════════════════════════════════════════════════
+
+def draw_graph_analysis(image_path, dominant_color, horizontal_line_y, vertical_line_x):
+    """Creates an HTML file that draws the grid and dots over the graph."""
+    import shutil
+    import uuid
+    
+    # 1. Copy the image to the data folder so the HTML can see it
+    img_name = f"graph_{uuid.uuid4().hex[:6]}.png"
+    dest_img = BASE / img_name
+    shutil.copy(image_path, dest_img)
+    
+    # 2. Build the HTML with SVG overlays
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Alfred's Graph Analysis</title>
+        <style>
+            body {{ background: #0b1424; color: #dbeafe; font-family: sans-serif; text-align: center; }}
+            .container {{ position: relative; display: inline-block; margin-top: 50px; }}
+            img {{ max-width: 800px; border-radius: 12px; border: 2px solid #60a5fa; }}
+            .overlay {{ position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }}
+            .h-line {{ position: absolute; top: {horizontal_line_y}%; left: 0; width: 100%; border-top: 2px dashed #ff0033; }}
+            .v-line {{ position: absolute; top: 0; left: {vertical_line_x}%; height: 100%; border-left: 2px dashed #00ffcc; }}
+            .dot {{ position: absolute; width: 12px; height: 12px; background: #ffcc00; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 10px #ffcc00; }}
+        </style>
+    </head>
+    <body>
+        <h1>🎩 Alfred's Graph Analysis</h1>
+        <p>Dominant Color Detected: <strong>{dominant_color}</strong></p>
+        
+        <div class="container">
+            <img src="{img_name}">
+            <div class="overlay">
+                <!-- Horizontal Line -->
+                <div class="h-line"></div>
+                <!-- Vertical Line -->
+                <div class="v-line"></div>
+                <!-- Dots (Highs and Lows) -->
+                <div class="dot" style="top: {horizontal_line_y - 10}%; left: {vertical_line_x + 10}%;"></div>
+                <div class="dot" style="top: {horizontal_line_y + 15}%; left: {vertical_line_x - 20}%;"></div>
+            </div>
+        </div>
+        <p>Analysis complete, Sir.</p>
+    </body>
+    </html>
+    """
+    
+    # 3. Save and open it
+    html_path = BASE / f"graph_analysis_{uuid.uuid4().hex[:6]}.html"
+    html_path.write_text(html_content, encoding="utf-8")
+    
+    subprocess.run(["open", str(html_path)])
+    return f"🎩 Created and opened the analysis file: {html_path.name}"
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--|  THE EYE — Graph Color Analyzer
+#+--|════════════════════════════════════════════════════════════════════
+def analyze_graph_colors(image_path):
+    """Use macOS sips to grab the dominant color of the graph."""
+    try:
+        # sips can resize an image to 1x1, which averages all pixels
+        avg_path = "/tmp/alfred_avg_color.png"
+        subprocess.run(
+            ["sips", "-z", "1", "1", image_path, "--out", avg_path],
+            check=False, capture_output=True, timeout=10
+        )
+        # Get the pixel color
+        result = subprocess.run(
+            ["sips", "-g", "pixelColor", avg_path],
+            check=False, capture_output=True, text=True, timeout=5
+        )
+        # sips returns something like "  pixelColor: 255 0 0"
+        for line in result.stdout.splitlines():
+            if "pixelColor" in line:
+                return line.split(":", 1)[1].strip()
+    except Exception as e:
+        log_error(f"analyze_graph_colors failed: {e}")
+    return "unknown"
+
+OLLAMA_URL = "http://localhost:11434"
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| THE MIND — training modal
+#+--|════════════════════════════════════════════════════════════════════
+OLLAMA_URL = "http://localhost:11434"
+
+
+def alfred_mind(user_input, history=None, model="openai/gpt-oss-120b", image_path=None):
+    history = history or []
+
+    color_context = ""
+    if image_path and os.path.exists(image_path):
+        color_context = analyze_graph_colors(image_path)
+
+    messages = [
+        {"role": "system", "content": (
+            "You are Alfred, a helpful AI assistant. "
+            "Answer the user's question directly. Do not repeat the question back. "
+            "Be concise. Address the user as Sir or Master Art. "
+            "CRITICAL: Do NOT output JSON unless the user explicitly asks for a JSON file or structure. "
+            "If the user just says hello, thanks, or asks how you are, reply in plain English text."
+            f"\nGraph Color Context: {color_context}"
+        )},
+    ]
+
+    # Loop through the recent history and add it to the messages
+    for msg in history[-6:]:
+        if isinstance(msg, str) and msg.startswith("Master Art: "):
+            text_content = msg[len("Master Art: "):]
+            if len(text_content) > 1000:
+                text_content = text_content[:1000] + "...(truncated)"
+            messages.append({"role": "user", "content": text_content})
+        elif isinstance(msg, dict) and "role" in msg:
+            role = "user" if msg["role"] == "owner" else "assistant"
+            text_content = msg.get("text", "")
+            if len(text_content) > 1000:
+                text_content = text_content[:1000] + "...(truncated)"
+            messages.append({"role": role, "content": text_content})
+
+
+    # Add the current user input
+    messages.append({"role": "user", "content": user_input})
+
+    # ─── GROQ BACKEND ───
+    import urllib.request as _ur
+    key = (os.getenv("GROQ_API_KEY") or "").strip()
+
+    if not key:
+        return "🎩 GROQ_API_KEY missing from env.txt, Sir."
+    try:
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        payload = json.dumps({
+            "model": model,
+            "messages": messages,
+            "max_tokens": 1024,
+        }).encode()
+        req = _ur.Request(
+            url,
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {key}",
+                "Content-Type": "application/json",
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+            }
+        )
+        with _ur.urlopen(req, timeout=120) as r:
+            resp = json.loads(r.read().decode())
+            return resp["choices"][0]["message"]["content"]
+    except Exception as e:
+        return f"🎩 Groq error, Sir: {e}"
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| def ask_deepseek_browser(question):
+#+--|════════════════════════════════════════════════════════════════════
+
+def ask_deepseek_browser(question):
+    """Opens a NEW tab, pastes the question, grabs the answer, and jumps back to tab 1."""
+    url = "https://chat.deepseek.com/a/chat/s/7df9bb6f-1029-4c32-9787-5b6fee551596"
+
+    # 1. Put the question into the clipboard
+    subprocess.run(["pbcopy"], input=question.encode('utf-8'))
+
+    # 2. Tell Firefox to open the URL in a new tab directly
+    subprocess.run(["osascript", "-e", f'tell application "Firefox" to open location "{url}"'])
+    subprocess.run(["osascript", "-e", 'tell application "Firefox" to activate'])
+    
+    print(f"[DEEPSEEK] Waiting for page to load...")
+    time.sleep(8)
+
+    # 3. Click in the middle of the screen to focus the chat box
+    subprocess.run(["osascript", "-e", 'tell application "System Events" to click at {500, 500}'])
+    time.sleep(8)
+
+    # 4. Paste the question
+    subprocess.run(["osascript", "-e", 'tell application "System Events" to keystroke "v" using command down'])
+    time.sleep(8) 
+    
+    # 5. Hit Enter
+    subprocess.run(["osascript", "-e", 'tell application "System Events" to keystroke return'])
+
+    print(f"[DEEPSEEK] Question sent.")
+
+    # 6. Poll for the answer
+    start_time = time.time()
+    raw_text = ""
+    
+    while time.time() - start_time < 60:
+        time.sleep(8)
+        
+        # Click middle to focus page text
+        subprocess.run(["osascript", "-e", 'tell application "System Events" to click at {500, 500}'])
+        time.sleep(8)
+        
+        # Copy the page
+        subprocess.run(["osascript", "-e", 'tell application "System Events" to keystroke "a" using command down'])
+        time.sleep(8)
+        subprocess.run(["osascript", "-e", 'tell application "System Events" to keystroke "c" using command down'])
+        time.sleep(8)
+        
+        current_clip = subprocess.getoutput("pbpaste")
+        
+        if current_clip and current_clip != question:
+            raw_text = current_clip
+            break
+
+    # 7. Command + 1 to jump back to the first tab
+    subprocess.run(["osascript", "-e", 'tell application "System Events" to keystroke "1" using command down'])
+
+    if not raw_text:
+        return "[DeepSeek] Timed out waiting for an answer."
+
+    if len(raw_text) > 2000:
+        return raw_text[-2000:]
+    return raw_text
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| ALFRED'S CALL — voice greeting → m4a → Telegram ONLY
+#+--|════════════════════════════════════════════════════════════════════
+ALFRED_CALL_GREETINGS = [
+    "Good evening Master Art. This is Alfred. "
+    "I'm calling to check in on you, sir. "
+    "How are you, sir."
+]
+
+
+def send_telegram_voice(mp3_path, caption=""):
+    """Send an audio file as a Telegram voice note."""
+    cfg = load_telegram_config()
+    if not cfg or not cfg.get('token'):
+        return False
+
+    try:
+        import uuid
+
+        boundary = "----AlfredBoundary" + uuid.uuid4().hex
+        mp3_path = str(mp3_path)
+
+        with open(mp3_path, "rb") as f:
+            audio_bytes = f.read()
+
+        body = b""
+        body += f"--{boundary}\r\n".encode()
+        body += b'Content-Disposition: form-data; name="chat_id"\r\n\r\n'
+        body += f"{cfg['chat_id']}\r\n".encode()
+        body += f"--{boundary}\r\n".encode()
+        if caption:
+            body += b'Content-Disposition: form-data; name="caption"\r\n\r\n'
+            body += f"{caption}\r\n".encode()
+        body += f"--{boundary}\r\n".encode()
+        body += f'Content-Disposition: form-data; name="voice"; filename="alfred_call.m4a"\r\n'.encode()
+        body += b"Content-Type: audio/mp4\r\n\r\n"
+        body += audio_bytes + b"\r\n"
+        body += f"--{boundary}--\r\n".encode()
+
+        ctx = ssl._create_unverified_context()
+        req = urllib.request.Request(
+            f"https://api.telegram.org/bot{cfg['token']}/sendVoice",
+            data=body,
+            headers={"Content-Type": f"multipart/form-data; boundary={boundary}"}
+        )
+        urllib.request.urlopen(req, timeout=90, context=ctx)
+        print(f"[TG] ✓ Voice sent: {os.path.basename(mp3_path)}")
+        return True
+    except Exception as e:
+        print(f"[TG] Voice send failed: {e}")
+        return False
+
+
+def alfred_voice_call():
+    greeting = random.choice(ALFRED_CALL_GREETINGS)
+    out = "/Users/olympynetworkco/Desktop/data/alfred_call.m4a"
+
+    # 1. Render
+    try:
+        subprocess.run(["say", "-v", THOMAS_VOICE, "-o", out, greeting],
+                       check=False, timeout=30)
+    except Exception as e:
+        send_telegram("🎩 Alfred would have called, but TTS failed, sir.")
+        return f"🎩 TTS failed, sir: {e}"
+
+    if not os.path.exists(out) or os.path.getsize(out) < 500:
+        send_telegram("🎩 say produced no audio, sir.")
+        return "🎩 Audio render produced nothing."
+
+    # 2. Play locally
+    subprocess.run(["afplay", out], check=False)
+
+    # 3. Telegram voice note
+    send_telegram_voice(out, caption="🎩 Alfred is calling, sir.")
+
+    # 4. Text line on Telegram
+    send_telegram(greeting)
+
+    return f"🎩 {greeting}\n  📞 Telegram voice note sent."
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| def search_web(query): no more regex if things dont work use pdf here chapter
+#+--|════════════════════════════════════════════════════════════════════
+
+def search_web(query):
+    """Fetch facts from Wikipedia OR scores from ESPN's public API."""
+    import urllib.parse
+    import re
+    import json
+    
+    clean_query = query.strip().rstrip('?').strip()
+    lower = clean_query.lower()
+    
+    # ─── SPORTS SCOREBOARD PATH (ESPN API) ───
+    # Map user words to ESPN's sport/league codes
+    sports_map = {
+        "nfl": "football/nfl",
+        "nba": "basketball/nba", 
+        "mlb": "baseball/mlb",
+        "nhl": "hockey/nhl"
+    }
+    
+    is_score_request = any(word in lower for word in ["score", "scores", "who won", "results", "game"])
+    
+    if is_score_request:
+        for sport, espn_path in sports_map.items():
+            if sport in lower:
+                url = f"https://site.api.espn.com/apis/site/v2/sports/{espn_path}/scoreboard"
+                
+                try:
+                    req = urllib.request.Request(url, headers={'User-Agent': 'Alfred/1.0'})
+                    ctx = ssl._create_unverified_context()
+                    
+                    with urllib.request.urlopen(req, timeout=15, context=ctx) as r:
+                        data = json.loads(r.read().decode('utf-8'))
+                        
+                        events = data.get('events', [])
+                        if not events:
+                            return f"🎩 No {sport.upper()} games found, Sir."
+                        
+                        # ─── BUILD MINI CARDS ───
+                        output = [f"<div style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #000000; background-color: #ffffff; padding: 16px; border-radius: 8px; border: 1px solid #cccccc;'>"]
+                        output.append(f"<h3 style='color: #000000; margin-top: 0; margin-bottom: 12px; font-size: 16px;'>🎩 {sport.upper()} Scores</h3>")
+                        
+                        for event in events:
+                            try:
+                                competitions = event.get('competitions', [])
+                                if not competitions:
+                                    continue
+                                    
+                                comp = competitions[0]
+                                competitors = comp.get('competitors', [])
+                                
+                                if len(competitors) < 2:
+                                    continue
+                                
+                                # ESPN lists home/away separately
+                                team1 = competitors[0]
+                                team2 = competitors[1]
+                                
+                                name1 = team1.get('team', {}).get('shortDisplayName', 'Team 1')
+                                score1 = team1.get('score', '-')
+                                name2 = team2.get('team', {}).get('shortDisplayName', 'Team 2')
+                                score2 = team2.get('score', '-')
+                                
+                                status = comp.get('status', {}).get('type', {}).get('description', '')
+                                
+                                # Build the mini card
+                                output.append(f"<div style='background: #f8f8f8; border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;'>")
+                                
+                                # Team 1 (Left)
+                                output.append(f"<div style='display: flex; flex-direction: column; flex: 1;'>")
+                                output.append(f"<span style='font-weight: 600; color: #1a1a1a;'>{name1}</span>")
+                                output.append(f"<span style='font-weight: 600; color: #1a1a1a;'>{name2}</span>")
+                                output.append(f"</div>")
+                                
+                                # Scores (Right)
+                                output.append(f"<div style='display: flex; flex-direction: column; align-items: flex-end; gap: 4px;'>")
+                                output.append(f"<span style='color: red; font-weight: bold; font-size: 16px;'>{score1}</span>")
+                                output.append(f"<span style='color: red; font-weight: bold; font-size: 16px;'>{score2}</span>")
+                                output.append(f"</div>")
+                                
+                                # Status (Far Right)
+                                output.append(f"<div style='margin-left: 16px; font-size: 12px; color: #888; min-width: 80px; text-align: right;'>")
+                                output.append(f"{status}")
+                                output.append(f"</div>")
+                                
+                                output.append(f"</div>")
+                                
+                            except Exception:
+                                continue
+                        
+                        output.append("</div>")
+                        return "".join(output)
+                        
+                except Exception as e:
+                    log_error(f"ESPN API failed: {e}")
+                    return f"🎩 I couldn't reach ESPN, Sir. Error: {str(e)[:100]}"
+    
+    # ─── NEWS PATH (if it's not a sport) ───
+    news_triggers = ["today", "recap", "highlights", "news", "happened", "latest"]
+    is_news = any(trigger in lower for trigger in news_triggers)
+    
+    lines = []
+    
+    if is_news:
+        lines.append(f"🎩 **News for '{clean_query}'**")
+        lines.append("")
+        try:
+            rss_url = f"https://news.google.com/rss/search?q={urllib.parse.quote(clean_query)}&hl=en-US&gl=US&ceid=US:en"
+            req = urllib.request.Request(rss_url, headers={'User-Agent': 'Mozilla/5.0'})
+            ctx = ssl._create_unverified_context()
+            with urllib.request.urlopen(req, timeout=10, context=ctx) as r:
+                xml = r.read().decode('utf-8', errors='ignore')
+                titles = re.findall(r'<title><!\[CDATA\[(.*?)\]\]></title>', xml)
+                links = re.findall(r'<link>(https?://[^<]+)</link>', xml)
+                
+                count = 0
+                for i, title in enumerate(titles[1:6]):
+                    if i < len(links) - 1:
+                        lines.append(f"  • {title}")
+                        lines.append(f"    🔗 {links[i+1]}")
+                        count += 1
+                        if count >= 5:
+                            break
+        except Exception as e:
+            log_error(f"News RSS failed: {e}")
+            lines.append("  Couldn't load news, Sir.")
+        
+        return "\n".join(lines)
+    
+    # ─── FACTS PATH (Wikipedia) ───
+    try:
+        search_url = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(clean_query)}&format=json&utf8=1"
+        req = urllib.request.Request(search_url, headers={'User-Agent': 'Alfred/1.0'})
+        ctx = ssl._create_unverified_context()
+        
+        with urllib.request.urlopen(req, timeout=10, context=ctx) as r:
+            search_data = json.loads(r.read().decode('utf-8'))
+            search_results = search_data.get('query', {}).get('search', [])
+            if not search_results:
+                return f"🎩 I couldn't find anything on '{clean_query}', Sir."
+            best_title = search_results[0]['title']
+        
+        summary_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{urllib.parse.quote(best_title)}"
+        req2 = urllib.request.Request(summary_url, headers={'User-Agent': 'Alfred/1.0'})
+        
+        extract = ""
+        thumbnail = ""
+        title = best_title
+        
+        try:
+            with urllib.request.urlopen(req2, timeout=10, context=ctx) as r:
+                data = json.loads(r.read().decode('utf-8'))
+                extract = data.get('extract', '')
+                thumbnail = data.get('thumbnail', {}).get('source', '')
+                title = data.get('title', best_title)
+        except:
+            pass
+        
+        sentences = [s.strip() for s in extract.split('. ') if s.strip()]
+        lines = [f"🎩 **{title}**", ""]
+        for sentence in sentences[:5]:
+            if not sentence.endswith('.'):
+                sentence += '.'
+            lines.append(f"  • {sentence}")
+        
+        lines.append("")
+        lines.append(f"  🔗 **Top Sources:**")
+        
+        try:
+            ddg_url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(clean_query)}"
+            req3 = urllib.request.Request(ddg_url, headers={
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            })
+            with urllib.request.urlopen(req3, timeout=10, context=ctx) as r:
+                html = r.read().decode('utf-8', errors='ignore')
+                raw_urls = re.findall(r'href="//duckduckgo\.com/l/\?uddg=([^&"]+)', html)
+                
+                seen = set()
+                count = 0
+                for raw in raw_urls:
+                    u = urllib.parse.unquote(raw)
+                    if u in seen or 'duckduckgo' in u:
+                        continue
+                    seen.add(u)
+                    lines.append(f"  🔗 {u}")
+                    count += 1
+                    if count >= 5:
+                        break
+        except Exception as e:
+            log_error(f"DDG scrape failed: {e}")
+        
+        if thumbnail:
+            try:
+                dl_dir = Path.home() / "Downloads"
+                dl_dir.mkdir(parents=True, exist_ok=True)
+                import uuid
+                filename = f"alfred_{uuid.uuid4().hex[:8]}.jpg"
+                filepath = dl_dir / filename
+                
+                img_req = urllib.request.Request(thumbnail, headers={'User-Agent': 'Alfred/1.0'})
+                with urllib.request.urlopen(img_req, timeout=15, context=ctx) as img_r:
+                    filepath.write_bytes(img_r.read())
+                
+                lines.append("")
+                lines.append(f'  <img src="http://localhost:9005/downloads/{filename}" style="max-width:300px; border-radius:8px; margin-top:8px;">')
+            except Exception as e:
+                log_error(f"Image download failed: {e}")
+        
+        return "\n".join(lines)
+        
+    except Exception as e:
+        log_error(f"Search failed: {e}")
+    
+    return f"🎩 I couldn't find anything on '{clean_query}', Sir."
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| def get_weather(location_query):
+#+--|════════════════════════════════════════════════════════════════════
+
+def get_weather(location_query):
+    """Fetch current weather for any city using Open-Meteo."""
+    import urllib.parse
+    import json
+    
+    try:
+        # 1. Geocode the location to get lat/lon
+        geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={urllib.parse.quote(location_query)}&count=1&language=en&format=json"
+        req = urllib.request.Request(geo_url, headers={'User-Agent': 'Alfred/1.0'})
+        
+        with urllib.request.urlopen(req, timeout=10) as r:
+            geo_data = json.loads(r.read().decode('utf-8'))
+            
+        if not geo_data.get('results'):
+            return f"🎩 I couldn't find a location named '{location_query}', Sir."
+            
+        location = geo_data['results'][0]
+        lat = location['latitude']
+        lon = location['longitude']
+        name = location['name']
+        country = location.get('country', '')
+        
+        # 2. Get the weather for those coordinates
+        weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true&hourly=relativehumidity_2m,apparent_temperature&timezone=auto"
+        req2 = urllib.request.Request(weather_url, headers={'User-Agent': 'Alfred/1.0'})
+        
+        with urllib.request.urlopen(req2, timeout=10) as r:
+            weather_data = json.loads(r.read().decode('utf-8'))
+            
+        current = weather_data.get('current_weather', {})
+        if not current:
+            return f"🎩 I couldn't get the weather data for {name}, Sir."
+            
+        temp = current.get('temperature')
+        wind = current.get('windspeed')
+        direction = current.get('winddirection')
+        weather_code = current.get('weathercode')
+        
+        weather_codes = {
+            0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
+            45: "Fog", 48: "Depositing rime fog",
+            51: "Light drizzle", 53: "Moderate drizzle", 55: "Dense drizzle",
+            61: "Slight rain", 63: "Moderate rain", 65: "Heavy rain",
+            71: "Slight snow", 73: "Moderate snow", 75: "Heavy snow",
+            80: "Slight rain showers", 81: "Moderate rain showers", 82: "Violent rain showers",
+            95: "Thunderstorm", 96: "Thunderstorm with slight hail", 99: "Thunderstorm with heavy hail"
+        }
+        condition = weather_codes.get(weather_code, "Unknown conditions")
+        
+        hourly = weather_data.get('hourly', {})
+        time_list = hourly.get('time', [])
+        current_hour = current.get('time', '')
+        
+        feels_like = temp
+        humidity = "N/A"
+        if current_hour in time_list:
+            idx = time_list.index(current_hour)
+            feels_like = hourly.get('apparent_temperature', [])[idx]
+            humidity = hourly.get('relativehumidity_2m', [])[idx]
+            
+        card = f"""
+        <div style='background: #f8f8f8; border-radius: 8px; padding: 16px; font-family: -apple-system, sans-serif; color: #1a1a1a; margin-top: 12px; max-width: 400px; border: 1px solid #e0e0e0;'>
+            <div style='font-size: 16px; font-weight: 600; margin-bottom: 12px;'>🌤️ {name}, {country}</div>
+            <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;'>
+                <span style='font-size: 24px; font-weight: bold;'>{temp}°C</span>
+                <span style='font-size: 14px; color: #666;'>{condition}</span>
+            </div>
+            <div style='font-size: 13px; color: #555;'>
+                <div style='display: flex; justify-content: space-between; margin-bottom: 4px;'><span>Feels like:</span> <span>{feels_like}°C</span></div>
+                <div style='display: flex; justify-content: space-between; margin-bottom: 4px;'><span>Humidity:</span> <span>{humidity}%</span></div>
+                <div style='display: flex; justify-content: space-between; margin-bottom: 8px;'><span>Wind:</span> <span>{wind} km/h (Dir: {direction}°)</span></div>
+                <div style='text-align: right; border-top: 1px solid #e0e0e0; padding-top: 8px;'>
+                    <a href="https://open-meteo.com/en/docs?latitude={lat}&longitude={lon}" target="_blank" style='font-size: 12px; color: #0066cc; text-decoration: none;'>View Full Forecast ↗</a>
+                </div>
+            </div>
+        </div>
+        """
+        return card
+
+    except Exception as e:
+        log_error(f"Weather failed: {e}")
+        return f"🎩 I couldn't fetch the weather, Sir. Error: {str(e)[:100]}"
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| def create_calendar_event(title, start_datetime, end_datetime=None, notes=""):
+#+--|════════════════════════════════════════════════════════════════════
+
+def create_calendar_event(title, start_datetime, end_datetime=None, notes=""):
+    """Create a Calendar.app event AND drop an .ics in ~/Downloads."""
+    if end_datetime is None:
+        end_datetime = start_datetime + timedelta(hours=1)
+
+    def _fmt(dt):
+        return dt.strftime("%B %d, %Y %I:%M:%S %p")
+
+    script = f'''
+    tell application "Calendar"
+        tell calendar "Home"
+            make new event with properties {{summary:"{title}", start date:date "{_fmt(start_datetime)}", end date:date "{_fmt(end_datetime)}", description:"{notes}"}}
+        end tell
+        reload calendars
+    end tell
+    '''
+    try:
+        result = subprocess.run(
+            ["osascript", "-e", script],
+            capture_output=True, text=True, timeout=15
+        )
+        apple_ok = result.returncode == 0
+        apple_err = "" if apple_ok else (result.stderr.strip() or "AppleScript failed")
+    except Exception as e:
+        apple_ok, apple_err = False, str(e)
+
+    ics_path = None
+    try:
+        ics_path = _write_ics(title, start_datetime, end_datetime, notes)
+    except Exception as e:
+        log_error(f"ics write failed: {e}")
+
+    return apple_ok, apple_err, ics_path
+
+
+def _write_ics(title, start, end, notes=""):
+    """Write a single-event .ics to ~/Downloads. Returns Path or None."""
+    import uuid as _uuid
+    from datetime import timezone
+
+    slug = re.sub(r'[^\w\-]+', '-', title.lower()).strip('-')[:40] or "event"
+    stamp = start.strftime("%Y%m%d-%H%M")
+    dl = Path.home() / "Downloads"
+    dl.mkdir(parents=True, exist_ok=True)
+    path = dl / f"schedule-{stamp}-{slug}.ics"
+
+    def _utc(dt):
+        return dt.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+    uid = f"{_uuid.uuid4()}@alfred.local"
+    now_utc = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+    content = (
+        "BEGIN:VCALENDAR\r\n"
+        "VERSION:2.0\r\n"
+        "PRODID:-//ALFRED//Schedule//EN\r\n"
+        "CALSCALE:GREGORIAN\r\n"
+        "METHOD:PUBLISH\r\n"
+        "BEGIN:VEVENT\r\n"
+        f"UID:{uid}\r\n"
+        f"DTSTAMP:{now_utc}\r\n"
+        f"DTSTART:{_utc(start)}\r\n"
+        f"DTEND:{_utc(end)}\r\n"
+        f"SUMMARY:{title}\r\n"
+        f"DESCRIPTION:{notes}\r\n"
+        "END:VEVENT\r\n"
+        "END:VCALENDAR\r\n"
+    )
+    path.write_text(content, encoding="utf-8")
+    return path
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| def _schedule_start():
+#+--|════════════════════════════════════════════════════════════════════
+
+def _schedule_start():
+    global _schedule_builder
+    _schedule_builder = {
+        "stage": "awaiting_title",
+        "title": "",
+        "start": None,
+        "duration_min": 60,
+    }
+    return "🎩 Schedule — what's the event title, Sir? (type `cancel` to abort)"
+
+def _schedule_capture_title(text):
+    global _schedule_builder
+    title = text.strip()
+    if not title:
+        return "🎩 I need a title, Sir. Try again (or `cancel`)."
+    _schedule_builder["title"] = title
+    _schedule_builder["stage"] = "awaiting_start"
+    return ("🎩 When should it start?\n"
+            "   e.g. `tomorrow 3pm`, `Nov 5 14:00`, `friday 10:30`")
+
+def _schedule_parse_when(text):
+    lower = text.lower().strip()
+    now = datetime.now().replace(second=0, microsecond=0)
+    when = now.replace(hour=9, minute=0)
+
+    if "tomorrow" in lower:
+        when += timedelta(days=1)
+    elif "today" in lower:
+        pass
+    elif "next week" in lower:
+        when += timedelta(days=7)
+
+    weekdays = ["monday", "tuesday", "wednesday", "thursday",
+                "friday", "saturday", "sunday"]
+    for i, day in enumerate(weekdays):
+        if day in lower:
+            days_ahead = (i - when.weekday()) % 7
+            if days_ahead == 0:
+                days_ahead = 7
+            when += timedelta(days=days_ahead)
+            break
+
+    month_match = re.search(
+        r'\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2})',
+        lower
+    )
+    if month_match:
+        months = {m: i+1 for i, m in enumerate(
+            ["jan","feb","mar","apr","may","jun",
+             "jul","aug","sep","oct","nov","dec"])}
+        month = months[month_match.group(1)[:3]]
+        day = int(month_match.group(2))
+        year = when.year
+        if month < when.month - 6:
+            year += 1
+        try:
+            when = when.replace(year=year, month=month, day=day)
+        except ValueError:
+            return None, f"invalid date: {month_match.group(0)}"
+
+    slash_match = re.search(r'\b(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?\b', lower)
+    if slash_match:
+        m, d = int(slash_match.group(1)), int(slash_match.group(2))
+        y = int(slash_match.group(3)) if slash_match.group(3) else when.year
+        if y < 100:
+            y += 2000
+        try:
+            when = when.replace(year=y, month=m, day=d)
+        except ValueError:
+            return None, f"invalid date: {slash_match.group(0)}"
+
+    time_match = re.search(r'\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b', lower)
+    if time_match:
+        hour = int(time_match.group(1))
+        minute = int(time_match.group(2)) if time_match.group(2) else 0
+        ampm = time_match.group(3)
+        if ampm == "pm" and hour < 12:
+            hour += 12
+        elif ampm == "am" and hour == 12:
+            hour = 0
+        elif not ampm and hour < 8:
+            hour += 12
+        if 0 <= hour <= 23 and 0 <= minute <= 59:
+            when = when.replace(hour=hour, minute=minute)
+
+    return when, None
+
+def _schedule_capture_start(text):
+    global _schedule_builder
+    when, err = _schedule_parse_when(text)
+    if err:
+        return f"🎩 {err}. Try again (e.g. `tomorrow 3pm`)."
+    if when < datetime.now() - timedelta(minutes=5):
+        return (f"🎩 That time is in the past, Sir "
+                f"({when.strftime('%b %d %I:%M %p')}). Try again.")
+    _schedule_builder["start"] = when
+    _schedule_builder["stage"] = "awaiting_duration"
+    pretty = when.strftime("%A, %B %d at %I:%M %p").replace(" 0", " ")
+    return (f"🎩 Got it — start: {pretty}.\n"
+            "   How long? e.g. `30 minutes`, `2 hours`, or press Enter for 1 hour.")
+
+def _schedule_capture_duration(text):
+    global _schedule_builder
+    lower = text.strip().lower()
+    if not lower:
+        minutes = 60
+    else:
+        minutes = 60
+        m = re.search(r'(\d+(?:\.\d+)?)\s*(min|minute|hour|hr|h)', lower)
+        if m:
+            value = float(m.group(1))
+            unit = m.group(2)
+            minutes = int(value * 60) if unit.startswith("h") else int(value)
+        elif lower.isdigit():
+            minutes = int(lower)
+        else:
+            return "🎩 I didn't catch that. Try `30 minutes` or `2 hours` (or `cancel`)."
+
+    if minutes < 1 or minutes > 60 * 24 * 7:
+        return "🎩 That duration looks odd. Try something between 1 minute and 7 days."
+
+    _schedule_builder["duration_min"] = minutes
+    return _schedule_finish()
+
+def _schedule_finish():
+    global _schedule_builder
+    b = _schedule_builder
+    if not b:
+        return "🎩 Schedule cancelled."
+    title = b["title"]
+    start = b["start"]
+    dur   = b["duration_min"]
+    end   = start + timedelta(minutes=dur)
+    _schedule_builder = None
+
+    apple_ok, apple_err, ics_path = create_calendar_event(title, start, end)
+
+    pretty = start.strftime("%A, %B %d at %I:%M %p").replace(" 0", " ")
+    dur_str = f"{dur} min" if dur < 60 else f"{dur // 60} hr" + (f" {dur % 60} min" if dur % 60 else "")
+
+    lines = []
+    if apple_ok:
+        lines.append(f"🎩 Done, Sir. '{title}' is on your calendar for {pretty} ({dur_str}).")
+    else:
+        lines.append(f"🎩 Couldn't write to Calendar.app: {apple_err}")
+    if ics_path:
+        lines.append(f"   📎 .ics saved → ~/Downloads/{ics_path.name}")
+    return "\n".join(lines)
+
+def _schedule_cancel():
+    global _schedule_builder
+    _schedule_builder = None
+    return "🎩 Schedule cancelled, Sir."
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| alfred_think() global flags
+#+--|════════════════════════════════════════════════════════════════════
+CHAT_HISTORY = []
+_via_gui = False
+_waiting_for_sport = False
+_waiting_for_weather = False
+_json_builder = None      # None | {"stage": ..., "filename": ..., "source": ..., "games": [...]}
+_last_json_file = None
+_schedule_builder = None   # None | {"stage": ..., "title": ..., "start": ..., "duration_min": 60}
+_waiting_for_deepseek = False   # add near the other globals
+_waiting_for_python4_editor = False
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| def _json_start():
+#+--|════════════════════════════════════════════════════════════════════
+def _json_start(filename=None):
+    global _json_builder
+    _json_builder = {
+        "stage": "awaiting_games",
+        "filename": filename or f"games-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
+        "source": "",
+        "games": [],
+    }
+    return "🎩 Drop the games, Sir. (paste the whole blob at once)"
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| def _json_add_game(block):
+#+--|════════════════════════════════════════════════════════════════════
+
+def _json_add_game(block):
+    """Parse games from blob: teams are 2 lines above a `date / time` anchor."""
+    global _json_builder
+
+    lines = [l.strip() for l in block.splitlines() if l.strip()]
+    if not lines:
+        return "🎩 Empty. Drop the games, Sir."
+
+    MONTHS = {m: i for i, m in enumerate(
+        ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"], 1)}
+
+    def _parse_date(txt):
+        txt = txt.strip()
+        try:
+            return datetime.strptime(txt, "%Y-%m-%d").strftime("%Y-%m-%d")
+        except Exception:
+            pass
+        m = re.search(r'([A-Za-z]{3,9})\s+(\d{1,2})', txt)
+        if m:
+            mon = m.group(1).lower()[:3]
+            day = int(m.group(2))
+            if mon in MONTHS:
+                year = datetime.now().year
+                if MONTHS[mon] < datetime.now().month - 1:
+                    year += 1
+                try:
+                    return datetime(year, MONTHS[mon], day).strftime("%Y-%m-%d")
+                except Exception:
+                    pass
+        return datetime.now().strftime("%Y-%m-%d")
+
+    def _is_date(txt):
+        t = txt.strip()
+        return bool(re.match(r'^[A-Za-z]{3,9},?\s+[A-Za-z]{3,9}\s+\d{1,2}$', t)
+                    or re.match(r'^\d{4}-\d{2}-\d{2}$', t))
+
+    def _is_time(txt):
+        return bool(re.search(r'\d{1,2}:\d{2}', txt))
+
+    games_found = 0
+    i = 0
+    n = len(lines)
+    while i + 1 < n:
+        # anchor: a date line immediately followed by a time line
+        if _is_date(lines[i]) and _is_time(lines[i+1]) and i >= 2:
+            game = {
+                "date": _parse_date(lines[i]),
+                "type": None,
+                "away": {"team": lines[i-2], "score": None},
+                "home": {"team": lines[i-1], "score": None},
+                "status": "pending",
+            }
+            _json_builder["games"].append(game)
+            games_found += 1
+            i += 2
+            continue
+        i += 1
+
+    if games_found == 0:
+        return ("🎩 No games found in that blob, Sir.\n"
+                "  Expected pattern: away / home / date / time (repeated)")
+
+    return (f"🎩 Added {games_found} game{'s' if games_found != 1 else ''} "
+            f"(total {len(_json_builder['games'])}). Say `done` to write it, or paste more.")
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| def _json_cancel():
+#+--|════════════════════════════════════════════════════════════════════
+
+def _json_cancel():
+    global _json_builder
+    _json_builder = None
+    return "🎩 Cancelled."
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| ddef _json_finish():
+#+--|════════════════════════════════════════════════════════════════════
+def _json_finish():
+    global _json_builder, _last_json_file
+    if not _json_builder or not _json_builder["games"]:
+        _json_builder = None
+        return "🎩 Nothing to write, Sir."
+
+    # Build games as compact one-liners, blank line between days
+    game_lines = []
+    prev_date = None
+    for g in _json_builder["games"]:
+        if prev_date is not None and g["date"] != prev_date:
+            game_lines.append("")  # blank line between days
+        game_lines.append(
+            f'{{ "date": "{g["date"]}", "type": {json.dumps(g["type"])}, '
+            f'"away": {{"team": "{g["away"]["team"]}", "score": {json.dumps(g["away"]["score"])}}}, '
+            f'"home": {{"team": "{g["home"]["team"]}", "score": {json.dumps(g["home"]["score"])}}}, '
+            f'"status": "{g["status"]}" }},'
+        )
+        prev_date = g["date"]
+
+    body = "\n".join(game_lines)
+
+    text = (
+        '{\n'
+        f'  "source": {json.dumps(_json_builder["source"] or "")},\n'
+        '  "league": "Source_User",\n'
+        f'  "season": {datetime.now().year},\n'
+        '  "games": [\n'
+        f'{body}\n'
+        '  ]\n'
+        '}\n'
+    )
+
+    path = BASE / f"{_json_builder['filename']}.json"
+    path.write_text(text, encoding="utf-8")
+    _last_json_file = path
+    n = len(_json_builder["games"])
+    _json_builder = None
+
+    return f"🎩 Saved {n} games → {path.name}"
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| def _json_show():
+#+--|════════════════════════════════════════════════════════════════════
+
+def _json_show():
+    if not _last_json_file or not _last_json_file.exists():
+        return "🎩 No JSON built yet this session, Sir."
+    try:
+        content = _last_json_file.read_text(encoding="utf-8")
+        if len(content) > 8000:
+            content = content[:8000] + "\n... (truncated)"
+        return f"🎩 {_last_json_file.name}:\n```json\n{content}\n```"
+    except Exception as e:
+        return f"🎩 Couldn't read it: {e}"
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| HTML BUILDER — "build html"
+#+--|════════════════════════════════════════════════════════════════════
+_html_builder = None
+
+def _html_start():
+    global _html_builder
+    _html_builder = {"stage": "awaiting_text", "text": "", "filename": None}
+    return "🎩 Drop the text, Sir."
+
+def _html_capture(text):
+    global _html_builder
+    _html_builder["text"] = text
+    _html_builder["stage"] = "awaiting_name"
+    return "🎩 Text received. What should I name the file? (e.g. `my-page`)"
+
+def _html_finish(name):
+    global _html_builder, _last_json_file
+    name = name.strip().replace(" ", "-").lower()
+    if not name:
+        name = f"page-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    if not name.endswith(".html"):
+        name += ".html"
+
+    path = Path.home() / "Downloads" / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+#+--|════════════════════════════════════════════════════════════════════
+
+    raw = _html_builder["text"]
+    
+    # If the text is already HTML, just save it as is.
+    if "<html" in raw.lower() or "<!doctype" in raw.lower():
+        content = raw
+    else:
+        content = f"""<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{name[:-5].replace('-', ' ')}</title>
+<style>
+  :root {{
+    --bg: #ffffff; --text: #1a1a1a; --panel-bg: #f8f8f8; --border: #e0e0e0;
+    --accent: #6b21a8; --code-bg: #f3f4f6; --panel-width: 260px;
+  }}
+  
+  [data-theme="dark"] {{
+    --bg: #0b1424; --text: #dbeafe; --panel-bg: #111c30; --border: #1e293b;
+    --accent: #c084fc; --code-bg: #060c16;
+  }}
+
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+
+  body {{ 
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; 
+    background: var(--bg); color: var(--text); display: flex; height: 100vh; overflow: hidden;
+    transition: background 0.3s, color 0.3s;
+  }}
+
+  /* ── SIDEBAR PANEL ── */
+  #sidebar {{
+    width: var(--panel-width); background: var(--panel-bg);
+    border-right: 1px solid var(--border); display: flex; flex-direction: column;
+    padding: 20px; transition: width 0.3s ease, padding 0.3s ease;
+    overflow: hidden; flex-shrink: 0;
+  }}
+  
+  #sidebar.collapsed {{ width: 0; padding: 20px 0; border-right: none; }}
+
+  #sidebar h2 {{ font-size: 14px; text-transform: uppercase; color: var(--accent); margin-bottom: 15px; letter-spacing: 1px; white-space: nowrap; }}
+
+  .category {{
+    padding: 10px; margin-bottom: 5px; border-radius: 6px; font-size: 13px;
+    cursor: pointer; white-space: nowrap; transition: background 0.2s;
+    color: var(--text);
+  }}
+
+  .category:hover {{ background: var(--border); }}
+  .category.active {{ background: var(--accent); color: #fff; font-weight: 600; }}
+
+  /* ── MAIN CONTENT ── */
+  #main {{ flex: 1; display: flex; flex-direction: column; overflow-y: auto; padding: 40px; }}
+
+  header {{ display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent); padding-bottom: 10px; margin-bottom: 20px; }}
+
+  h1 {{ font-size: 24px; text-transform: capitalize; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
+
+  .controls {{ display: flex; gap: 10px; }}
+
+  .btn {{ background: var(--accent); color: #fff; border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-size: 14px; font-weight: 600; transition: opacity 0.2s; white-space: nowrap; }}
+  .btn:hover {{ opacity: 0.8; }}
+
+  /* ── PAGES (The 7 Divs) ── */
+  .page {{
+    display: none; /* Hidden by default */
+    background: var(--code-bg); padding: 20px; border-radius: 8px;
+    border: 1px solid var(--border); color: var(--text);
+    font-family: "SF Mono", Monaco, monospace; font-size: 14px;
+    line-height: 1.6; white-space: pre-wrap; overflow-x: auto;
+  }}
+  
+  .page.active {{ display: block; }} /* Only show the active one */
+
+</style>
+</head>
+<body>
+
+  <!-- COLLAPSIBLE SIDEBAR -->
+  <div id="sidebar">
+    <h2>Categories</h2>
+    <div class="category active" onclick="showPage(1)">1. Core Philosophy & Learning</div>
+    <div class="category" onclick="showPage(2)">2. Deployment & Infrastructure</div>
+    <div class="category" onclick="showPage(3)">3. Platform & Interface</div>
+    <div class="category" onclick="showPage(4)">4. Model Flexibility</div>
+    <div class="category" onclick="showPage(5)">5. Provider Option: Portal Proxy</div>
+    <div class="category" onclick="showPage(6)">6. Installation & Platform Support</div>
+    <div class="category" onclick="showPage(7)">7. Migration & Compatibility</div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div id="main">
+    <header>
+      <h1>{name[:-5].replace('-', ' ')}</h1>
+      <div class="controls">
+        <button class="btn" onclick="toggleSidebar()">☰ Panel</button>
+        <button class="btn" onclick="toggleTheme()">🌓 Theme</button>
+      </div>
+    </header>
+    
+    <!-- The Javascript will inject the 7 divs here -->
+    <div id="pages-container" style="display: flex; flex-direction: column; gap: 20px;"></div>
+  </div>
+
+<script>
+  const rawText = {json.dumps(raw)};
+  
+  function splitTextIntoPages(text, numPages) {{
+    const lines = text.split('\\n');
+    const chunkSize = Math.ceil(lines.length / numPages);
+    const pages = [];
+    for (let i = 0; i < numPages; i++) {{
+        pages.push(lines.slice(i * chunkSize, (i + 1) * chunkSize).join('\\n'));
+    }}
+    return pages;
+  }}
+
+  const pagesData = splitTextIntoPages(rawText, 7);
+  const container = document.getElementById('pages-container');
+
+  pagesData.forEach((chunk, index) => {{
+    const div = document.createElement('div');
+    div.className = 'page' + (index === 0 ? ' active' : '');
+    div.id = 'page-' + (index + 1);
+    div.textContent = chunk || '(Empty section)';
+    container.appendChild(div);
+  }});
+
+  function showPage(pageNum) {{
+    // Hide all pages
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    // Show requested page
+    document.getElementById('page-' + pageNum).classList.add('active');
+    
+    // Update active button styling
+    document.querySelectorAll('.category').forEach((c, i) => {{
+        if (i === (pageNum - 1)) c.classList.add('active');
+        else c.classList.remove('active');
+    }});
+  }}
+
+  // Theme Toggle
+  function toggleTheme() {{
+    const html = document.documentElement;
+    const current = html.getAttribute('data-theme');
+    const next = current === 'light' ? 'dark' : 'light';
+    html.setAttribute('data-theme', next);
+    localStorage.setItem('alfred-theme', next);
+  }}
+
+  const savedTheme = localStorage.getItem('alfred-theme');
+  if (savedTheme) {{
+    document.documentElement.setAttribute('data-theme', savedTheme);
+  }}
+
+  // Sidebar Toggle
+  function toggleSidebar() {{
+    const sidebar = document.getElementById('sidebar');
+    sidebar.classList.toggle('collapsed');
+    localStorage.setItem('alfred-sidebar', sidebar.classList.contains('collapsed') ? 'closed' : 'open');
+  }}
+
+  const savedSidebar = localStorage.getItem('alfred-sidebar');
+  if (savedSidebar === 'closed') {{
+    document.getElementById('sidebar').classList.add('collapsed');
+  }}
+</script>
+</body>
+</html>
+"""
+
+    path.write_text(content, encoding="utf-8")
+    n_lines = content.count("\n") + 1
+    _last_json_file = path
+    _html_builder = None
+    return f"🎩 Saved {n_lines} lines → ~/Downloads/{name}"
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| chapter 6 :def build python4 scripts
+#+--| def open_python4_skeleton():
+#+--|════════════════════════════════════════════════════════════════════
+
+def open_python4_skeleton(choice=None):
+    """Open skeleton.py4.txt in IDLE or TextEdit, Sir."""
+    global _waiting_for_python4_editor
+
+    SKELETON_TXT = Path("/Users/olympynetworkco/Desktop/ollama/python4/skeleton.py4.txt")
+    IDLE_APP = "/Users/olympynetworkco/Desktop/ollama/python4/py47tools/IDLE.app"
+
+    if not SKELETON_TXT.exists():
+        return f"🎩 Skeleton not found at {SKELETON_TXT}, Sir."
+
+    if choice is None:
+        _waiting_for_python4_editor = True
+        return (
+            "🎩 Sir, which one?\n"
+            "  • idle\n"
+            "  • textedit"
+        )
+
+    choice = choice.strip().lower()
+    if choice == "idle":
+        subprocess.Popen(["open", "-a", IDLE_APP, str(SKELETON_TXT)])
+        _waiting_for_python4_editor = False
+        return "🎩 Opening skeleton.py4.txt in IDLE, Sir."
+    elif choice == "textedit":
+        subprocess.Popen(["open", "-e", str(SKELETON_TXT)])
+        _waiting_for_python4_editor = False
+        return "🎩 Opening skeleton.py4.txt in TextEdit, Sir."
+    else:
+        return "🎩 I didn't catch that, Sir. Say `idle` or `textedit`."
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| chapter 5 :def alfred_think(user_input):
+#+--| master.penguin global cer. alfred_think(user_input): global sir
+#+--|════════════════════════════════════════════════════════════════════
+
+def alfred_think(user_input):
+    global CHAT_HISTORY
+    global _schedule_builder
+    global _json_builder, _last_json_file
+    global _html_builder
+    global _waiting_for_sport, _waiting_for_weather
+    global _waiting_for_deepseek
+    global _via_gui          # ← add this
+    global _waiting_for_python4_editor
+    state = load_state()
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| chapter 4 zeta Lola - zebra commander if statements queen for alfred
+#+--|════════════════════════════════════════════════════════════════════
+#+--|  if statements calendar createor
+#+--|════════════════════════════════════════════════════════════════════
+
+    # ─── SCHEDULE BUILDER — runs first, catches every reply ───
+    if _schedule_builder is not None:
+        low = user_input.strip().lower()
+        if low in ("cancel", "never mind", "nevermind", "stop", "abort"):
+            return _schedule_cancel()
+        stage = _schedule_builder["stage"]
+        if stage == "awaiting_title":
+            return _schedule_capture_title(user_input)
+        if stage == "awaiting_start":
+            return _schedule_capture_start(user_input)
+        if stage == "awaiting_duration":
+            return _schedule_capture_duration(user_input)
+
+    intent = parse_intent(user_input)
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| json createor
+#+--|════════════════════════════════════════════════════════════════════
+
+    # ─── JSON BUILDER — runs before everything else ───
+    global _json_builder, _last_json_file
+
+    if _json_builder is not None:
+        low = user_input.strip().lower()
+
+        if low in ("cancel", "never mind", "nevermind", "stop"):
+            return _json_cancel()
+        if low in ("done", "save", "finish"):
+            return _json_finish()
+        return _json_add_game(user_input)
+
+    if intent == "jsonshow":
+        return _json_show()
+
+    if intent == "json":
+        tail = user_input.lower()
+        for t in ("make a json", "make json", "build a json", "new json", "create a json"):
+            tail = tail.replace(t, "")
+        tail = tail.strip().replace(" ", "-")
+        return _json_start(tail or None)
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| html createor
+#+--|════════════════════════════════════════════════════════════════════
+
+    # ─── HTML BUILDER ───
+    global _html_builder
+
+    if _html_builder is not None:
+        low = user_input.strip().lower()
+
+        if low in ("cancel", "never mind", "nevermind"):
+            _html_builder = None
+            return "🎩 Cancelled."
+
+        if _html_builder["stage"] == "awaiting_text":
+            return _html_capture(user_input)
+
+        if _html_builder["stage"] == "awaiting_name":
+            return _html_finish(user_input)
+
+    if intent == "html":
+        return _html_start()
+
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| chat_history
+#+--|════════════════════════════════════════════════════════════════════
+    
+    # Add user input to history
+    CHAT_HISTORY.append(f"Master Art: {user_input}")
+    if len(CHAT_HISTORY) > 6: # Keep only the last 6 lines
+        CHAT_HISTORY.pop(0)
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| NOTIFICATIONS Full text
+#+--|════════════════════════════════════════════════════════════════════
+
+    # ─── NOTIFICATION WRITER (full text) ───
+    if user_input.strip() and not user_input.lower() in ["stop", "quiet", "silent"]:
+        try:
+            notification_data = {
+                "text": user_input,
+                "time": datetime.now().isoformat()
+            }
+            notify_file = Path("/Users/olympynetworkco/Desktop/data/notification.json")
+            notify_file.write_text(json.dumps(notification_data, indent=2), encoding='utf-8')
+        except:
+            pass
+
+
+    # ─── LS (folder listing) ───
+    if intent == "ls":
+        # strip the trigger word, keep the path
+        target = user_input
+        for trigger in ("ls ",):  # <--- ONLY "ls "
+            if trigger in target.lower():
+                idx = target.lower().index(trigger) + len(trigger)
+                target = target[idx:]
+                break
+
+        target = target.strip() or str(BASE)
+        show_hidden = "-a" in target.lower() or "hidden" in target.lower()
+        target = target.replace("-a", "").replace("hidden", "").strip()
+        return list_directory(target, show_hidden)
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--|     # ─── CALCULATE FIRST ───
+#+--|════════════════════════════════════════════════════════════════════
+#+--|
+    # ─── CALCULATE FIRST ───
+    # ─── CALCULATE FIRST ───
+    if intent == "calculate":
+        # Added spring and probability to the regex
+        formula_match = re.search(
+            r'(win-loss|run-line|safety-net|momentum|prediction|coverage-rate|win-percentage|safer-bet|median|std-dev|spring|probability)',
+            user_input.lower()
+        )
+        
+        if not formula_match:
+            # If it's not a sports formula, try to just do the math!
+            math_str = user_input.lower().replace("calculate", "").replace("what is", "").replace("=", "").strip()
+            math_str = math_str.replace("minus", "-").replace("plus", "+").replace("times", "*").replace("divided by", "/")
+            try:
+                result = eval(math_str)
+                return f"🎩 The answer is {result}, Sir."
+            except Exception:
+                pass 
+
+            return """🎩 Which formula, sir?
+  Available: win-loss, run-line, safety-net, momentum, prediction, coverage-rate, safer-bet, median, std-dev, spring, probability
+
+  Examples:
+    calculate win-loss 8 5
+    calculate run-line 2.0
+    calculate momentum 2 1 -1 3 0 4 2 -2 3 5
+    calculate spring 3 1 -2 4 5
+    calculate prediction 3 1 5 0 2 -1 4 2 6 1
+    calculate probability 7.5
+    calculate safer-bet 1.82 2.5"""
+
+        formula_id = formula_match.group(1)
+
+        numbers = re.findall(r'-?\d+\.?\d*', user_input)
+
+        # Check for sport override in the text (e.g., "calculate spring NFL 3 1 2")
+        user_lower = user_input.lower()
+        sport_override = "NFL" if "nfl" in user_lower else "MLB"
+
+        if formula_id == "win-loss" and len(numbers) >= 2:
+            data = {"team_score": float(numbers[0]), "opponent_score": float(numbers[1]), "sport": sport_override}
+        elif formula_id in ("run-line", "point-spread") and len(numbers) >= 1:
+            data = {"win_loss": float(numbers[0]), "spread": float(numbers[1]) if len(numbers) >= 2 else (-3.5 if sport_override == "NFL" else -1.5), "sport": sport_override}
+        elif formula_id == "safety-net" and len(numbers) >= 1:
+            data = {"win_loss": float(numbers[0]), "sport": sport_override}
+        elif formula_id in ("momentum", "prediction", "median", "std-dev", "spring") and len(numbers) >= 3:
+            data = {"values": [float(n) for n in numbers], "sport": sport_override}
+        elif formula_id in ("coverage-rate", "win-percentage") and len(numbers) >= 2:
+            data = {"total": float(numbers[0]), "meeting": float(numbers[1]), "sport": sport_override}
+        elif formula_id == "safer-bet" and len(numbers) >= 1:
+            data = {"momentum": float(numbers[0]), "odd_line": float(numbers[1]) if len(numbers) >= 2 else (7.5 if sport_override == "NFL" else 2.5), "sport": sport_override}
+        elif formula_id == "probability" and len(numbers) >= 1:
+            # For probability, we need the odd line and optionally the spring value
+            data = {"odd_line": float(numbers[0]), "spring": float(numbers[1]) if len(numbers) >= 2 else 0, "sport": sport_override}
+        else:
+            return f"🎩 Not enough numbers for {formula_id}. Please provide the required values."
+
+        return alfred_calculate(formula_id, data)
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--|     # ─── /python4 ───
+#+--|════════════════════════════════════════════════════════════════════
+#+--|
+
+    # ─── PYTHON4 SKELETON ───
+    if _waiting_for_python4_editor:
+        return open_python4_skeleton(user_input)
+
+    if user_input.strip().lower() == "/python4":
+        return open_python4_skeleton()
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--|     # ─── ALFRED'S CALL — voice greeting trigger ───
+#+--|════════════════════════════════════════════════════════════════════
+#+--|
+
+    # ─── ALFRED'S CALL — voice greeting trigger ───
+    if intent == "alfredscall":
+        return alfred_voice_call()
+
+#+--|════════════════════════════════════════════════════════════════════
+    #+--|════════════════════════════════════════════════════════════════════
+    # ─── DOWNLOAD (pkg: html + txt + webloc) ───
+    #+--|════════════════════════════════════════════════════════════════════
+    #+--|════════════════════════════════════════════════════════════════════
+    # ─── DOWNLOAD (pkg: pdf + txt + webloc) ───
+    #+--|════════════════════════════════════════════════════════════════════
+    #+--|════════════════════════════════════════════════════════════════════
+    # ─── DOWNLOAD (pkg: pdf + txt + webloc) ───
+    #+--|════════════════════════════════════════════════════════════════════
+    if intent == "download":
+        url_match = re.search(r'https?://[^\s]+', user_input)
+        if not url_match:
+            return ("🎩 Provide a URL, sir.\n"
+                    "  Examples:\n"
+                    "    download https://github.com/trending\n"
+                    "    download https://www.mlb.com/scores mlb_scores\n"
+                    "    download https://www.bing.com bing-home")
+
+        url = url_match.group(0)
+        data_dir = Path.home() / "Downloads"
+        data_dir.mkdir(parents=True, exist_ok=True)
+
+        tail = user_input[url_match.end():].strip()
+        if tail:
+            filename = tail.replace(' ', '_')
+        else:
+            from urllib.parse import urlparse
+            p = urlparse(url)
+            slug = (p.path.strip('/') or p.netloc or 'download').split('/')[0]
+            slug = re.sub(r'[^\w\-\.]', '_', slug) or 'download'
+            filename = slug
+
+        base_name = filename
+        counter = 1
+        while (data_dir / f"{filename}.pdf").exists():
+            counter += 1
+            filename = f"{base_name}-{counter}"
+
+        try:
+            html_path = fetch_and_save(url, data_dir, filename, user_input)
+        except Exception as e:
+            handle_error(f"download failed: {e}")
+            return f"🎩 Download failed, sir: {str(e)[:200]}"
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--|     if intent == "ask_deepseek":
+#+--|════════════════════════════════════════════════════════════════════
+
+    # ─── DEEPSEEK BRIDGE ───
+    if _waiting_for_deepseek:
+        _waiting_for_deepseek = False
+        question = user_input.strip()
+        if not question:
+            return "🎩 I need a question, Sir."
+        reply = ask_deepseek_browser(question)
+        return f"🎩 DeepSeek says:\n\n{reply}"
+
+    if intent == "ask_deepseek":
+        question = user_input.lower().replace("ask deepseek", "").strip()
+        if question:
+            reply = ask_deepseek_browser(question)
+            return f"🎩 DeepSeek says:\n\n{reply}"
+        _waiting_for_deepseek = True
+        return "🎩 What should I ask or send to him, Sir?"
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| if intent npm
+#+--|════════════════════════════════════════════════════════════════════
+
+    # ─── RUN NPM (VITE) ───
+    if intent == "npm":
+        args = user_input.lower().replace("npm", "", 1).strip() or "run dev"
+        return claw_run_npm(args)
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| if intent moltbook open browser url moltbook
+#+--|════════════════════════════════════════════════════════════════════
+    # ─── MOLTBOOK ───
+    if intent == "moltbook":
+        cmd = user_input.lower().strip()
+        if "show" in cmd or "learnings" in cmd:
+            return moltbook_show()
+        if "sync" in cmd or "refresh" in cmd:
+            return moltbook_force_sync()
+        if "share" in cmd or "post" in cmd:
+            content = user_input
+            for word in ["share", "post", "moltbook"]:
+                content = content.replace(word, "", 1)
+            content = content.strip()
+            if content:
+                add_memory(f"⎙ Moltbook post: {content}")
+                return f"🦞 Preparing to post to Moltbook: {content}"
+            else:
+                return "🦞 What would you like to share, sir?"
+        if "open" in cmd or "browser" in cmd:
+            webbrowser.open(MOLTBOOK_URL)
+            return f"🎩 Opening Moltbook: {MOLTBOOK_URL}"
+        return """🌐 Moltbook commands:
+  • moltbook show — see what ALFRED learned
+  • moltbook sync — force a sync now
+  • moltbook clear — clear learnings
+  • moltbook share [text] — share wisdom
+  • moltbook open — open in browser"""
+#+--|════════════════════════════════════════════════════════════════════
+#+--| if intent status open cpu percent status
+#+--|════════════════════════════════════════════════════════════════════
+    # ─── STATUS ───
+    if intent == "status":
+        return f"""
+🎩 ALFRED STATUS:
+  CPU: {get_cpu()}
+  RAM: {get_ram()}
+  Uptime: {get_uptime()}
+  Errors: {state.get('errors_caught', 0)}
+  Goals: {state.get('goals_completed', 0)}
+  Searches: {state.get('searches_performed', 0)}
+  Tabs: {state.get('tabs_opened', 0)}"""
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| if intent help return guidance text print - HELP LIST dictionary
+#+--|════════════════════════════════════════════════════════════════════
+
+# ─── HELP ───
+    # ─── HELP ───
+    if intent == "help":
+        if _via_gui:
+            # Edit this list to change the card.
+            # Each group: (svg_paths, title, subtitle, [(command, detail), ...])
+            _groups = [
+                ('<polyline points="3 12 7 12 10 5 14 19 17 12 21 12"/>',
+                 "System & Status", "Uptime, errors, and state.",
+                 [("status", "Uptime, errors, current state"),
+                  ("help", "Show this card"),
+                  ("time", "Current time")]),
+
+                ('<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/>',
+                 "Web & Search", "Search, research, and download.",
+                 [("search", "Search the web"),
+                  ("tell me about", "Quick research on a topic"),
+                  ("download", "Save a file from a URL"),
+                  ("open", "Open a page or app")]),
+
+                ('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+                 "Files & Memory", "Folders, memory, and goals.",
+                 [("ls", "List a folder"),
+                  ("grip", "Search inside files"),
+                  ("remember", "Store a note"),
+                  ("recall", "Retrieve a note"),
+                  ("goal", "Set or view goals"),
+                  ("error", "Show recent errors")]),
+
+                ('<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/>'
+                 '<line x1="8.3" y1="7.3" x2="10.7" y2="15.7"/><line x1="15.7" y1="7.3" x2="13.3" y2="15.7"/>'
+                 '<line x1="8.5" y1="6" x2="15.5" y2="6"/>',
+                 "Moltbook", "Agent network updates.",
+                 [("moltbook show", "Agent network updates"),
+                  ("moltbook sync", "Pull the latest"),
+                  ("moltbook share", "Post to the network")]),
+
+                ('<rect x="5" y="3" width="14" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/>'
+                 '<path d="M8 13h.01M12 13h.01M16 13h.01M8 17h.01M12 17h.01M16 17h.01"/>',
+                 "Calculations", "Formulas and math.",
+                 [("calculate", "Formulas and math"),
+                  ("win-loss", "Win/loss record"),
+                  ("momentum", "Momentum score")]),
+
+                ('<polyline points="8 8 4 12 8 16"/><polyline points="16 8 20 12 16 16"/>'
+                 '<line x1="13.5" y1="6" x2="10.5" y2="18"/>',
+                 "Tools & Addons", "Scripts, JSON, and HTML.",
+                 [("/python4", "Run a Python script"),
+                  ("make a json", "Generate JSON"),
+                  ("build html", "Generate an HTML page"),
+                  ("npm", "Run npm commands"),
+                  ("schedule", "Schedule a task")]),
+
+                ('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/>'
+                 '<line x1="12" y1="18" x2="12" y2="21"/>',
+                 "Mac & Calls", "Keyboard and voice.",
+                 [("tab", "Press Tab"),
+                  ("enter", "Press Enter"),
+                  ("call alfred", "Start a voice call"),
+                  ("send stream", "Stream to the call")]),
+            ]
+
+            _chev = '<polyline points="6 9 12 15 18 9"/>'
+            _mono = "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"
+
+            def _svg(paths, size=18):
+                return (f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" '
+                        f'stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+                        f'stroke-linejoin="round" style="flex:none;">{paths}</svg>')
+
+            def _esc(s):
+                return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+            # Everything is joined with NO newlines between tags.
+            out = [
+                '<style>.alf summary::-webkit-details-marker{display:none}'
+                '.alf-chev{transition:transform .15s}'
+                '.alf details[open] .alf-chev{transform:rotate(180deg)}'
+                '.alf summary:hover{background:#faf9f7}</style>',
+
+                '<div class="alf" style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;'
+                'max-width:560px;color:#1a1a1a;">',
+
+                # HEADER - Clean white instead of black
+                '<div style="background:#ffffff;border:1px solid #e7e7e5;border-bottom:none;border-radius:12px 12px 0 0;padding:14px 16px;'
+                'display:flex;align-items:center;gap:10px;">'
+                '<div style="flex:1;min-width:0;">'
+                '<div style="font-size:15px;font-weight:700;color:#1a1a1a;">🎩 Alfred — Command Reference</div>'
+                '<div style="font-size:12px;color:#6b6b6b;margin-top:2px;">Tap a section to see what it can do.</div>'
+                '</div>'
+                '</div>',
+
+                # BODY
+                '<div style="background:#ffffff;border:1px solid #e7e7e5;'
+                'border-radius:0 0 12px 12px;padding:10px;display:flex;flex-direction:column;gap:8px;">',
+            ]
+
+            for i, (icon, title, sub, cmds) in enumerate(_groups):
+                rows = "".join(
+                    '<div style="display:flex;align-items:baseline;gap:8px;padding:6px 0;border-bottom:1px solid #f0f0ee;">'
+                    f'<span style="flex:none;background:#f2f2f0;color:#1a1a1a;font-family:{_mono};font-size:11px;'
+                    f'font-weight:700;padding:3px 8px;border-radius:6px;white-space:nowrap;border:1px solid #e7e7e5;">{_esc(c)}</span>'
+                    f'<span style="font-size:12px;color:#6b6b6b;line-height:1.35;">{_esc(d)}</span></div>'
+                    for c, d in cmds
+                )
+                # Remove the last border from the rows
+                rows = rows.replace('border-bottom:1px solid #f0f0ee;">', '>', 1) if not cmds else rows
+                
+                out.append(
+                    '<div style="background:#ffffff;border:1px solid #e7e7e5;border-radius:10px;overflow:hidden;">'
+                    f'<details{" open" if i == 0 else ""}>'
+                    '<summary style="list-style:none;display:flex;align-items:center;gap:12px;'
+                    'padding:10px 12px;cursor:pointer;">'
+                    '<span style="flex:none;width:32px;height:32px;border-radius:8px;background:#f2f2f0;'
+                    'color:#6b21a8;display:flex;align-items:center;justify-content:center;">'
+                    f'{_svg(icon)}</span>'
+                    '<span style="flex:1;min-width:0;">'
+                    f'<span style="display:block;font-size:14px;font-weight:700;color:#1a1a1a;">{_esc(title)}</span>'
+                    f'<span style="display:block;font-size:12px;color:#6b6b6b;margin-top:1px;">{_esc(sub)}</span>'
+                    '</span>'
+                    '<span class="alf-chev" style="flex:none;width:24px;height:24px;border-radius:50%;'
+                    'background:#f2f2f0;color:#1a1a1a;display:flex;align-items:center;justify-content:center;">'
+                    f'{_svg(_chev, 14)}</span>'
+                    '</summary>'
+                    f'<div style="padding:4px 12px 10px 56px;border-top:1px solid #f0f0ee;background:#faf9f7;">{rows}</div>'
+                    '</details></div>'
+                )
+
+            # FOOTER
+            out.append(
+                '<div style="padding:8px 4px 0;font-size:11px;color:#888;text-align:center;">'
+                '🦇 ↕ shift sir through time expand the graph with song ↔</div>'
+                '</div></div>'
+            )
+
+            return "".join(out)
+        
+#+--|════════════════════════════════════════════════════════════════════
+#+--| return normal text on terminal
+#+--|════════════════════════════════════════════════════════════════════
+
+        else:
+            return """🎩 Yes Master Art, here is my full command list, Sir:
+
+  🦅 SYSTEM & STATUS
+  ══════════════════════════════════════════════════════════════════
+    status                      - shows cpu, ram, uptime, errors, goals, searches, tabs 
+    help                        - shows this guideline what Alfred can do
+    time                        - tells time / date / and day
+
+  🕸️ WEB & SEARCH
+  ══════════════════════════════════════════════════════════════════
+    search [query]               — Google search in browser
+    tell me about [topic]        — Scrapes Wikipedia/News + downloads image to Downloads
+    download [url] [name]        — Saves .pdf, .txt, .html, & .webloc + screenshot
+                                   (Timeout fallback name if no reply: telegram-timestamp)
+    open [url]                   — Opens any website you type
+
+  ⚡ QUICK URLS (Just type: "open [word]")
+  ══════════════════════════════════════════════════════════════════
+    open localhost:900 | google | bing | youtube | github | github-trending | telegram | yahoo-nfl |
+    
+    yahoo-nba| yahoo-mlb | yahoo-nhl | espn-nfl | espn-nba | espn-mlb | espn-nhl | deepseek | claude  
+    
+    moltbook | gmail | news | pippera | Facebook (marketpalce) | slack |
+
+    ask deepseek                 — Opens deepseek and asks questions in Firefox 
+    
+    open media                   — Opens /Desktop/media in Firefox
+
+  📁 FILES & MEMORY
+   ══════════════════════════════════════════════════════════════════
+   ls [folder]                  — List folder contents
+    grip [filename]              — Read JSON / HTML / TXT (searches 6 folders)
+    grip [filename] stats        — Show JSON size & keys
+    remember [text]              — Save to memory
+    recall                       — Show recent memories
+    goal [text]                  — Set a goal
+    error [text]                 — Log an error
+
+  🦞 MOLTBOOK (Agent Network)
+  ══════════════════════════════════════════════════════════════════
+    moltbook open                — Open in browser
+    moltbook show                — See latest learnings (formatted with time)
+    moltbook sync                — Force a sync now
+    moltbook share [text]        — Post wisdom
+
+  🧮 MATH & CALCULATIONS
+  ══════════════════════════════════════════════════════════════════
+    calculate win-loss 8 5 
+    calculate run-line 2.0
+    calculate momentum 2 1 -1 3 0 4 2 -2 3 5
+    calculate prediction 3 1 5 0 2 -1 4 2 6 1
+    calculate coverage-rate 20 17
+    calculate safer-bet 1.82 2.5
+    calculate median 3 1 5 0 2
+    calculate std-dev 3 1 5 0 2
+
+  🖐️ MAC CONTROL & KEYBOARD
+  ══════════════════════════════════════════════════════════════════
+    tab / new tab / close tab / next tab
+    enter                        — Press Enter
+
+  📞 ALFRED'S CALL
+  ══════════════════════════════════════════════════════════════════
+    call alfred                  — TTS voice note via Telegram
+    send stream                  — Sends stream link via Telegram
+
+  🏈 SPORTS
+  ══════════════════════════════════════════════════════════════════
+    [sport] score / who won      — Alfred will ask for the sport (MLB, NFL, etc.)
+
+  ❤️ EASTER EGGS
+  ══════════════════════════════════════════════════════════════════
+    love you                     — He returns the affection
+    thank you                    — Gratitude acknowledged
+    tell me about [topic] Alfy   — Adds "Always a pleasure, Sir" to the reply
+
+  🧠 BACKGROUND SYSTEMS (Running 24/7)
+  ══════════════════════════════════════════════════════════════════
+    • Auto Dashboard: Writes alfred-state.json with CPU/RAM every loop.
+    • Web Server: Runs a local HTTP server on port 8080.
+    • Watchdog: Alerts Telegram if errors > 10.
+    • Proton Tree: Scans /Desktop/data for new MLB/weather files & awards Protons.
+    • GUI Bridge: Listens on port 11435 for our browser UI.
+    • Telegram Listener: Catches texts, photos, and URLs.
+
+  🛠️ TOOLS & ADDONS
+  ══════════════════════════════════════════════════════════════════
+    /python4                     — opens skelton.py4 ready for you to edit new scripts 
+                                 - path=/Users/olympynetworkco/Desktop/ollama/python4/
+                                                                     skeleton.py4.txt
+
+  ══════════════════════════════════════════════════════════════════
+    make a json                  — Build a JSON from a pasted text
+    show json                    — Show the JSON you built during the session
+  ══════════════════════════════════════════════════════════════════
+    build html                   - drop a text -> converts to standard html
+  ══════════════════════════════════════════════════════════════════
+    npm                          — Runs `npm run dev` vite8 project as a tool (better than mcp)
+  ══════════════════════════════════════════════════════════════════
+    schedule                     — create calendar event in Mac by making a .ics
+  ══════════════════════════════════════════════════════════════════
+    • what does this graph show? + drop a graph chart screenshot for alfred to showcase small 
+    analysis
+  ══════════════════════════════════════════════════════════════════
+
+
+"""
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| if intent send stream
+#+--|════════════════════════════════════════════════════════════════════
+
+    # ─── SEND STREAM TO TELEGRAM ───
+    if intent == "send_stream":
+        stream_url = "https://crackstreams.gdn/"
+        send_telegram(f"🎩 Sir, here is the stream link: {stream_url}")
+        return "🎩 Sent stream link to Telegram, Sir."
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| if intent open return opening .com in browser
+#+--|════════════════════════════════════════════════════════════════════
+    # ─── OPEN ───
+    if intent == "open":
+        target = user_input.lower().replace("alfred", "").replace("open", "").strip()
+
+        # 1. Handle Media Folder explicitly
+        if "media" in target:
+            media_path = "/Users/olympynetworkco/Desktop/media"
+            # This forces macOS to open a NEW tab in Firefox specifically
+            subprocess.run(["open", "-a", "Firefox", media_path])
+            return f"🎩 Opening Media folder on your request Master Art, its active now Sir, carry on your work i am watching."
+
+        # 2. Quick URLs (google, youtube, etc)
+        quick_urls = {
+            "localhost:9000": "https://localhost:9000",
+
+            "google": "https://www.google.com",
+            "bing": "https://www.bing.com/webhp",
+            "youtube": "https://www.youtube.com",
+
+            "github": "https://github.com/olympynetworkco-spec",
+            "github-trending": "https://github.com/trending",
+
+            "telegram": "https://web.telegram.org/k/",
+
+            "yahoo-nfl": "https://sports.yahoo.com/nfl/scoreboard/",
+            "yahoo-nba": "https://sports.yahoo.com/nba/scoreboard/",
+            "yahoo-mlb": "https://sports.yahoo.com/mlb/scoreboard/",
+            "yahoo-nhl": "https://sports.yahoo.com/nhl/scoreboard/",
+
+            "espn-nfl": "https://www.espn.com/nfl/scoreboard",
+            "espn-nba": "https://www.espn.com/nba/scoreboard",
+            "espn-nhl": "https://www.espn.com/nhl/scoreboard",
+            "espn-mlb": "https://www.espn.com/mlb/scoreboard",
+
+
+            "news": "https://www.bing.com/news/search",
+
+            "science": "https://www.bing.com/news/search?q=science&FORM=HDRSC7",
+
+            "technology": "https://www.bing.com/news/search?q=technology&qs=n&form=QBNT&sp=-1&ghc=1&lq=0&pq=technology&sc=10-10&sk=&cvid=23FCA872FD8240DC93F3A09E6054CA59",
+            "pippera": "https://northstarconnector-pippera.netlify.app/",
+
+            "gmail": "https://mail.google.com/mail/u/0/#inbox",
+
+            "slack": "https://app.slack.com/client/T0CDQ0NSV6H/C0CDDTR6MLP",
+
+            "stream": "https://crackstreams.gdn/",
+
+            "facebook": "https://www.facebook.com/marketplace",
+
+            "deepseek": "https://chat.deepseek.com/a/chat/s/7df9bb6f-1029-4c32-9787-5b6fee551596",
+
+            "claude": "https://claude.ai/chat/ef0ed320-d93e-41c9-bf56-94e67872f674",
+
+            "moltbook": "https://moltbook.com/",
+        }
+        if target in quick_urls:
+            webbrowser.open(quick_urls[target])
+            return f"🎩 Opening {target.title()}"
+            
+        # 3. General URLs
+        if any(target.startswith(x) for x in ["http://", "https://", "www."]) or \
+           any(x in target for x in [".com", ".ir", ".io", ".org", ".net"]):
+            if not target.startswith("http"):
+                target = "https://" + target
+            webbrowser.open(target)
+            return f"🎩 Opening {target}"
+            
+        # 4. Fallback
+        claw_open_file(target)
+        return f"🎩 Opening {target}"
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| if intent about : research and teach me
+#+--|════════════════════════════════════════════════════════════════════
+
+    # ─── RESEARCH ───
+    if intent == "research":
+        # Strip the trigger phrase
+        query = user_input.lower().replace("tell me about", "").strip()
+        
+        # Strip nicknames and greetings (but remember them)
+        nickname_used = False
+        for nick in ["alfy", "alfred", "alfredo", "bossman", "watchman"]:
+            if nick in query:
+                nickname_used = True
+                query = query.replace(nick, "").strip()
+        
+        # Clean up extra punctuation and spaces
+        query = re.sub(r'[^\w\s]', '', query).strip()
+        query = re.sub(r'\s+', ' ', query)  # collapse multiple spaces
+        
+        if query:
+            result = search_web(query)
+            # If he used a nickname, add a small appreciation line
+            if nickname_used:
+                return f"🎩 Always a pleasure, Sir.\n\n{result}"
+            return result
+        
+        return "🎩 What would you like me to research, Sir?"
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| if intent search return guidance google.com/search= print
+#+--|════════════════════════════════════════════════════════════════════
+    # ─── SEARCH ───
+    if intent == "search":
+        query = user_input.replace("search", "").replace("find", "").strip()
+        if query:
+            webbrowser.open(f"https://www.google.com/search?q={query.replace(' ', '+')}")
+            state["searches_performed"] = state.get("searches_performed", 0) + 1
+            save_state(state)
+            return f"🎩 Searching: {query}"
+#+--|════════════════════════════════════════════════════════════════════
+#+--| if intent remember return post learning data old an current list
+#+--|════════════════════════════════════════════════════════════════════
+    # ─── REMEMBER ───
+    if intent == "remember":
+        what = user_input.replace("remember", "").replace("recall", "").strip()
+        if what:
+            add_memory(what)
+            return f"🎩 Remembered: {what}"
+        memories = recall_memories()
+        if memories:
+            return "🎩 Recent memories:\n" + "\n".join(f"  • {m}" for m in memories)
+        return "🎩 No memories yet."
+#+--|════════════════════════════════════════════════════════════════════
+#+--| if intent goal return txt to data alert goal in action text print
+#+--|════════════════════════════════════════════════════════════════════
+    # ─── GOAL ───
+    if intent == "goal":
+        desc = user_input.replace("goal", "").replace("add goal", "").strip()
+        if desc:
+            add_goal(desc)
+            state["goals_completed"] = state.get("goals_completed", 0) + 1
+            save_state(state)
+            return f"🎩 Goal added: {desc}"
+#+--|════════════════════════════════════════════════════════════════════
+#+--| if intent error return guidance adjustment print view all deleted files in trash before where 
+#+--| it broke
+#+--|════════════════════════════════════════════════════════════════════
+    # ─── ERROR ───
+    if intent == "error":
+        err = user_input.replace("error", "").replace("bug", "").strip()
+        if err:
+            handle_error(err)
+            return f"🎩 Error logged: {err}"
+#+--|════════════════════════════════════════════════════════════════════
+#+--| if tab remember return post tab open old an current browser command + t
+#+--|════════════════════════════════════════════════════════════════════
+    # ─── TAB ───
+    if intent == "tab":
+        if "new tab" in user_input.lower():
+            subprocess.run(["osascript", "-e", 'tell app "System Events" to keystroke "t" using command down'])
+            state["tabs_opened"] = state.get("tabs_opened", 0) + 1
+            save_state(state)
+            return "🎩 New tab opened"
+        if "close tab" in user_input.lower():
+            subprocess.run(["osascript", "-e", 'tell app "System Events" to keystroke "w" using command down'])
+            return "🎩 Tab closed"
+        if "next tab" in user_input.lower():
+            subprocess.run(["osascript", "-e", 'tell app "System Events" to keystroke "}" using command down'])
+            return "🎩 Next tab"
+        if user_input.lower().strip() == "tab":
+            claw_tab()
+            return "🎩 Tab pressed"
+#+--|════════════════════════════════════════════════════════════════════
+#+--| if intent enter return post click enter an current tab
+#+--|════════════════════════════════════════════════════════════════════
+    # ─── ENTER ───
+    if user_input.lower().strip() == "enter":
+        claw_enter()
+        return "🎩 Enter pressed"
+#+--|════════════════════════════════════════════════════════════════════
+#+--| if intent love return current curving up an lubdub love
+#+--|════════════════════════════════════════════════════════════════════
+    # ─── LOVE ───
+    if "love you" in user_input.lower():
+        return "♘ Love you too Master Art now Rev it!"
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| if intent == "appreciation":
+#+--|════════════════════════════════════════════════════════════════════
+    # ─── APPRECIATION ───
+    if "thank you" in user_input.lower():
+        return "🎩 You're most welcome, Master Art, Sir. The watchman is always with you."
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| if intent grip return json html txt current search files list from folders
+#+--|════════════════════════════════════════════════════════════════════
+    # ─── GRIP (JSON + HTML + TXT) ───
+    if intent == "grip":
+        match = re.search(r'([\w\-\.]+\.(json|html|txt))', user_input)
+        if match:
+            filename = match.group(1)
+            possible_paths = [
+                f"/Users/olympynetworkco/Desktop/data{filename}",
+                f"/Users/olympynetworkco/Desktop/themes{filename}",
+                f"/Users/olympynetworkco/Desktop/media{filename}",
+                f"/Users/olympynetworkco/Desktop/html{filename}",
+
+
+                f"/Applications/python4/{filename}",
+                f"/Applications/python4/alfred/{filename}",
+            ]
+            filepath = None
+            for path in possible_paths:
+                if os.path.exists(path):
+                    filepath = path
+                    break
+
+            if filepath:
+                if filename.endswith('.html') or filename.endswith('.txt'):
+                    try:
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                        if len(content) > 3000:
+                            content = content[:3000] + "\n... (truncated)"
+                        return f"🎩 Gripping {filename}:\n```html\n{content}\n```"
+                    except Exception as e:
+                        return f"🎩 Error reading file: {e}"
+                else:
+                    if "stats" in user_input.lower():
+                        stats = json_stats(filepath)
+                        if "error" in stats:
+                            return f"🎩 Error: {stats['error']}"
+                        return f"""🎩 JSON Stats for {filename}:
+  ⎙ Type: {stats['type']}
+  🔑 Keys: {', '.join(stats['keys'][:10])}{'...' if len(stats['keys']) > 10 else ''}
+  [🎤︎︎ ERROR.DASHBOARD-STATE] Size: {stats['size']} characters"""
+                    content = json_grip(filepath)
+                    if content.startswith("🎩 Error"):
+                        return content
+                    if len(content) > 3000:
+                        content = content[:3000] + "\n... (truncated)"
+                    return f"🎩 Gripping {filename}:\n```json\n{content}\n```"
+            return f"🎩 File not found: {filename}"
+        return "🎩 Which file shall I grip, sir? e.g., 'grip alfred-state.json' or 'grip www.bing.com_webhp.html'"
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| if intent == "TIME/DATE/DAY":
+#+--|════════════════════════════════════════════════════════════════════
+    # ─── TIME / DATE ───
+    if intent == "time":
+        now = datetime.now().astimezone()
+        
+        # Format: Saturday, October 24, 2026 at 07:15 PM
+        date_str = now.strftime('%A, %B %d, %Y')
+        time_str = now.strftime('%I:%M %p')
+        
+        return f"🎩 It is currently {time_str} on {date_str}, Sir."
+#+--|════════════════════════════════════════════════════════════════════
+#+--| if intent == "WEATHER":
+#+--|═══════════════════════════════════════════════════════════════════
+    # ─── WEATHER ───
+    global _waiting_for_weather
+    
+    if _waiting_for_weather:
+        _waiting_for_weather = False
+        # The user just replied with a city
+        city = user_input.strip()
+        return get_weather(city)
+        
+    if intent == "weather":
+        # Use regex to find the city name, stripping out all the filler words
+        # Matches things like "whats the weather in Seattle" -> "Seattle"
+        match = re.search(r'(?:weather|temperature|forecast)(?:\s+in|\s+for|\s+at)?\s+([a-zA-Z\s]+)', user_input.lower())
+        
+        if match:
+            city = match.group(1).strip()
+            if city:
+                return get_weather(city)
+                
+        # If no city was found in the sentence, ask for it
+        _waiting_for_weather = True
+        return "🎩 Which city would you like the weather for, Sir?"
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| if intent == "calculate":
+#+--|═══════════════════════════════════════════════════════════════════
+
+    # ─── MATH CALCULATOR ───
+    if "math" in user_input.lower() or "minus" in user_input.lower():
+        # Strip out the words so only the numbers and symbols remain
+        math_str = user_input.lower().replace("calculate", "").replace("what is", "").replace("=", "").strip()
+        
+        # Translate words to symbols
+        math_str = math_str.replace("minus", "-").replace("plus", "+").replace("times", "*").replace("divided by", "/")
+        
+        try:
+            # eval() does the actual math instantly
+            result = eval(math_str)
+            return f"🎩 The answer is {result}, Sir."
+        except Exception:
+            pass # If it fails, let it fall through to the AI brain
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| if intent == "schedule":
+#+--|═══════════════════════════════════════════════════════════════════
+
+    # ─── NEW: schedule trigger ───
+    if intent == "schedule":
+        return _schedule_start()
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| CHAPTER 3b # ─── ECHO ───
+#+--|═══════════════════════════════════════════════════════════════════
+
+    # ─── ECHO ───
+    global _waiting_for_sport
+    if _waiting_for_sport:
+        # User just picked a sport — route to search
+        _waiting_for_sport = False
+        sport = user_input.strip().lower()
+        valid = ["mlb", "nba", "nfl", "nhl", "soccer", "baseball", "basketball", "hockey", "football"]
+        if any(v in sport for v in valid):
+            return search_web(f"{sport} scores today")
+        return f"🎩 I don't recognize '{sport}', Sir. Try MLB, NBA, NFL, or NHL."
+
+    # Check if the user is asking for game results without specifying a sport
+    lower = user_input.lower()
+    if any(word in lower for word in ["game results", "todays game", "today's game", "score", "who won"]):
+        if not any(sport in lower for sport in ["mlb", "nba", "nfl", "nhl", "soccer"]):
+            _waiting_for_sport = True
+            return "🎩 Which sport, Sir? MLB, NBA, NFL, or NHL?"
+
+    # ─── No keyword matched — ask Ollama ───
+    try:
+        upload_dir = Path("/Users/olympynetworkco/Desktop/ollama/uploads")
+        latest_image = None
+        if upload_dir.exists():
+            images = sorted(upload_dir.glob("*.png"), key=os.path.getmtime, reverse=True)
+            if images:
+                latest_image = str(images[0])
+        
+        # If a graph was uploaded, use the drawing tool
+        if latest_image and user_input.strip().lower().startswith("analyze graph"):
+            # Let Alfred get the color first
+            color = analyze_graph_colors(latest_image)
+            
+            # We can hardcode the grid coordinates for now, or let the model decide
+            result = draw_graph_analysis(
+                image_path=latest_image, 
+                dominant_color=color, 
+                horizontal_line_y=50, # Middle
+                vertical_line_x=50    # Middle
+            )
+            
+            # Then let the brain talk about it
+            brain_reply = alfred_mind(user_input, image_path=latest_image)
+            return f"{result}\n\n{brain_reply}"
+            
+        return alfred_mind(user_input, history=CHAT_HISTORY, image_path=latest_image)
+    except Exception as e:
+        log_error(f"tinydolphin:latest brain failed: {e}")
+        return f"🎩 Brain error, Sir: {e}"
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| CHAPTER 3: Darwin def laws def start_gui_bridge():
+#+--|════════════════════════════════════════════════════════════════════
+# ─── GUI BRIDGE (Lets the web GUI talk to Alfred) ───
+def start_gui_bridge():
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    
+    class AlfredHandler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            if self.path == '/api/generate':
+                length = int(self.headers['Content-Length'])
+                post_data = json.loads(self.rfile.read(length).decode('utf-8'))
+                user_prompt = post_data.get('prompt', '')
+                chat_id = post_data.get('chat_id', f"chat-{int(time.time())}")
+                history = post_data.get('history', [])
+
+                # Alfred builds the memory entry himself (owner / watchman / intention / brain_trigger)
+                save_memory_turn(chat_id, "owner", user_prompt, intention="message", context="gui")
+
+                # Set the GUI flag so alfred_think() knows to return HTML
+                global _via_gui
+                _via_gui = True
+                response_text = alfred_think(user_prompt)
+                _via_gui = False
+
+                save_memory_turn(chat_id, "watchman", response_text, intention="response", context="gui")
+
+                response_json = json.dumps({"response": response_text}).encode('utf-8')
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(response_json)
+
+        def log_message(self, format, *args):
+            pass  # Keep the terminal quiet
+
+    try:
+        server = HTTPServer(('localhost', 11435), AlfredHandler)
+        server.serve_forever()
+    except Exception as e:
+        log_error(f"GUI Bridge failed: {e}")
+
+
+# ─── START THE BRIDGE ───
+
+threading.Thread(target=start_gui_bridge, daemon=True).start()
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| CHAPTER 2a: EXECUTION LAUNCH
+#+--|════════════════════════════════════════════════════════════════════
+def main():
+    print(f"\n  {BLU}{BOLD}🎩  Alfred watchman initializing...{R}")
+    print(f"  {GRN}✓{R} Ready.\n")
+
+    log_info("Alfred initializing")
+    log_info("Goggles: ⎚-⎚ Active")
+    log_info(f"Memory: {BASE}")
+    log_info(f"Voice: {'Telegram' if load_telegram_config() else 'Local only'}")
+    log_info("Hand: 🦞 Native MacBook Pro (AppleScript)")
+    log_info("Brain: [✎] Command parser active")
+    log_info("Tower: 🌐 Watchdog active")
+
+    # Web server
+    web_thread = threading.Thread(target=start_web_server, daemon=True)
+    web_thread.start()
+
+    claw_watchdog()
+    send_telegram("🎩 - ✓ online.")
+
+    if load_telegram_config():
+        listener_thread = threading.Thread(target=telegram_listener, daemon=True)
+        listener_thread.start()
+        log_info("Telegram listener active")
+
+    start_moltbook_sync()
+    start_watch_loop()          # ← NEW
+
+    time.sleep(1)
+
+    while True:
+        write_dashboard_state()
+        fire_protons_from_tree()
+        moltbook_sync()
+
+        try:
+            sys.stdout.write(f"{BOLD}🎩 {R}")
+            sys.stdout.flush()
+            user_input = input().strip()
+            if not user_input:
+                continue
+
+            if _json_builder is not None or _html_builder is not None:
+                # single-word commands stay single
+                low = user_input.lower()
+                if low in ("done", "save", "finish", "cancel", "never mind", "nevermind", "stop"):
+                    print(alfred_think(user_input))
+                    continue
+
+                # otherwise keep reading until "done" / "cancel" / EOF
+
+                blob = [user_input]
+                while True:
+                    sys.stdout.write(f"{DIM}   … {R}")
+                    sys.stdout.flush()
+                    try:
+                        nxt = input()
+                    except EOFError:
+                        break
+                    nxt_s = nxt.strip()
+                    if nxt_s.lower() in ("done", "save", "finish", "cancel", "never mind", "nevermind"):
+                        print(alfred_think("\n".join(blob)))
+                        print(alfred_think(nxt_s))
+                        blob = None
+                        break
+                    blob.append(nxt)
+                if blob:
+                    print(alfred_think("\n".join(blob)))
+
+                continue
+
+            response = alfred_think(user_input)
+            print(response)
+        except EOFError:
+            break
+        except KeyboardInterrupt:
+            print(f"\n🎩 Goodbye, sir.")
+            break
+        except Exception as e:
+            handle_error(str(e))
+#+--|════════════════════════════════════════════════════════════════════
+#+--| CHAPTER 1: turbo main execution
+#+--|════════════════════════════════════════════════════════════════════
+if __name__ == "__main__":
+    main()
