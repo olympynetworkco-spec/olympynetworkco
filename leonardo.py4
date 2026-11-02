@@ -1,0 +1,1736 @@
+#!/usr/bin/env python4
+# -*- coding: utf-8 -*-
+# YAHOO TRACKER - Fixed Parser - Leonardo yahoo odds vision lite panda pikachu yahoo vision 8
+import os
+import re
+import time
+import json
+
+import urllib.request
+import urllib.parse
+import ssl
+
+import threading
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
+import mimetypes
+from urllib.parse import unquote
+import webbrowser
+
+import subprocess
+from datetime import datetime
+from pathlib import Path
+
+# ─── COLORS ───
+R = "\033[0m"
+GRN = "\033[92m"
+RED = "\033[91m"
+ORG = "\033[38;5;214m"
+BLU = "\033[94m"
+DIM = "\033[2m"
+YLW = "\033[93m"
+CYN = "\033[96m"
+BOLD = "\033[1m"
+BLINK = "\033[5m"
+
+
+GAME_URLS = [
+    "https://sports.yahoo.com/nba/houston-rockets-san-antonio-spurs-2026102324/",
+]
+
+CHROME = "/Applications/python4/chrome-for-testing-main/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"
+
+OUTPUT_DIR = os.path.join(os.path.expanduser("~"), "Desktop", "data")
+previous_states = {}
+REFRESH_INTERVAL = 25
+NOTIFICATION_ENABLED = True
+
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+
+
+# ─── MAC NOTIFICATION ───
+def send_mac_notification(title, message, subtitle=""):
+    if not NOTIFICATION_ENABLED:
+        return
+    try:
+        script = f'''
+        display notification "{message}" with title "{title}" subtitle "{subtitle}"
+        '''
+        subprocess.run(['osascript', '-e', script], capture_output=True, timeout=5)
+        print(f"  {GRN}🔔 Notification sent!{R}")
+    except Exception as e:
+        print(f"  {RED}⚠️ Notification failed: {e}{R}")
+
+TELEGRAM_FILE = Path.home() / "Desktop" / "telegram.json"
+DEFAULT_TOKEN   = "8352410871:AAFvPg5moGL0yVb_UKjivMKAzpm68Nj7xE8"
+DEFAULT_CHAT_ID = "1726670722"
+
+def load_telegram_config():
+    try:
+        with open(TELEGRAM_FILE, 'r', encoding='utf-8') as f:
+            cfg = json.load(f)
+        if 'bots' in cfg:
+            for bot in cfg['bots']:
+                if bot.get('active', True):
+                    t = bot.get('token'); c = str(bot.get('chat_id'))
+                    if t and c: return {'token': t, 'chat_id': c}
+        if 'primary' in cfg and 'active_bot' in cfg:
+            bot = cfg.get(cfg.get('active_bot', 'primary'))
+            if bot and bot.get('active', True):
+                t = bot.get('token'); c = str(bot.get('chat_id'))
+                if t and c: return {'token': t, 'chat_id': c}
+        t = cfg.get('token'); c = str(cfg.get('chat_id'))
+        if t and c: return {'token': t, 'chat_id': c}
+        t = cfg.get('token_secondary'); c = str(cfg.get('chat_id_secondary'))
+        if t and c: return {'token': t, 'chat_id': c}
+    except Exception:
+        pass
+    return {'token': DEFAULT_TOKEN, 'chat_id': DEFAULT_CHAT_ID}
+
+def send_telegram(message):
+    cfg = load_telegram_config()
+    if not cfg or not cfg['token']: return False
+    try:
+        import ssl
+        ctx = ssl._create_unverified_context()
+        msg = json.dumps({"chat_id": cfg['chat_id'], "text": message}).encode()
+        req = urllib.request.Request(
+            f"https://api.telegram.org/bot{cfg['token']}/sendMessage",
+            data=msg, headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=3, context=ctx)
+        print(f"[TG] Sent: {message[:60]}...")
+        return True
+    except Exception as e:
+        print(f"[TG] Send failed: {e}")
+        return False
+
+#+-|-------------------------------------------------------------------->>>>
+#+-| FETCH PAGE - delete what nigga chapter what 7
+#+-|-------------------------------------------------------------------->>>>
+#+-|
+def fetch_page(url):
+    try:
+        result = subprocess.run([
+            'curl', '-s',
+            '-H', 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+            '-H', 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            '-H', 'Accept-Language: en-US,en;q=0.5',
+            '--compressed',
+            url
+        ], capture_output=True, text=True, timeout=30)
+        
+        if result.stdout and len(result.stdout) > 1000:
+            return result.stdout
+        return None
+    except Exception as e:
+        print(f"  {RED}⚠️ Fetch error: {e}{R}")
+        return None
+
+
+#+-|-------------------------------------------------------------------->>>>
+#+-| FETCH PAGE - delete what nigga chapter what5 penguin cer care to confirm with Alfred cer?
+#+-|-------------------------------------------------------------------->>>>
+#+-|
+# ─── CHECK FOR CHANGES ───
+def check_for_changes(new_data, game_id):
+    if game_id not in previous_states:
+        previous_states[game_id] = {
+            'away_score': None,
+            'home_score': None,
+            'away_name': None,
+            'home_name': None,
+            'status': None,
+        }
+
+
+    prev = previous_states[game_id]
+    changes = []
+
+    new_away = new_data.get('away_score')
+    new_home = new_data.get('home_score')
+
+    away_name = "Away"
+    home_name = "Home"
+    if 'teams' in new_data and len(new_data['teams']) >= 2:
+        away_name = new_data['teams'][0]['name']
+        home_name = new_data['teams'][1]['name']
+
+
+
+    if prev['away_score'] is not None and prev['away_score'] != '?':
+        if new_away and new_away != '?' and new_away != prev['away_score']:
+            try:
+                diff = int(new_away) - int(prev['away_score'])
+                changes.append(f"{away_name} scored! {prev['away_score']} → {new_away} (+{diff})")
+                send_mac_notification(
+                    title=f"⚾ {away_name} SCORES!",
+                    message=f"{away_name} {new_away} - {new_home or '?'} {home_name}",
+                    subtitle=f"{prev['away_score']} → {new_away} (+{diff})"
+                )
+            except:
+                pass
+
+    if prev['home_score'] is not None and prev['home_score'] != '?':
+        if new_home and new_home != '?' and new_home != prev['home_score']:
+            try:
+                diff = int(new_home) - int(prev['home_score'])
+                changes.append(f"{home_name} scored! {prev['home_score']} → {new_home} (+{diff})")
+                send_mac_notification(
+                    title=f"⚾ {home_name} SCORES!",
+                    message=f"{home_name} {new_home} - {new_away or '?'} {away_name}",
+                    subtitle=f"{prev['home_score']} → {new_home} (+{diff})"
+                )
+            except:
+                pass
+
+    prev['away_score'] = new_away
+    prev['home_score'] = new_home
+    prev['away_name'] = away_name
+    prev['home_name'] = home_name
+
+    return changes
+
+#+-|-------------------------------------------------------------------->>>>
+#+-| FETCH PAGE - delete what nigga chapter what data
+#+-|-------------------------------------------------------------------->>>>
+#+-|
+# ─── PARSE DATA FROM HTML ───
+def parse_game_data(html):
+    data = {}
+    if not html:
+        return data
+
+    # ─── Build a clean text blob once ───
+    import html as _h
+    _t = re.sub(r'<script[^>]*>.*?</script>', ' ', html, flags=re.DOTALL)
+    _t = re.sub(r'<style[^>]*>.*?</style>',  ' ', _t,   flags=re.DOTALL)
+    _t = re.sub(r'<[^>]+>', '\n', _t)
+    lines = [_h.unescape(x).strip() for x in _t.split('\n') if x.strip()]
+
+    # ─── Title: score + status ───
+    title_match = re.search(r'<title>([^<]+)</title>', html)
+    away_score = home_score = "?"
+    status = "Live"
+    away_name, home_name = "Away", "Home"
+    if title_match:
+        title = title_match.group(1)
+        sm = re.search(r'([A-Za-z .]+?)\s+(\d+)\s*-\s*([A-Za-z .]+?)\s+(\d+)', title)
+        if sm:
+            away_name  = sm.group(1).strip()
+            away_score = sm.group(2)
+            home_name  = sm.group(3).strip()
+            home_score = sm.group(4)
+        if ':' in title:
+            status = title.split(':', 1)[1].replace('- Yahoo Sports', '').strip()
+
+    # ─── Abbreviations from page, fall back to name map ───
+    TEAM_ABBR = {
+        'Boston Red Sox':'BOS','New York Yankees':'NYY','Chicago Cubs':'CHC',
+        'San Diego Padres':'SD','Chicago White Sox':'CWS','Houston Astros':'HOU',
+        'Philadelphia Phillies':'PHI','Atlanta Braves':'ATL','Milwaukee Brewers':'MIL',
+        'Cincinnati Reds':'CIN','Cleveland Guardians':'CLE','Detroit Tigers':'DET',
+        'Baltimore Orioles':'BAL','Toronto Blue Jays':'TOR','Tampa Bay Rays':'TB',
+        'Minnesota Twins':'MIN','Kansas City Royals':'KC','Texas Rangers':'TEX',
+        'Seattle Mariners':'SEA','Los Angeles Angels':'LAA','Los Angeles Dodgers':'LAD',
+        'San Francisco Giants':'SF','Arizona Diamondbacks':'AZ','Colorado Rockies':'COL',
+        'New York Mets':'NYM','Washington Nationals':'WSH','Miami Marlins':'MIA',
+        'Pittsburgh Pirates':'PIT','St. Louis Cardinals':'STL','Athletics':'ATH',
+    }
+    abbrs = re.findall(r'<span class="_ys_uc3zi7[^"]*"[^>]*>([A-Z]{2,4})</span>', html)
+    away_abbr = abbrs[0] if len(abbrs) >= 1 else TEAM_ABBR.get(away_name, away_name[:3].upper())
+    home_abbr = abbrs[1] if len(abbrs) >= 2 else TEAM_ABBR.get(home_name, home_name[:3].upper())
+
+    data['away_score'] = away_score
+    data['home_score'] = home_score
+    data['status']     = status
+    data['teams'] = [
+        {'name': away_name, 'abbr': away_abbr},
+        {'name': home_name, 'abbr': home_abbr},
+    ]
+
+    # ─── Win Probability ───
+    m = re.search(r'Win Probability\s+([A-Z]{2,4})\s+(\d{1,3}(?:\.\d+)?)%', "\n".join(lines))
+    if m:
+        leader = m.group(1); pct = float(m.group(2)); other = round(100.0 - pct, 1)
+        if leader == away_abbr:
+            data['win_prob_away'] = f"{pct:.1f}%"; data['win_prob_home'] = f"{other:.1f}%"
+        elif leader == home_abbr:
+            data['win_prob_home'] = f"{pct:.1f}%"; data['win_prob_away'] = f"{other:.1f}%"
+        else:
+            data['win_prob_home'] = f"{pct:.1f}%"; data['win_prob_away'] = f"{other:.1f}%"
+
+    # ─── Section-anchor helper: grab N lines after a header ───
+    def slice_after(header_re, stop_re, max_lines=40):
+        for i, ln in enumerate(lines):
+            if re.search(header_re, ln, re.I):
+                out = []
+                for j in range(i + 1, min(i + 1 + max_lines, len(lines))):
+                    if stop_re and re.search(stop_re, lines[j], re.I):
+                        break
+                    out.append(lines[j])
+                return out
+        return []
+
+    # ─── RECENT PLAYS ───
+    # anchor on "Recent Plays", stop at "PLAYS", "STAT LEADERS", "ODDS", "GAME DETAILS"
+    play_block = slice_after(
+        r'^Recent Plays$',
+        r'^(Plays|STAT LEADERS|ODDS|GAME DETAILS|Win Probability)$',
+        max_lines=30
+    )
+    plays = []
+    PLAY_VERB = re.compile(
+        r'(singled|doubled|tripled|homered|flied|grounded|struck|walked|scored|'
+        r'stole|filed|popped|lined|relieved|hit|out|End of Inning)',
+        re.I
+    )
+    for ln in play_block:
+        if ln in ('View All >', 'View All', 'Scoring Plays', 'All Plays'):
+            continue
+        if PLAY_VERB.search(ln) and 6 < len(ln) < 200:
+            plays.append(ln)
+    if plays:
+        data['recent_plays'] = plays[:8]
+
+    # ─── DUE UP (current batter) ───
+    due_block = slice_after(r'^DUE UP$', r'^(RECENT PLAYS|Recent Plays|ON DECK|IN THE HOLE)$', 6)
+    # real names come from ON DECK / IN THE HOLE cards
+    on_deck  = slice_after(r'^ON DECK$',  r'^IN THE HOLE$', 4)
+    in_hole  = slice_after(r'^IN THE HOLE$', r'^(RECENT PLAYS|Recent Plays)$', 4)
+    def pick_name(block):
+        for ln in block:
+            if re.match(r'^[A-Z]\.\s+[A-Z][a-zA-Z\-\']+$', ln):
+                return ln
+        return None
+    batters = [x for x in (pick_name(on_deck), pick_name(in_hole)) if x]
+    if batters:
+        data['due_up'] = batters
+
+    # ─── STAT LEADERS (strikeouts row) ───
+    lead_block = slice_after(
+        r'^STAT LEADERS$',
+        r'^(WIN PROBABILITY|Win Probability|ODDS|Plays)$',
+        20
+    )
+    leaders = []
+    for ln in lead_block:
+        if re.match(r'^[A-Z]\.\s+[A-Z][a-zA-Z\-\']+$', ln):
+            leaders.append(ln)
+    if leaders:
+        data['stat_leaders'] = leaders[:4]
+
+    # ─── ODDS ───
+    odds_block = slice_after(r'^ODDS$', r'^(GAME DETAILS|STAT LEADERS|Plays)$', 10)
+    odds = []
+    for ln in odds_block:
+        if re.match(r'^[+-]\d{3,4}$', ln) or re.match(r'^O/U\s*\d+(\.\d+)?$', ln):
+            odds.append(ln)
+    if odds:
+        data['odds'] = odds[:4]
+
+    # ─── GAME DETAILS (venue, weather, series) ───
+    gd_block = slice_after(r'^GAME DETAILS$', r'^(Listen on SiriusXM|yahoo)', 8)
+    gd = [x for x in gd_block if len(x) < 120 and not x.startswith('Umpires')]
+    if gd:
+        data['game_details'] = gd[:5]
+
+    return data
+
+
+#+-|-------------------------------------------------------------------->>>>
+#+-| FETCH PAGE - delete what nigga chapter what4 hello html hello 
+#+-|-------------------------------------------------------------------->>>>
+#+-|
+
+HTML = r"""
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Line &amp; Length — Sports Hub</title>
+<style>
+  :root{
+    --bg:#0B0E12; --panel:#11151B; --panel2:#151A21; --line:#232A34;
+    --amber:#4C8DF2; --amber-dim:#2B4A80; --cyan:#5FD0D9; --green:#5EC98B; --red:#E5697A;
+    --text:#E9EDF2; --sub:#8C97A6; --mono:'IBM Plex Mono', ui-monospace, Menlo, monospace;
+    --sans:'Inter', system-ui, sans-serif;
+    box-sizing:border-box;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){ --bg:#0B0E12; --panel:#11151B; --panel2:#151A21; --text:#E9EDF2; --sub:#8C97A6; }
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);overflow:hidden}
+  html{scroll-padding-top:env(safe-area-inset-top,0px)}
+  .app{display:flex;height:100%;width:100%;padding-bottom:56px}
+
+  .bottom-dock{position:fixed;left:0;right:0;bottom:0;height:56px;background:var(--panel);
+    border-top:1px solid var(--line);display:flex;align-items:center;justify-content:center;
+    gap:6px;z-index:30;padding-bottom:env(safe-area-inset-bottom,0px)}
+  .dock-btn{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+    cursor:pointer;background:transparent}
+  .dock-btn svg{width:17px;height:17px;stroke:var(--sub);fill:none;stroke-width:1.8}
+  .dock-btn:hover{background:var(--panel2)}
+  .dock-btn.active{background:var(--panel2)}
+  .dock-btn.active svg{stroke:var(--amber)}
+  .dock-sep{width:1px;height:22px;background:var(--line);margin:0 4px}
+
+  /* LEFT: live data panel — overlay, slides over the hub */
+  .data-panel{position:fixed;top:0;bottom:56px;left:0;width:340px;max-width:86vw;
+    background:var(--panel);border-right:1px solid var(--line);
+    display:flex;flex-direction:column;overflow-y:auto;z-index:15;
+    transform:translateX(-100%);transition:transform .22s ease;box-shadow:8px 0 24px rgba(0,0,0,.4)}
+  .data-panel.open{transform:translateX(0)}
+
+  .left-rail{position:fixed;top:50%;left:0;transform:translateY(-50%);width:36px;
+    border:1px solid var(--line);border-left:none;background:var(--panel2);
+    display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:10px;
+    cursor:pointer;padding:14px 6px;border-radius:0 10px 10px 0;box-shadow:4px 0 14px rgba(0,0,0,.35);
+    z-index:16;transition:left .22s ease}
+  .left-rail.open{left:340px}
+  .left-rail:hover{background:#1a212b}
+  .left-rail .chev{width:14px;height:14px;stroke:var(--sub);transition:transform .22s}
+  .left-rail.open .chev{transform:rotate(180deg)}
+  .left-rail .bubble{width:22px;height:22px;border-radius:6px;background:var(--amber);
+    display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .left-rail .bubble svg{width:12px;height:12px;stroke:#08111F;stroke-width:2}
+  .left-rail .lbl{writing-mode:vertical-rl;font-size:10px;letter-spacing:.06em;color:var(--sub);
+    font-weight:600;margin-top:2px}
+  @media (max-width:520px){ .left-rail.open{left:86vw} }
+  .brand{padding:18px 18px 14px;border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:8px}
+  .brand .mark{font-family:var(--mono);color:var(--amber);font-size:18px}
+  .brand h1{font-size:15px;font-weight:600;margin:0;letter-spacing:.02em}
+  .brand .clock{margin-left:auto;font-family:var(--mono);color:var(--sub);font-size:12px}
+
+  .section{padding:16px 18px;border-bottom:1px solid var(--line)}
+  .section h2{font-size:11px;color:var(--sub);font-weight:600;margin:0 0 10px;letter-spacing:.03em}
+
+  .game{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #1a2029}
+  .game:last-child{border-bottom:none}
+  .team{display:flex;align-items:center;gap:6px;font-size:13px;width:56px;color:var(--sub)}
+  .team.lead{color:var(--text);font-weight:600}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--red)}
+  .score{font-family:var(--mono);font-size:13px;margin-left:auto;width:30px;text-align:right}
+  .clockstate{font-size:11px;color:var(--sub);font-family:var(--mono);width:64px;text-align:right}
+
+  .winbar-row{margin-top:10px}
+  .winbar-label{display:flex;justify-content:space-between;font-size:11px;color:var(--sub);margin-bottom:4px;font-family:var(--mono)}
+  .winbar{height:6px;border-radius:3px;background:#1c222b;overflow:hidden;display:flex}
+  .winbar .a{background:var(--amber)}
+  .winbar .b{background:#2b323d}
+
+  .standing-row{display:flex;font-size:12px;padding:5px 0;color:var(--sub);align-items:center}
+  .standing-row .rk{width:18px;color:var(--sub);font-family:var(--mono)}
+  .standing-row .nm{flex:1;color:var(--text)}
+  .standing-row .rec{font-family:var(--mono);color:var(--sub)}
+
+  .chart-wrap{margin-top:4px}
+  svg{display:block;width:100%;height:auto}
+  .axis-lbl{font-size:9px;fill:var(--sub);font-family:var(--mono)}
+
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+  .stat .v{font-family:var(--mono);font-size:16px;color:var(--amber)}
+  .stat .l{font-size:10px;color:var(--sub);margin-top:2px}
+
+  /* CENTER: home hub */
+  .feed{flex:1;min-width:0;overflow-y:auto;padding:20px 22px 40px}
+body{
+  background:#0B0E12 url('/nfl-dashboard.png') center center / 100% 85% no-repeat fixed;
+}
+
+  .hub-head{display:flex;align-items:center;gap:8px;margin-bottom:16px}
+  .hub-head h1{font-size:15px;margin:0;font-weight:600}
+  .hub-head .wx{margin-left:auto;font-size:12px;color:var(--sub);display:flex;align-items:center;gap:6px}
+
+  .hub-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .card h2{font-size:11px;color:var(--sub);font-weight:600;margin:0 0 10px;letter-spacing:.03em;
+    display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+  .card h2 .live{width:6px;height:6px;border-radius:50%;background:var(--red)}
+  .cardnum{width:15px;height:15px;border-radius:4px;background:var(--panel2);border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;
+    color:var(--amber);flex-shrink:0}
+  .card-toggle{margin-left:auto;color:var(--sub);font-size:13px;padding:2px 4px;border-radius:4px}
+  .card-toggle:hover{background:var(--panel2);color:var(--text)}
+  .card.collapsed h2{margin-bottom:0}
+  .card.collapsed .card-body{display:none}
+
+  .mlb-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #1a2029;font-size:12.5px}
+  .mlb-row:last-child{border-bottom:none}
+  .mlb-row .nm{width:48px;color:var(--text);font-weight:600}
+  .mlb-row .sc{font-family:var(--mono);width:26px}
+  .mlb-row .st{margin-left:auto;color:var(--sub);font-size:11px}
+
+  .team-hero{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+  .team-hero .ring{width:52px;height:52px;border-radius:50%;
+    background:conic-gradient(var(--amber) 0 82%, #232a34 82% 100%);
+    display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .team-hero .ring span{width:42px;height:42px;border-radius:50%;background:var(--panel);
+    display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:13px;color:var(--amber)}
+  .team-hero .nm{font-weight:600;font-size:13px}
+  .team-hero .sub{font-size:10.5px;color:var(--sub)}
+
+  .map-card svg{width:100%;height:100%}
+  .map-dot{fill:var(--amber)}
+
+  .agents-row{display:flex;gap:10px;flex-wrap:wrap}
+  .agent{display:flex;flex-direction:column;align-items:center;gap:5px;font-size:10.5px;color:var(--sub)}
+  .agent .av{width:34px;height:34px;border-radius:50%;background:var(--amber-dim);
+    border:2px solid var(--panel);box-shadow:0 0 0 1px #2f6fd4}
+
+  .sys-row{display:flex;justify-content:space-between;font-size:12px;padding:5px 0;color:var(--sub)}
+  .sys-row .v{color:var(--text);font-family:var(--mono);font-size:11px}
+
+  @media (max-width:1000px){ .hub-grid{grid-template-columns:1fr} }
+
+  /* RIGHT: chat panel — overlay, slides over the hub */
+  .chat-panel{position:fixed;top:0;bottom:56px;right:0;width:360px;max-width:88vw;flex-shrink:0;
+    background:var(--panel);border-left:1px solid var(--line);
+    display:flex;transform:translateX(100%);transition:transform .22s ease;
+    z-index:15;box-shadow:-8px 0 24px rgba(0,0,0,.4);overflow:hidden}
+  .chat-panel.open{transform:translateX(0)}
+  .chat-inner{width:100%;display:flex;height:100%;flex-shrink:0}
+
+  .collapse-rail{position:fixed;top:50%;right:0;transform:translateY(-50%);width:36px;
+    border:1px solid var(--line);border-right:none;background:var(--panel2);
+    display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:10px;
+    cursor:pointer;padding:14px 6px;border-radius:10px 0 0 10px;box-shadow:-4px 0 14px rgba(0,0,0,.35);
+    z-index:16;transition:right .22s ease}
+  .collapse-rail.open{right:360px}
+  .collapse-rail:hover{background:#1a212b}
+  .collapse-rail .chev{width:14px;height:14px;stroke:var(--sub);transition:transform .22s}
+  .collapse-rail.open .chev{transform:rotate(180deg)}
+  .collapse-rail .bubble{width:22px;height:22px;border-radius:6px;background:var(--amber);
+    display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .collapse-rail .bubble svg{width:12px;height:12px;stroke:#08111F;stroke-width:2}
+  .collapse-rail .lbl{writing-mode:vertical-rl;font-size:10px;letter-spacing:.06em;color:var(--sub);
+    font-weight:600;margin-top:2px}
+  @media (max-width:520px){ .collapse-rail.open{right:88vw} }
+
+  .conv-list{width:120px;border-right:1px solid var(--line);overflow-y:auto;flex-shrink:0}
+  .conv-item{padding:12px 10px;border-bottom:1px solid #1a2029;cursor:pointer;font-size:12px;color:var(--sub)}
+  .conv-item .nm{color:var(--text);font-weight:600;font-size:12px}
+  .conv-item .prev{font-size:10.5px;margin-top:2px;line-height:1.3;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .conv-item.active{background:var(--panel2);border-left:2px solid var(--amber)}
+
+  .chat-main{flex:1;display:flex;flex-direction:column;min-width:0}
+  .chat-head{padding:14px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+  .chat-head .av{width:26px;height:26px;border-radius:50%;background:var(--amber-dim);flex-shrink:0}
+  .chat-head .nm{font-size:13px;font-weight:600}
+  .chat-head .sub{font-size:10.5px;color:var(--sub)}
+
+  .messages{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+  .msg{max-width:82%;font-size:12.5px;line-height:1.4;padding:8px 10px;border-radius:8px}
+  .msg.them{background:var(--panel2);align-self:flex-start;border:1px solid var(--line)}
+  .msg.me{background:#152036;align-self:flex-end;color:#CFE0FA;border:1px solid var(--amber-dim)}
+  .msg .t{font-size:9.5px;color:var(--sub);margin-top:4px}
+  .file-chip{display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);
+    border-radius:6px;padding:6px 8px;font-size:11px;align-self:flex-start;color:var(--amber);cursor:pointer}
+  .file-chip:hover{border-color:var(--amber)}
+
+  /* mini PiP file viewer — draggable via its handle */
+  .pip{position:fixed;left:24px;bottom:80px;width:280px;max-width:80vw;background:var(--panel);
+    border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.5);
+    z-index:50;display:none;flex-direction:column;overflow:hidden}
+  .pip.show{display:flex}
+  .pip-head{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--panel2);
+    border-bottom:1px solid var(--line);cursor:grab;touch-action:none}
+  .pip-head:active{cursor:grabbing}
+  .pip-head .grip{display:flex;flex-direction:column;gap:2px;flex-shrink:0}
+  .pip-head .grip span{width:3px;height:3px;border-radius:50%;background:var(--sub)}
+  .pip-head .grip{display:grid;grid-template-columns:1fr 1fr;gap:2px}
+  .pip-title{font-size:11.5px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pip-close{width:18px;height:18px;border-radius:4px;display:flex;align-items:center;justify-content:center;
+    cursor:pointer;color:var(--sub);flex-shrink:0}
+  .pip-close:hover{background:var(--line);color:var(--text)}
+  .pip-body{padding:10px;overflow:auto;max-height:340px;font-size:11.5px}
+  .pip-body img{max-width:100%;border-radius:6px;display:block}
+  .pip-body audio{width:100%}
+  .pip-body pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);font-size:10.5px;
+    color:var(--text);margin:0;line-height:1.5}
+  .pip-body iframe{width:100%;height:220px;border:1px solid var(--line);border-radius:6px;background:#fff}
+  .pip-meta-row{display:flex;justify-content:space-between;font-size:10.5px;color:var(--sub);padding:3px 0}
+  .pip-meta-row .v{color:var(--text);font-family:var(--mono)}
+  .pip-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+  .pip-tag{font-size:9.5px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;
+    padding:2px 8px;color:var(--sub)}
+  .pip-btnrow{display:flex;gap:6px;margin:8px 0}
+  .pip-btn{flex:1;text-align:center;padding:6px 0;border-radius:6px;font-size:11px;cursor:pointer}
+  .pip-btn.primary{background:var(--amber);color:#08111F;font-weight:600}
+  .pip-btn.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--text)}
+  .pip-hint{color:var(--sub);font-size:10.5px}
+
+  .composer{border-top:1px solid var(--line);padding:10px 12px;display:flex;align-items:center;gap:8px}
+  .picker-btn{width:28px;height:28px;border-radius:6px;border:1px solid var(--line);background:var(--panel2);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+  .picker-btn svg{width:14px;height:14px;stroke:var(--sub)}
+  .picker-btn:hover{border-color:var(--amber)}
+  input[type=text]{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:6px;
+    padding:8px 10px;color:var(--text);font-size:12.5px;outline:none}
+  input[type=text]:focus{border-color:var(--amber)}
+  .send-btn{width:28px;height:28px;border-radius:6px;background:var(--amber);border:none;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .send-btn svg{width:13px;height:13px;fill:#08111F}
+  #filein{display:none}
+
+  ::-webkit-scrollbar{width:6px}
+  ::-webkit-scrollbar-thumb{background:#242b35;border-radius:3px}
+
+  @media (max-width:820px){
+    .conv-list{width:0;display:none}
+  }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+  <!-- LEFT DOCK TAB -->
+<div class="left-rail open" id="leftRail">
+
+    <div class="bubble"><svg viewBox="0 0 24 24" fill="none"><path d="M4 19V5M10 19V9M16 19V12M22 19V6"/></svg></div>
+    <span class="lbl">LIVE</span>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+  </div>
+
+  <!-- LEFT DATA PANEL -->
+<div class="data-panel open" id="dataPanel">
+    <div class="brand"><span class="mark">▲</span><h1>LINE &amp; LENGTH</h1><span class="clock" id="clock">--:--</span></div>
+
+<div class="section">
+  <h2>LIVE — NFL</h2>
+  <div class="game" id="nflAway"><div class="team lead"><span class="dot"></span>—</div><div class="score">—</div><div class="clockstate">—</div></div>
+  <div class="game" id="nflHome"><div class="team">—</div><div class="score">—</div><div class="clockstate">—</div></div>
+  <div class="winbar-row">
+    <div class="winbar-label"><span id="nflAwayPct">—</span><span id="nflHomePct">—</span></div>
+    <div class="winbar"><div class="a" id="nflBarA" style="width:50%"></div><div class="b" id="nflBarB" style="width:50%"></div></div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>AROUND THE LEAGUE</h2>
+  <div id="aroundLeague"></div>
+</div>
+
+<div class="section">
+  <h2>AFC EAST STANDINGS</h2>
+  <div id="standingsBox"></div>
+</div>
+
+    <div class="section">
+      <h2 id="trendTitle">WIN % TREND — —</h2>
+      <div class="chart-wrap">
+        <svg viewBox="0 0 300 90" preserveAspectRatio="none">
+          <polyline id="trendLine" points=""
+            fill="none" stroke="#F2A44C" stroke-width="2"/>
+          <text x="0" y="86" class="axis-lbl" id="trendLblA">—</text>
+          <text x="140" y="86" class="axis-lbl">mid</text>
+          <text x="270" y="86" class="axis-lbl" id="trendLblB">—</text>
+        </svg>
+      </div>
+      <div class="stat-grid">
+        <div class="stat"><div class="v" id="trendCur">—%</div><div class="l" id="trendCurLbl">CURRENT WIN PROB</div></div>
+        <div class="stat"><div class="v" id="trendMove">—</div><div class="l">WP MOVE</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTER -->
+  <div class="feed">
+    <div class="hub-head">
+      <h1>Home</h1>
+      <div class="wx">☀ 18°C · Toronto</div>
+    </div>
+
+    <div class="hub-grid">
+<div class="card collapsed" data-card="1">
+
+<h2><span class="cardnum">1</span><span class="live"></span>Sports — LIVE<span class="card-toggle">☰</span></h2>
+<div class="card-body">
+  <div id="sportsLiveBox"></div>
+</div>
+
+<div class="card collapsed" data-card="2">
+
+        <h2><span class="cardnum">2</span>MLB · PLAYOFF FINALS<span class="card-toggle">☰</span></h2>
+        <div class="card-body">
+        <div class="standing-row"><span class="rk">1</span><span class="nm">Rays</span><span class="rec">98–64 .605</span></div>
+        <div class="standing-row"><span class="rk">2</span><span class="nm">Brewers</span><span class="rec">103–59 .636</span></div>
+        </div>
+      </div>
+
+<div class="card collapsed" data-card="3">
+
+        <h2><span class="cardnum">3</span>TEAM INSIGHTS<span class="card-toggle">☰</span></h2>
+<div class="card-body">
+  <div class="team-hero">
+    <div class="ring"><span id="ti-wp">—%</span></div>
+    <div>
+      <div class="nm" id="ti-matchup">—</div>
+      <div class="sub" id="ti-status">—</div>
+    </div>
+  </div>
+  <div class="stat-grid">
+    <div class="stat"><div class="v" id="ti-away-score">—</div><div class="l" id="ti-away-abbr">AWAY</div></div>
+    <div class="stat"><div class="v" id="ti-home-score">—</div><div class="l" id="ti-home-abbr">HOME</div></div>
+    <div class="stat"><div class="v" id="ti-away-wp">—%</div><div class="l">AWAY WP</div></div>
+    <div class="stat"><div class="v" id="ti-home-wp">—%</div><div class="l">HOME WP</div></div>
+  </div>
+</div>
+      </div>
+
+<div class="card map-card collapsed" data-card="4">
+
+        <h2><span class="cardnum">4</span>REGIONAL MAP<span class="card-toggle">☰</span></h2>
+        <div class="card-body">
+        <iframe src="https://localhost:9000/data/mlb_live.pdf" title="Regional map placeholder" loading="lazy"
+          style="width:100%;height:850px;zoom:47%;border:1px solid var(--line);border-radius:16px;background:#fff"></iframe>
+        <a href="https://example.com" target="_blank" rel="noopener" class="pip-hint" style="display:block;margin-top:6px">Open full map →</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="hub-grid" style="margin-top:14px">
+
+
+<div class="card collapsed" data-card="5">
+
+        <h2><span class="cardnum">5</span>AGENTS · 6 ONLINE<span class="card-toggle">☰</span></h2>
+        <div class="card-body">
+        <div class="agents-row">
+          <div class="agent"><div class="av"></div>Alfred</div>
+          <div class="agent"><div class="av"></div>Bruce</div>
+          <div class="agent"><div class="av"></div>Leonardo</div>
+          <div class="agent"><div class="av"></div>Donatello</div>
+          <div class="agent"><div class="av"></div>Mikey</div>
+          <div class="agent"><div class="av"></div>Raphael</div>
+        </div>
+        </div>
+      </div>
+
+<div class="card collapsed" data-card="6">
+
+        <h2><span class="cardnum">6</span>SYSTEM<span class="card-toggle">☰</span></h2>
+        <div class="card-body">
+        <div class="sys-row"><span>Local</span><span class="v">Offline mode</span></div>
+        <div class="sys-row"><span>Runtime</span><span class="v">Python 4</span></div>
+        <div class="sys-row"><span>Bridge</span><span class="v">qDuna</span></div>
+        <div class="sys-row"><span>Channel</span><span class="v">Telegram</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT CHAT PANEL -->
+<div class="chat-panel open" id="chatPanel">
+
+
+
+    <div class="chat-inner">
+      <div class="conv-list" id="convList"></div>
+      <div class="chat-main">
+        <div class="chat-head">
+          <div class="av"></div>
+          <div><div class="nm" id="chatName">Bruce</div><div class="sub">Strategic Advisor · Notes &amp; Intel</div></div>
+        </div>
+        <div class="messages" id="messages"></div>
+        <div class="composer">
+          <div class="picker-btn" id="pickBtn" title="Attach a file">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 12.5V7a2 2 0 0 0-2-2H9L7 3H3v18h18v-8.5"/></svg>
+          </div>
+          <input type="file" id="filein">
+          <input type="text" id="msgInput" placeholder="Type a message…">
+          <button class="send-btn" id="sendBtn"><svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+<div class="collapse-rail open" id="collapseRail">
+
+    <div class="bubble"><svg viewBox="0 0 24 24" fill="none"><path d="M4 4h16v12H7l-3 3V4z"/></svg></div>
+    <span class="lbl">CHAT</span>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M15 6l-6 6 6 6"/></svg>
+  </div>
+
+  <!-- MINI PIP FILE VIEWER -->
+  <div class="pip" id="pip">
+    <div class="pip-head" id="pipHead">
+      <div class="grip"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+      <div class="pip-title" id="pipTitle">file.txt</div>
+      <div class="pip-close" id="pipClose">✕</div>
+    </div>
+    <div class="pip-body" id="pipBody"></div>
+  </div>
+</div>
+
+<div class="bottom-dock">
+  <div class="dock-btn active" title="Home"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg></div>
+  <div class="dock-btn" id="dockChat" title="Chat"><svg viewBox="0 0 24 24"><path d="M4 4h16v12H7l-3 3V4z"/></svg></div>
+  <div class="dock-btn" id="dockData" title="Live data"><svg viewBox="0 0 24 24"><path d="M4 19V5M10 19V9M16 19V12M22 19V6"/></svg></div>
+  <div class="dock-sep"></div>
+  <div class="dock-btn" title="Map"><svg viewBox="0 0 24 24"><path d="M9 3v15l-6 3V6l6-3zM9 3l6 3M15 6v15l6-3V3l-6 3z"/></svg></div>
+  <div class="dock-btn" title="Files"><svg viewBox="0 0 24 24"><path d="M3 7h6l2 2h10v10H3V7z"/></svg></div>
+  <div class="dock-btn" title="Calendar"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></div>
+  <div class="dock-btn" title="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.6V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.6-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.6-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.6V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.6 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9V9a1.7 1.7 0 001.6 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.6 1z"/></svg></div>
+</div>
+
+<script>
+const fileStore = {
+  'mock-leads': {mock:true, name:'Leads_Sept9.pdf', size:'2.4 MB', type:'PDF',
+    tags:['leads','business','cnc','montreal'],
+    list:['Rénovation Plus (kitchens)','Bois & Design (closets)','Meubles Lavoie (vanities)','Atelier CNC (reseller)','Prestige Construction','Groupe Habitat']},
+  'don-json':   { url:'/mlb_live.json', name:'mlb_live.json', type:'JSON' }
+};
+
+
+
+
+/* ---- conversation array for the agents array array convos · live real broadcasters not A I ---- */
+
+const convos = [
+  { name:"Bruce",     sub:"Strategic Advisor · Notes", msgs:[
+    {who:"them",t:"Standing by. Ping me when you want a read on the game.",time:"now"}
+  ]},
+  { name:"Leonardo",  sub:"Yahoo tracker",              msgs:[] },
+  { name:"Donatello", sub:"Play-by-play · live from mlb_live.json", msgs:[] },
+  { name:"Raphael",   sub:"StatsAPI tree",              msgs:[] },
+];
+
+
+
+
+let active = 0;
+
+function fmtMsg(m){
+  if(m.who==='file') return `<div class="file-chip" data-file-id="${m.fileId}">📄 ${m.t}</div>`;
+  return `<div class="msg ${m.who==='me'?'me':'them'}">${m.t}<div class="t">${m.time||''}</div></div>`;
+}
+function render(){
+  const c = convos[active];
+  document.getElementById('chatName').textContent = c.name;
+  document.getElementById('messages').innerHTML = c.msgs.map(fmtMsg).join('');
+  document.getElementById('messages').scrollTop = 1e9;
+  document.querySelectorAll('.file-chip').forEach(el=>{ el.onclick = ()=> openPip(el.dataset.fileId); });
+
+
+
+document.getElementById('convList').innerHTML = convos.map((cv,i)=>{
+  var last = cv.msgs && cv.msgs.length ? cv.msgs[cv.msgs.length-1].t : (cv.sub || '');
+  return `
+    <div class="conv-item ${i===active?'active':''}" data-i="${i}">
+      <div class="nm">${cv.name}</div>
+      <div class="prev">${last}</div>
+    </div>`;
+}).join('');
+
+
+
+  document.querySelectorAll('.conv-item').forEach(el=>{
+    el.onclick=()=>{active=+el.dataset.i; render();};
+  });
+}
+render();
+
+document.getElementById('sendBtn').onclick = sendMsg;
+document.getElementById('msgInput').addEventListener('keydown', e=>{ if(e.key==='Enter') sendMsg(); });
+function sendMsg(){
+  const inp = document.getElementById('msgInput');
+  if(!inp.value.trim()) return;
+  convos[active].msgs.push({who:'me', t:inp.value.trim(), time:'now'});
+  inp.value='';
+  render();
+}
+
+
+
+/* ---- At the top of the script, next to fileStore: — Add the don-json file entry ---- */
+
+
+document.getElementById('pickBtn').onclick = ()=> document.getElementById('filein').click();
+document.getElementById('filein').addEventListener('change', e=>{
+  const f = e.target.files[0];
+  if(!f) return;
+
+  const id = 'f'+Date.now();
+
+  fileStore[id] = {mock:false, file:f, name:f.name, size:(f.size/1024).toFixed(0)+' KB'};
+
+
+
+  convos[active].msgs.push({who:'file', t:`${f.name} · ${(f.size/1024).toFixed(0)} KB`, fileId:id});
+  render();
+});
+
+/* ---- Mini PiP file viewer ---- */
+const pip = document.getElementById('pip');
+const pipBody = document.getElementById('pipBody');
+const pipTitle = document.getElementById('pipTitle');
+
+function escapeHtml(s){ return s.replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+
+/* ---- DONATELLO · live play-by-play ---- */
+var _donState = { lastPlays: null, first: true };
+
+async function pumpDonatello(){
+  try{
+    const r = await fetch('/mlb_live.json?t='+Date.now(), {cache:'no-store'});
+    if(!r.ok) return;
+    const p = await r.json();
+    const d = p.game_data || {};
+    const plays = d.recent_plays || [];
+    if(!plays.length) return;
+
+    const prev = _donState.lastPlays;
+
+    // seed on first run — no spam
+    // first run — dump what's already there so chat isn't empty
+    if(_donState.first){
+      _donState.first = false;
+      _donState.lastPlays = plays;
+
+      const teams0 = d.teams || [];
+      const a0 = teams0[0] ? teams0[0].abbr : '?';
+      const h0 = teams0[1] ? teams0[1].abbr : '?';
+      const line0 = a0 + ' ' + (d.away_score||'?') + ' @ ' + h0 + ' ' + (d.home_score||'?');
+
+      const don0 = convos.find(function(c){ return c.name === 'Donatello'; });
+      if(don0){
+        don0.msgs.push({ who:'them', t:'— recent plays —', time:nowStr() });
+        plays.slice().reverse().forEach(function(play){
+          don0.msgs.push({ who:'them', t:play, time:nowStr() });
+        });
+        don0.msgs.push({ who:'file', t:'mlb_live.json · '+line0, fileId:'don-json' });
+        render();
+      }
+      return;
+    }
+
+    const same = JSON.stringify(plays) === JSON.stringify(prev);
+    if(same) return;
+
+    const teams = d.teams || [];
+    const a = teams[0] ? teams[0].abbr : '?';
+    const h = teams[1] ? teams[1].abbr : '?';
+    const line = a + ' ' + (d.away_score||'?') + ' @ ' + h + ' ' + (d.home_score||'?');
+
+    // only the entries we haven't shown yet
+    const fresh = plays.filter(function(x){ return (prev||[]).indexOf(x) === -1; });
+
+    const don = convos.find(function(c){ return c.name === 'Donatello'; });
+    if(!don) return;
+
+    // Yahoo lists newest-first; flip so oldest new play speaks first
+    fresh.slice().reverse().forEach(function(play){
+      don.msgs.push({ who:'them', t:play, time:nowStr() });
+    });
+    don.msgs.push({ who:'file', t:'mlb_live.json · '+line, fileId:'don-json' });
+
+    _donState.lastPlays = plays;
+
+    if(convos[active].name === 'Donatello') render();
+  }catch(e){ /* Leo not running */ }
+}
+
+function nowStr(){
+  return new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+}
+
+pumpDonatello();
+setInterval(pumpDonatello, 8000);
+
+
+
+/*=====stop all lines go above now======*/
+/*=====stop all lines go above now======*/
+/*=====stop all lines go above now======*/
+
+async function refreshMLBLive() {
+  try {
+    const r = await fetch('/mlbscores.json?t=' + Date.now());
+    if (!r.ok) return;
+    const data = await r.json();
+    const box = document.getElementById('sportsLiveBox');
+    if (!box) return;
+    const games = (data.games || []).slice(0, 5);
+
+    box.innerHTML = games.map(g => {
+      const a = (g.away || '').split(' ').pop().slice(0, 3).toUpperCase();
+      const h = (g.home || '').split(' ').pop().slice(0, 3).toUpperCase();
+      const st = (g.status || '')
+        .replace(/Final.*/i, 'Final')
+        .replace(/Scheduled.*/i, 'Sched');
+      return `<div class="mlb-row"><span class="nm">${a}</span><span class="sc">${g.away_score ?? '—'}</span><span>–</span><span class="sc">${g.home_score ?? '—'}</span><span class="nm">${h}</span><span class="st">${st}</span></div>`;
+    }).join('');
+  } catch (e) { console.warn('mlb-live fetch failed', e); }
+}
+refreshMLBLive();
+setInterval(refreshMLBLive, 15000);
+
+
+async function refreshTeamInsights() {
+  try {
+    const r = await fetch('/mlb_live.json?t=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) return;
+    const payload = await r.json();
+    const d = payload.game_data || {};
+
+    updateTrendPanel(d);   // ← add this line
+
+    const teams = d.teams || [];
+    if (teams.length < 2) return;
+
+    const awayAbbr = (teams[0].abbr || teams[0].name.slice(0,3)).toUpperCase();
+    const homeAbbr = (teams[1].abbr || teams[1].name.slice(0,3)).toUpperCase();
+
+    const awayScore = d.away_score || '—';
+    const homeScore = d.home_score || '—';
+    const status    = (d.status || '—').replace(/\s*-\s*Yahoo Sports\s*$/i, '').trim();
+    const awayWp    = d.win_prob_away || '—%';
+    const homeWp    = d.win_prob_home || '—%';
+
+    const aNum = parseFloat(awayWp);
+    const hNum = parseFloat(homeWp);
+    let ringPct = isNaN(hNum) ? (isNaN(aNum) ? 0 : aNum) : hNum;
+    let ringLabel = isNaN(hNum) ? awayWp : homeWp;
+
+    function set(id, val){ var el = document.getElementById(id); if (el) el.textContent = val; }
+    set('ti-wp',         ringLabel);
+    set('ti-matchup',    awayAbbr + ' @ ' + homeAbbr);
+    set('ti-status',     status);
+    set('ti-away-abbr',  awayAbbr);
+    set('ti-home-abbr',  homeAbbr);
+    set('ti-away-score', awayScore);
+    set('ti-home-score', homeScore);
+    set('ti-away-wp',    awayWp);
+    set('ti-home-wp',    homeWp);
+
+    var ring = document.querySelector('.team-hero .ring');
+    if (ring) {
+      ring.style.background = 'conic-gradient(var(--amber) 0 ' + ringPct + '%, #232a34 ' + ringPct + '% 100%)';
+    }
+  } catch (e) {}
+}
+
+refreshTeamInsights();
+setInterval(refreshTeamInsights, 15000);
+
+
+
+/* ─── WIN % TREND — dynamic, driven by mlb_live.json ─── */
+var _wpHistory = { key: null, away: [], home: [] };
+var WP_HISTORY_MAX = 60;
+
+function updateTrendPanel(d){
+  var teams = d.teams || [];
+  if (teams.length < 2) return;
+
+  var awayAbbr = (teams[0].abbr || teams[0].name.slice(0,3)).toUpperCase();
+  var homeAbbr = (teams[1].abbr || teams[1].name.slice(0,3)).toUpperCase();
+
+  var hNum = parseFloat(d.win_prob_home);
+  var aNum = parseFloat(d.win_prob_away);
+  if (isNaN(hNum) && isNaN(aNum)) return;
+
+  // Which side is the "leader" we're plotting? Default to home.
+  var curHome = isNaN(hNum) ? 100 - aNum : hNum;
+  var curAway = isNaN(aNum) ? 100 - hNum : aNum;
+
+  // Reset history if the game changes
+  var key = awayAbbr + '@' + homeAbbr;
+  if (_wpHistory.key !== key){
+    _wpHistory = { key: key, away: [], home: [] };
+  }
+  _wpHistory.home.push(curHome);
+  _wpHistory.away.push(curAway);
+  if (_wpHistory.home.length > WP_HISTORY_MAX) _wpHistory.home.shift();
+  if (_wpHistory.away.length > WP_HISTORY_MAX) _wpHistory.away.shift();
+
+  // ── Build the polyline ──
+  var pts = _wpHistory.home;
+  var n = pts.length;
+  var poly = '';
+  for (var i = 0; i < n; i++){
+    var x = n === 1 ? 0 : (i / (n - 1)) * 300;
+    // win % (0-100) → y (86 at 0%, 6 at 100%) so high prob = high line
+    var y = 86 - (pts[i] / 100) * 80;
+    poly += (i === 0 ? '' : ' ') + x.toFixed(1) + ',' + y.toFixed(1);
+  }
+  var line = document.getElementById('trendLine');
+  if (line) line.setAttribute('points', poly);
+
+  // ── Title, labels, stats ──
+  var title = document.getElementById('trendTitle');
+  if (title) title.textContent = 'WIN % TREND — ' + homeAbbr;
+
+  var lA = document.getElementById('trendLblA');
+  var lB = document.getElementById('trendLblB');
+  if (lA) lA.textContent = awayAbbr;
+  if (lB) lB.textContent = homeAbbr;
+
+  var cur = document.getElementById('trendCur');
+  var curLbl = document.getElementById('trendCurLbl');
+  if (cur){
+    cur.textContent = curHome.toFixed(1) + '%';
+  }
+  if (curLbl) curLbl.textContent = homeAbbr + ' WIN PROB';
+
+  // ── Delta since first sample (or last 5 min) ──
+  var move = document.getElementById('trendMove');
+  if (move && n > 1){
+    var first = _wpHistory.home[0];
+    var delta = curHome - first;
+    var sign = delta >= 0 ? '+' : '';
+    move.textContent = sign + delta.toFixed(1) + '%';
+    move.style.color = delta >= 0 ? 'var(--green)' : 'var(--red)';
+  }
+}
+
+
+/*=====WARNING THIS IS THE LAST LINE TO ADD THE REST GO ABOVE OR YOUR GOING TO BREAK THIS AGENT LIKE YOU DID WITH DONATELLO I SUGGEST YOU MOVE LINES UP ALWAYS FROM HERE UP this is the problem is instead of Leo knows his work he's asking me to costa base edit the txt which is making no sense I already do the config at the top so fix this area this shouldnt make me edit constant base when constant base I your game id url in config======*/
+
+
+
+
+
+
+
+
+/*=====WARNING THIS IS THE LAST LINE TO ADD THE REST GO ABOVE OR YOUR GOING TO BREAK THIS AGENT LIKE YOU DID WITH DONATELLO I SUGGEST YOU MOVE LINES UP ALWAYS FROM HERE UP======*/
+
+
+
+/*=====stop all lines go above now======*/
+async function refreshStandings() {
+  try {
+    const r = await fetch('/nfl-standings.json?t=' + Date.now());
+    if (!r.ok) return;
+    const data = await r.json();
+    const box = document.getElementById('standingsBox');
+    if (!box) return;
+
+    let html = '';
+    for (const league of (data.standings || [])) {
+      for (const div of (league.divisions || [])) {
+        html += `<div style="font-size:10px;color:var(--sub);margin-top:6px;letter-spacing:.05em">${league.league} ${div.name}</div>`;
+        for (const t of (div.teams || [])) {
+          html += `<div class="standing-row"><span class="rk">${t.rank}</span><span class="nm">${t.team}</span><span class="rec">${t.W}-${t.L} · ${(t.PCT*1).toFixed(3)}</span></div>`;
+        }
+      }
+    }
+    box.innerHTML = html;
+  } catch (e) { console.warn('standings fetch failed', e); }
+}
+refreshStandings();
+setInterval(refreshStandings, 23000);   // standings update every 120s, poll every 23s
+
+/*=====stop all lines go above now======*/
+/*=====stop all lines go above now======*/
+async function refreshAroundLeague() {
+  try {
+    const r = await fetch('/nfl-scores.json?t=' + Date.now());
+    if (!r.ok) return;
+    const data = await r.json();
+    if (!data.games || !data.games.length) return;
+
+    // skip the first game (it's the "live" one in the top panel)
+    const rest = data.games.slice(1, 6);  // show up to 5
+
+    const box = document.getElementById('aroundLeague');
+    if (!box) return;
+
+    box.innerHTML = rest.map((g, i) => {
+      const awayAbbr = (g.away || '').split(' ').pop().slice(0,3).toUpperCase();
+      const homeAbbr = (g.home || '').split(' ').pop().slice(0,3).toUpperCase();
+
+      const aw = parseInt(g.away_score, 10);
+      const hw = parseInt(g.home_score, 10);
+      const awayLeads = !isNaN(aw) && !isNaN(hw) && aw > hw;
+      const homeLeads = !isNaN(aw) && !isNaN(hw) && hw > aw;
+
+      const awayCls = awayLeads ? 'team lead' : 'team';
+      const homeCls = homeLeads ? 'team lead' : 'team';
+      const statusTxt = (g.status || '').replace('Final', 'F').replace('Scheduled', 'Sched');
+
+      // animal + edge as the clockstate
+      const meta = g.animal
+        ? `${g.animal}${g.prime ? ' 🦄' : ''} +${g.edge || 0}`
+        : statusTxt;
+
+      return `
+        <div class="game" style="${i > 0 ? 'margin-top:6px' : ''}">
+          <div class="${awayCls}">${awayAbbr}</div>
+          <div class="score">${g.away_score ?? '—'}</div>
+          <div class="${homeCls}">${homeAbbr}</div>
+          <div class="score">${g.home_score ?? '—'}</div>
+          <div class="clockstate">${meta}</div>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    console.warn('around-league fetch failed:', e);
+  }
+}
+
+refreshAroundLeague();
+setInterval(refreshAroundLeague, 15000);
+
+/*=====stop all lines go above now======*/
+/*=====stop all lines go above now======*/
+// ─── LIVE NFL from nfl-scores.json (Donatello) ───
+async function refreshNFL() {
+  try {
+    const r = await fetch('/nfl-scores.json?t=' + Date.now());
+    if (!r.ok) return;
+    const data = await r.json();
+    if (!data.games || !data.games.length) return;
+
+    // pick first live game, else first game
+    let g = data.games.find(x => /live|q[1-4]/i.test(x.status || '')) || data.games[0];
+
+    const awayAbbr = (g.away || '').split(' ').pop().slice(0,3).toUpperCase();
+    const homeAbbr = (g.home || '').split(' ').pop().slice(0,3).toUpperCase();
+
+    // away row
+    document.getElementById('nflAway').innerHTML = `
+      <div class="team lead"><span class="dot"></span>${awayAbbr}</div>
+      <div class="score">${g.away_score ?? '—'}</div>
+      <div class="clockstate">${g.status || ''}</div>`;
+    // home row
+    document.getElementById('nflHome').innerHTML = `
+      <div class="team">${homeAbbr}</div>
+      <div class="score">${g.home_score ?? '—'}</div>
+      <div class="clockstate"></div>`;
+
+    // win bar — use edge as a rough proxy if no WP
+    const aw = parseFloat(g.away_score || 0);
+    const hw = parseFloat(g.home_score || 0);
+    const tot = Math.max(1, aw + hw);
+    const aPct = Math.round((aw / tot) * 100);
+    const hPct = 100 - aPct;
+
+    document.getElementById('nflAwayPct').textContent = `${awayAbbr} ${aPct}%`;
+    document.getElementById('nflHomePct').textContent = `${homeAbbr} ${hPct}%`;
+    document.getElementById('nflBarA').style.width = aPct + '%';
+    document.getElementById('nflBarB').style.width = hPct + '%';
+
+    // set the section title to include the animal
+    const h2 = document.querySelector('.section h2');
+    if (h2 && g.animal) h2.textContent = `LIVE — NFL · ${g.animal}${g.prime ? ' 🦄' : ''}`;
+  } catch (e) {
+    console.warn('nfl fetch failed:', e);
+  }
+}
+
+refreshNFL();
+setInterval(refreshNFL, 15000);  // refresh every 15s
+
+
+
+
+
+
+
+
+
+/*=====stop all lines go above now======*/
+
+
+
+function openPip(id){
+  const entry = fileStore[id];
+  if(!entry) return;
+
+
+
+
+if(entry.url && entry.type === 'JSON'){
+  pipTitle.textContent = entry.name;
+  pip.classList.add('show');
+  fetch(entry.url+'?t='+Date.now(),{cache:'no-store'})
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      pipBody.innerHTML = '<pre>'+escapeHtml(JSON.stringify(j,null,2).slice(0,8000))+'</pre>';
+    })
+    .catch(function(){
+      pipBody.innerHTML='<div class="pip-hint">Could not load '+entry.name+'</div>';
+    });
+  return;
+}
+
+
+
+
+
+  pipTitle.textContent = entry.name;
+  pip.classList.add('show');
+
+  if(entry.mock){
+    pipBody.innerHTML = `
+      <div class="pip-meta-row"><span>Type</span><span class="v">${entry.type}</span></div>
+      <div class="pip-meta-row"><span>Size</span><span class="v">${entry.size}</span></div>
+      <div class="pip-tags">${entry.tags.map(t=>`<span class="pip-tag">${t}</span>`).join('')}</div>
+      <div class="pip-btnrow">
+        <div class="pip-btn primary">Open</div>
+        <div class="pip-btn ghost">Download</div>
+      </div>
+      <div class="pip-hint">Preview</div>
+      <pre>${entry.list.map((x,i)=>`${i+1}. ${x}`).join('\n')}</pre>`;
+    return;
+  }
+
+  const f = entry.file;
+  const ext = f.name.split('.').pop().toLowerCase();
+  const reader = new FileReader();
+  const url = URL.createObjectURL(f);
+
+  if(f.type.startsWith('image/')){
+    pipBody.innerHTML = `<img src="${url}">`;
+  } else if(f.type.startsWith('audio/')){
+    pipBody.innerHTML = `<audio controls src="${url}"></audio>`;
+  } else if(f.type.startsWith('video/') || ['mp4','webm','mov','m4v'].includes(ext)){
+    pipBody.innerHTML = `<video controls playsinline src="${url}" style="width:100%;border-radius:6px"></video>`;
+  } else if(ext === 'pdf' || f.type === 'application/pdf'){
+    pipBody.innerHTML = `<iframe src="${url}" style="width:100%;height:340px;border:1px solid var(--line);border-radius:6px;background:#fff"></iframe>`;
+  } else if(['txt','json','yaml','yml','md','csv','js','css','log','py','py4','sh','xml','goggles'].includes(ext) || f.type.startsWith('text/') || /\.txt$|\.json$|\.log$|\.py4?$/.test(f.name)){
+    reader.onload = ()=> pipBody.innerHTML = `<pre>${escapeHtml(reader.result.slice(0,8000))}</pre>`;
+    reader.readAsText(f);
+  } else if(ext === 'html' || ext === 'htm' || f.type === 'text/html'){
+    reader.onload = ()=> pipBody.innerHTML = `<iframe sandbox="" srcdoc="${escapeHtml(reader.result)}"></iframe>`;
+    reader.readAsText(f);
+  } else {
+    pipBody.innerHTML = `<div class="pip-hint">No preview for <b>.${ext}</b> — try opening it directly.</div>`;
+  }
+}
+
+
+
+document.getElementById('pipClose').onclick = ()=> pip.classList.remove('show');
+
+
+
+/*=====And in openPip, right after if(!entry) return;, insert======*/
+/*=====And in openPip, right after if(!entry) return;, insert======*/
+/* ---- MR ALFRED PLEASE OPEN AN VIEW ALL FILES WITH PIPPY THE CER MR PIPPSER OF COURSE THE PIP EVERYTHING ELSE ALL ADDONS GO ABOVE THIS LINE THIS IS A STOP AFTER THIS DONT ADD LINES HERE BELOW CALL IT UP NOW---- */
+
+/*=====stop all lines go above now======*/
+
+
+
+/*=====stop all lines go above now======*/
+
+
+
+/*=====stop all lines go above now======*/
+
+/*=====stop all lines go above now======*/
+/* drag the PiP by its PANDA */
+(function(){
+  const head = document.getElementById('pipHead');
+  let dragging=false, ox=0, oy=0;
+  head.addEventListener('pointerdown', e=>{
+    dragging=true; head.setPointerCapture(e.pointerId);
+    const r = pip.getBoundingClientRect();
+    ox = e.clientX - r.left; oy = e.clientY - r.top;
+    pip.style.bottom='auto';
+  });
+  head.addEventListener('pointermove', e=>{
+    if(!dragging) return;
+    let x = e.clientX - ox, y = e.clientY - oy;
+    x = Math.max(4, Math.min(window.innerWidth - pip.offsetWidth - 4, x));
+    y = Math.max(4, Math.min(window.innerHeight - pip.offsetHeight - 4, y));
+    pip.style.left = x+'px'; pip.style.top = y+'px';
+  });
+  head.addEventListener('pointerup', e=>{ dragging=false; head.releasePointerCapture(e.pointerId); });
+})();
+
+const panel = document.getElementById('chatPanel');
+const rail = document.getElementById('collapseRail');
+function toggleChat(){
+  panel.classList.toggle('open');
+  rail.classList.toggle('open');
+}
+rail.onclick = toggleChat;
+
+const dataPanel = document.getElementById('dataPanel');
+const leftRail = document.getElementById('leftRail');
+function toggleData(){
+  dataPanel.classList.toggle('open');
+  leftRail.classList.toggle('open');
+}
+leftRail.onclick = toggleData;
+
+document.getElementById('dockChat').onclick = toggleChat;
+document.getElementById('dockData').onclick = toggleData;
+
+/* hub cards: numbered 1–6, each with its own collapse toggle */
+document.querySelectorAll('.card > h2').forEach(h=>{
+  h.addEventListener('click', ()=> h.closest('.card').classList.toggle('collapsed'));
+});
+
+function tick(){
+  const d = new Date();
+  document.getElementById('clock').textContent = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+}
+tick(); setInterval(tick, 30000);
+</script>
+</body>
+</html>
+
+"""
+
+
+#+-|-------------------------------------------------------------------->>>>
+#+-| FETCH PAGE - delete what nigga chapter 3 chapter 3 chapter 3
+#+-|-------------------------------------------------------------------->>>>
+#+-|
+
+# ─── SAVE DATA ─── /Users/olympynetworkco/Desktop/data
+def save_data(data, url, game_id):
+    full_data = {
+        'timestamp': datetime.now().isoformat(),
+        'source_url': url,
+        'game_data': data
+    }
+    json_path = os.path.join(OUTPUT_DIR, f"mlb_live.json")
+    txt_path  = os.path.join(OUTPUT_DIR, f"mlb_live.txt")
+    with open(json_path, 'w', encoding='utf-8') as f:
+        json.dump(full_data, f, indent=2)
+    with open(txt_path, 'w', encoding='utf-8') as f:
+        f.write(format_text_output(data))
+
+
+
+#+--|------------------------------------------------>>>>
+#+--|format_text_output
+#+--|------------------------------------------------>>>>
+#+--|
+def format_text_output(data):
+    lines = []
+    lines.append("=" * 30)
+    lines.append(f"YAHOO LIVE DATA — {datetime.now().strftime('%I:%M:%S %p')}")
+    lines.append("=" * 30)
+
+    if not data or 'teams' not in data:
+        lines.append("No data available")
+        return "\n".join(lines)
+
+    away = data['teams'][0]; home = data['teams'][1]
+    lines.append(f"{away['name']} ({away['abbr']}) {data.get('away_score','?')} @ "
+                 f"{home['name']} ({home['abbr']}) {data.get('home_score','?')}")
+    lines.append(f"Status: {data.get('status','Live')}")
+
+    if data.get('win_prob_away') or data.get('win_prob_home'):
+        lines.append("")
+        lines.append("Win Probability:")
+        if data.get('win_prob_away'): lines.append(f"  Away: {data['win_prob_away']}")
+        if data.get('win_prob_home'): lines.append(f"  Home: {data['win_prob_home']}")
+
+    if data.get('recent_plays'):
+        lines.append("")
+        lines.append("Recent Plays:")
+        for p in data['recent_plays'][:5]:
+            lines.append(f"  • {p}")
+
+    if data.get('due_up'):
+        lines.append("")
+        lines.append("Due Up:")
+        for b in data['due_up']:
+            lines.append(f"  • {b}")
+
+    if data.get('stat_leaders'):
+        lines.append("")
+        lines.append("Stat Leaders:")
+        for l in data['stat_leaders']:
+            lines.append(f"  • {l}")
+
+    if data.get('odds'):
+        lines.append("")
+        lines.append("Odds:")
+        for o in data['odds']:
+            lines.append(f"  {o}")
+
+    if data.get('game_details'):
+        lines.append("")
+        lines.append("Game Details:")
+        for g in data['game_details']:
+            lines.append(f"  {g}")
+
+    lines.append("=" * 30)
+    return "\n".join(lines)
+
+#+--|------------------------------------------------>>>>
+#+--| DISPLAY DATA sparkling the baseball field scores miniboards all the nice things
+#+--|------------------------------------------------>>>>
+#+--|
+# ─── DISPLAY DATA ───
+def display_game_data(data, changes=None):
+    print("\n" + "=" * 80)
+    print(f"  {CYN}⚾ YAHOO SPORTS — GAME DATA{R}")
+    print(f"  {DIM}📅 {datetime.now().strftime('%A, %B %d, %Y — %I:%M:%S %p')}{R}")
+    print("=" * 80)
+    
+    if not data:
+        print(f"  {RED}❌ No data available{R}")
+        return
+    
+    if 'teams' in data and len(data['teams']) >= 2:
+        away = data['teams'][0]
+        home = data['teams'][1]
+        
+        away_score = data.get('away_score', '?')
+        home_score = data.get('home_score', '?')
+        status = data.get('status', 'Live')
+        
+        print(f"\n  {ORG}⚾ {away['name']}{R} ({away['abbr']})")
+        print(f"     {GRN}➜ {away_score} runs{R}")
+        print(f"")
+        print(f"  {ORG}⚾ {home['name']}{R} ({home['abbr']})")
+        print(f"     {GRN}➜ {home_score} runs{R}")
+        print(f"")
+        print(f"  {BLU}┌─ STATUS ──────────────────────────────────────────────{R}")
+        print(f"  │  {YLW}{status}{R}")
+        print(f"  └─────────────────────────────────────────────────────────{R}")
+        
+        if data.get('win_prob_away') or data.get('win_prob_home'):
+            print(f"")
+            print(f"  {BLU}┌─ WIN PROBABILITY ──────────────────────────────────────{R}")
+            if data.get('win_prob_away'):
+                print(f"  │  {ORG}{away['abbr']}: {BOLD}{data['win_prob_away']}{R}")
+            if data.get('win_prob_home'):
+                print(f"  │  {ORG}{home['abbr']}: {BOLD}{data['win_prob_home']}{R}")
+            print(f"  └─────────────────────────────────────────────────────────{R}")
+        
+        if 'odds' in data:
+            print(f"")
+            print(f"  {BLU}┌─ ODDS ─────────────────────────────────────────────────{R}")
+            for o in data['odds']:
+                print(f"  │  {o['team']}: {YLW}{o['money_line']}{R}")
+            print(f"  └─────────────────────────────────────────────────────────{R}")
+        
+        if 'recent_plays' in data:
+            print(f"")
+            print(f"  {BLU}┌─ RECENT PLAYS ────────────────────────────────────────{R}")
+            for i, play in enumerate(data['recent_plays'][:3], 1):
+                print(f"  │  {i}. {ORG}{play}{R}")
+            print(f"  └─────────────────────────────────────────────────────────{R}")
+        
+        if 'current_batter' in data:
+            print(f"")
+            print(f"  {BLU}┌─ CURRENT BATTER ──────────────────────────────────────{R}")
+            print(f"  │  {ORG}{data['current_batter']}{R}")
+            print(f"  └─────────────────────────────────────────────────────────{R}")
+
+        if data.get('due_up'):
+            print(f"\n  {BLU}┌─ DUE UP ───────────────────────────────────────────────{R}")
+            for b in data['due_up']:
+                print(f"  │  {ORG}{b}{R}")
+            print(f"  └─────────────────────────────────────────────────────────{R}")
+
+        if data.get('stat_leaders'):
+            print(f"\n  {BLU}┌─ STAT LEADERS ─────────────────────────────────────────{R}")
+            for l in data['stat_leaders']:
+                print(f"  │  {ORG}{l}{R}")
+            print(f"  └─────────────────────────────────────────────────────────{R}")
+
+        if data.get('game_details'):
+            print(f"\n  {BLU}┌─ GAME DETAILS ─────────────────────────────────────────{R}")
+            for g in data['game_details']:
+                print(f"  │  {DIM}{g}{R}")
+            print(f"  └─────────────────────────────────────────────────────────{R}")
+
+    print("=" * 80 + "\n")
+#+-|-------------------------------------------------------------------->>>>
+#+-| FETCH PAGE - delete what nigga chapter what 2
+#+-|-------------------------------------------------------------------->>>>
+#+-|
+# ─── SHOW CHANGE NOTIFICATION ───
+def show_terminal_notification(changes):
+    if not changes:
+        return
+    print(f"\n{BLINK}{BOLD}{ORG}🔔 SCORE CHANGE DETECTED!{R}")
+    print("═" * 30)
+    for change in changes:
+        print(f"  {BOLD}{GRN}▶{R} {change}")
+    print("═" * 30 + "\n")
+
+#+-|-------------------------------------------------------------------->>>>
+#+-| FETCH PAGE - delete what nigga chapter what 2
+#+-|-------------------------------------------------------------------->>>>
+#+-|
+# ─── MAIN ───
+# ─── MAIN ───
+def main():
+    print("\n" + "=" * 30)
+    print(f"  {CYN}⚾ YAHOO TRACKER — MULTI GAME{R}")
+    print(f"  {DIM}📅 {datetime.now().strftime('%A, %B %d, %Y')}{R}")
+    print(f"  {DIM}⏱️ REFRESH: Every {REFRESH_INTERVAL} seconds{R}")
+    print(f"  {DIM}🎯 Watching {len(GAME_URLS)} game(s){R}")
+    for u in GAME_URLS:
+        print(f"      {DIM}• {u}{R}")
+    print("=" * 30)
+    print(f"  {DIM}🔄 Watching for score changes...{R}")
+    print(f"  {DIM}🔔 Notifications will pop up on top right{R}")
+    print("=" * 30 + "\n")
+
+    cycle = 0
+    while True:
+        cycle += 1
+
+        for url in GAME_URLS:
+            m = re.search(r'-(\d{9,})/?$', url)
+            game_id = m.group(1) if m else str(abs(hash(url)))[:10]
+
+            html = fetch_page(url)
+            if not html:
+                print(f"  {RED}⚠️ Fetch failed for {game_id}{R}")
+                continue
+
+            # ─── PDF GRIP — full rendered page, chart included ───
+            # ─── PDF grip — full rendered page ───
+            # ─── PDF grip — full rendered page ───
+            pdf_name = "mlb_live.pdf"
+            pdf_path = os.path.join(OUTPUT_DIR, pdf_name)
+
+            try:
+                subprocess.run([
+                    CHROME, '--headless=new', '--disable-gpu', '--no-sandbox',
+                    f'--print-to-pdf={pdf_path}',
+                    '--no-pdf-header-footer',
+                    url
+                ], capture_output=True, timeout=30)
+                print(f"  {DIM}📄 PDF saved: {pdf_name}{R}")
+            except Exception as e:
+                print(f"  {RED}⚠️ PDF grip failed: {e}{R}")
+
+            # ─── .txt written from the raw HTML Leonardo already has ───
+            try:
+                txt_path = os.path.join(OUTPUT_DIR, pdf_name.replace('.pdf', '.txt'))
+                import html as _h
+                t = re.sub(r'<script[^>]*>.*?</script>', ' ', html, flags=re.DOTALL)
+                t = re.sub(r'<style[^>]*>.*?</style>', ' ', t, flags=re.DOTALL)
+                t = re.sub(r'<[^>]+>', '\n', t)
+                lines = [_h.unescape(x).strip() for x in t.split('\n') if x.strip()]
+
+                START = "© 2026 Yahoo. All rights reserved."
+                END   = "SiriusXM subscription required. Get started with a great offer."
+                BAR   = "═" * 70
+
+                out = []
+                inside = False
+                for ln in lines:
+                    if ln == START:
+                        inside = True
+                        out.append(BAR)
+                        out.append(ln)
+                        out.append(BAR)
+                        continue
+                    if ln == END:
+                        out.append(BAR)
+                        out.append(ln)
+                        out.append(BAR)
+                        inside = False
+                        continue
+                    out.append(ln)
+
+                with open(txt_path, 'w', encoding='utf-8') as f:
+                    f.write("\n".join(out))
+                print(f"  {DIM}📝 TXT: {os.path.basename(txt_path)}{R}")
+            except Exception as e:
+                print(f"  {RED}⚠️ txt write failed: {e}{R}")
+
+            # ─── parse html into data ───
+            data = parse_game_data(html)
+            if not data:
+                print(f"  {RED}⚠️ No data for {game_id}{R}")
+                continue
+
+            changes = check_for_changes(data, game_id)
+
+            if changes:
+                show_terminal_notification(changes)
+
+            display_game_data(data)
+            save_data(data, url, game_id)
+
+            away = data['teams'][0]
+            home = data['teams'][1]
+            print(f"  {DIM}⚡ Cycle {cycle} | {away['abbr']} {data.get('away_score', '?')} @ {home['abbr']} {data.get('home_score', '?')}{R}")
+
+        print(f"  {DIM}⏳ Next update in {REFRESH_INTERVAL} seconds...{R}")
+        time.sleep(REFRESH_INTERVAL)
+
+HTTP_PORT = 9002   # ← Leo's port. Not 9001 (Raphael). Not 9000 (Alfred proxy).
+
+class LeoHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        rel = unquote(self.path.split("?", 1)[0]).lstrip("/")
+        if rel in ("", "index.html"):
+            body = HTML.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        target = (Path(OUTPUT_DIR) / rel).resolve()
+        if not str(target).startswith(str(Path(OUTPUT_DIR).resolve())):
+            self.send_response(403); self.end_headers(); return
+        if not target.exists() or not target.is_file():
+            self.send_response(404); self.end_headers(); self.wfile.write(b"not found"); return
+        ctype = mimetypes.guess_type(str(target))[0] or "text/plain"
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(target.read_bytes())
+
+    def log_message(self, *a): pass
+
+
+def start_server():
+    global HTML
+    if GAME_URLS:
+        m = re.search(r'-(\d{9,})/?$', GAME_URLS[0])
+        gid = m.group(1) if m else ""
+        HTML = HTML.replace("__GAME_ID__", gid)
+    print(f"[leonardo] Page: http://localhost:{HTTP_PORT}/")
+    ThreadingHTTPServer(("", HTTP_PORT), LeoHandler).serve_forever()
+
+
+def auto_open():
+    time.sleep(2)
+    try:
+        webbrowser.open(f"http://localhost:{HTTP_PORT}/")
+    except Exception as e:
+        print(f"[leonardo] auto-open failed: {e}")
+
+
+
+#+-|-------------------------------------------------------------------->>>>
+#+-| FETCH PAGE - delete what nigga chapter what 1
+#+-|-------------------------------------------------------------------->>>>
+#+-|
+if __name__ == "__main__":
+    print(f"  🎩 telegram: {'configured' if load_telegram_config() else 'default'}")
+    send_telegram("🎩 Leonardo ONLINE — watching Yahoo game(s)")
+    threading.Thread(target=start_server, daemon=True).start()
+    threading.Thread(target=auto_open, daemon=True).start()
+    try:
+        main()
+    except KeyboardInterrupt:
+        send_telegram("🎩 Leonardo resting.")
+        send_mac_notification(
+            title="🛑 Live Tracker Stopped",
+            message="The Yahoo live tracker has been stopped",
+            subtitle="Goodbye!"
+        )
+        print(f"\n\n  {ORG}🛑 Live tracker stopped{R}\n")
