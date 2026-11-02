@@ -51,9 +51,10 @@ INTERVAL = 20
 # ─── PINNED GAMES — list of {url, away, home} for ESPN WP grips ───
 # Each entry grips one ESPN game page per cycle and attaches
 # live win probability to the matching game in nfl-scores.json.
+
 PINNED_GAMES = [
-    {"url": "https://www.espn.com/nfl/game/_/gameId/401873009/cowboys-eagles",
-     "away": "Dallas Cowboys", "home": "Philadelphia Eagles"},
+    {"url": "https://www.espn.com/nfl/game/_/gameId/401873035/eagles-commanders",
+     "away": "Philadelphia Eagles", "home": "Washington Commanders"},
 ]
 
 PINNED_FILE     = DATA_DIR / "nfl-pinned.json"
@@ -66,24 +67,32 @@ ODDS_GAMES = [
 ODDS_NFL_FILE     = DATA_DIR / "nfl-odds.json"
 
 
-# ─── PINNED PLAY-BY-PLAY — full game log ───
+# ─── PINNED PLAY‑BY‑PLAY ───
 PINNED_PBP = [
-    {"url": "https://www.espn.com/nfl/playbyplay/_/gameId/401873009",
-     "away": "Dallas Cowboys", "home": "Philadelphia Eagles",
-     "gameId": "401873009"},
+    {
+        "url": "https://www.espn.com/nfl/playbyplay/_/gameId/401873035",
+        "away": "Philadelphia Eagles",
+        "home": "Washington Commanders",
+        "gameId": "401873035"
+    },
 ]
 
 PINNED_PBP_FILE = DATA_DIR / "nfl-playbyplay.json"
 
 
-ESPN_BETTING_URL = "https://www.espn.com/nfl/odds/_/gameId/401873009"
+ESPN_BETTING_URL = "https://www.espn.com/nfl/odds/_/gameId/401873035"
+
 GAME_ODDS_FILE      = DATA_DIR / "edge-projection.txt"
 GAME_ODDS_JSON_FILE = DATA_DIR / "game_odds.json"
 
 
-WP = "https://sports.yahoo.com/nfl/dallas-cowboys-philadelphia-eagles-20261026021/"
+WP = "https://sports.yahoo.com/nfl/philadelphia-eagles-washington-commanders-20261101028/"
 
 
+#+--|-------------------------------------------->>>
+#+--|-------------------------------------------->>>
+#+--| # ─── COLORS ───
+#+--|-------------------------------------------->>>
 
 # ─── COLORS ───
 R    = "\033[38;5;99m"
@@ -98,6 +107,11 @@ GREY = "\033[90m"
 RED = "\033[31m"   # or "\x1b[31m"
 
 
+
+#+--|-------------------------------------------->>>
+#+--|-------------------------------------------->>>
+#+--| # ─── _XF ───
+#+--|-------------------------------------------->>>
 import re as _re
 
 _XF = {
@@ -144,27 +158,39 @@ def detect_xfactors(play):
     return hits
 
 
-
-
-
-
 ANIMAL_BANDS = [
-    (0,  54,  "OWL", "OWL",          1),
-    (54, 56,  "SLP", "SNOW LEOPARD", 1),
-    (56, 57,  "DER", "DEER",         1),
-    (57, 58,  "OTR", "OTTER",        2),
-    (58, 59,  "BER", "BEAR",         2),
-    (59, 60,  "BDG", "BADGER",       2),
-    (60, 61,  "HRS", "HORSE",        2),
-    (61, 62,  "RAM", "RAM",          3),
-    (62, 63,  "GOT", "GOAT",         3),
-    (63, 65,  "WLF", "WOLF",         3),
-    (65, 66,  "CRW", "CROW",         4),
-    (66, 72,  "VLT", "VULTURE",      4),
-    (72, 76,  "EAG", "EAGLE",        4),
-    (76, 78,  "LYX", "LYNX",         4),
-    (78, 79,  "SCP", "SCORPION",     4),
-    (79, 100, "DRG", "DRAGON",       4),
+
+    (25, 35,  "SLP", "SNOW LEOPARD", 1),
+
+    (36, 45,  "OTR", "OTTER",        1),
+
+    (46, 49,  "WLF", "WOLF",         1),
+
+    (50, 50,  "OWL", "OWL",          1),
+
+    (51, 56,  "BER", "BEAR",         2),
+
+    (57, 59,  "CRW", "CROW",         2),
+
+    (60, 61,  "LYX", "LYNX",         2),
+
+    (62, 63,  "DER", "DEER",         2),
+
+    (64, 65,  "SCP", "SCORPION",     3),
+ 
+    (66, 70,  "BDG", "BADGER",       3),
+
+    (71, 74,  "HRS", "HORSE",        3),
+
+    (75, 80,  "EAG", "EAGLE",        4),
+
+    (80, 83,  "RAM", "RAM",          4),
+
+    (84, 85,  "GOT", "GOAT",         4),
+
+    (86, 94,  "VLT", "VULTURE",      4),
+
+    (95, 100, "DRG", "DRAGON",       4),
 ]
 
 
@@ -234,7 +260,7 @@ NFL_TEAMS = {
 }
 
 # ─── NFL KEY NUMBERS (most-frequent final margins) ───
-NFL_KEY_NUMBERS = [4.5, 8.5, 14.5, 19.5]
+NFL_KEY_NUMBERS = [7.5, 10.5, 13.5, 16.5]
 
 # ─── ODDS TOKEN DETECTOR ───
 ODDS_RE = re.compile(r'^[+-]?\d{1,3}(\.\d{1,2})?$')
@@ -1117,49 +1143,30 @@ def compute_edges(games):
                       "animal_tier": 4, "prime": False, "key_number": None})
             continue
 
-        # 1. WIN / LOSS
         diff = h - a
-
-        # 2. SPRING (Mx¨(t) + fvx˙(t) + Kx(t) = f(t))
         spring = diff * 0.4 + (h + a) * 0.05
-
-        # 3. PREDICTION (85th % Percentile of L10)
         predicted = round(22.5 + diff * 0.6, 1)
 
-        # 4. PROBABILITY (Z = (Odd Line - Spring) / 4)
         odd_line = g.get("home_spread")
-        
         if odd_line is None:
-            # If no line, edge is 0.0 (no false signals)
             edge = 0.0
         else:
-            # Z-Score
             z = (odd_line - spring) / 4.0
-            
-            # Φ(Z) - Standard Normal CDF
             phi_z = 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
-            
-            # Edge = Φ(Z) * 100 (Convert to percentage)
             edge = round(phi_z * 100, 1)
 
-        # 5. KEY NUMBERS (from your JSON: [3, 7, 10, 14])
         key_numbers = [3, 7, 10, 14]
         absdiff = abs(diff)
         nearest = min(key_numbers, key=lambda k: abs(absdiff - k))
         distance = abs(absdiff - nearest)
 
-        # 6. ANIMAL (winProb = 0.50 + (margin * 0.20))
         win_prob = 0.50 + (absdiff * 0.20)
         win_prob_pct = min(99.0, win_prob * 100)
 
-        animal = "DRAGON"
-        animal_abbr = "DRG"
-        animal_tier = 4
+        animal = "DRAGON"; animal_abbr = "DRG"; animal_tier = 4
         for lo, hi, abbr, name, tier in ANIMAL_BANDS:
             if lo <= win_prob_pct < hi:
-                animal      = name
-                animal_abbr = abbr
-                animal_tier = tier
+                animal, animal_abbr, animal_tier = name, abbr, tier
                 break
 
         g["win_loss"]    = diff
@@ -1172,6 +1179,7 @@ def compute_edges(games):
         g["animal_tier"] = animal_tier
         g["prime"]       = (edge >= 70.0 and animal in
                             ("SCORPION", "EAGLE", "VULTURE", "CROW", "LYNX"))
+
 #+--|-------------------------------------------->>>
 #+--| add-on function 5 as much functions 
 #+--| here in your def Darwin chapter 3 check_bet_signal() all games are prime not one game
@@ -2673,8 +2681,8 @@ def cycle():
     odds_lookup = {}
     for pg in odds_games:
         # Force abbreviations to full names using the exact function your file already has
-        away_abbr = pg['away'].strip().upper()
-        home_abbr = pg['home'].strip().upper()
+        away_abbr = pg['away'].strip().upper()   
+        home_abbr = pg['home'].strip().upper()   
         
         away_full = None
         home_full = None
