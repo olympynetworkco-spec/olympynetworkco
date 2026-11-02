@@ -1,0 +1,1444 @@
+#!/usr/bin/env python4
+# -*- coding: utf-8 -*-
+# sudo approve python4 #1234
+
+"""
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| Agent : /Applications/python4/michealangelo/michealangelo.py4 #nhlagent 🏒
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| 🟠  MICHELANGELO  —  CH4  Basal Ganglia + 🧠  Imagination + 🏒 NHL NHL NHL
+#+--| 21 VERIFIED VERIFIERS — CREATIVE EXECUTIVE LAYER - 🏒 Sputnik
+#+--| by Artiom Art Taylor Gully Striuc • NorthStar Connector • Canada 🇨🇦 • 2026
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| CHAPTER 7: 𝒊 ι iota — TOWER (main execution)
+#+--| CHAPTER 6: 𝒊 θ theta — SCAVENGER
+#+--| CHAPTER 5: 𝒊 η eta — BRIDGE (URL opener)
+#+--| CHAPTER 4: 𝒊 ζ zeta — VERIFIERS
+#+--| CHAPTER 3: 𝒊 ε epsilon — DEFINITIONS
+#+--| CHAPTER 2: 𝒊 β beta — IMPORTS + PATHS
+#+--| CHAPTER 1: 𝒊 α alpha — LAUNCH SYMBOL - drop the puck 🏒
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+"""
+
+import os
+import re
+import json
+import signal
+import subprocess
+import sys
+import time
+import threading
+import urllib.request
+from datetime import datetime
+from pathlib import Path
+
+# ─── COLORS ───
+R    = "\033[0m"
+ORG  = "\033[38;5;214m"
+GRN  = "\033[92m"
+RED  = "\033[91m"
+YLW  = "\033[93m"
+BLU  = "\033[94m"
+CYN  = "\033[96m"
+DIM  = "\033[2m"
+
+# ─── PATHS ───
+BASE       = Path("/Users/olympynetworkco/Desktop/")
+GLASSNOTES = Path("/Applications/python4/michealangelo/mikey-glassnotes.html")
+DATA_DIR   = Path("/Users/olympynetworkco/Desktop/data")
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| CONFIG — only thing you edit
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+# GAMECAST + PLAY-BY-PLAY, same gameId. Leave GAMECAST "" to auto-pick live game.
+GAMECAST_NHL_GAME = "https://www.espn.com/nhl/game/_/gameId/401892628"
+PLAY_BY_PLAY_NHL  = "https://www.espn.com/nhl/playbyplay/_/gameId/401892628"
+SCORING_SUMMARY = "https://www.espn.com/nhl/boxscore/_/gameId/401892628"
+
+# ESPN NHL scoreboard main — used only if GAMECAST_NHL_GAME is empty
+ESPN_NHL_SCOREBOARD = "https://www.espn.com/nhl/scoreboard"
+
+
+WP = "https://sports.yahoo.com/nhl/ottawa-senators-anaheim-ducks-2026110125/"
+
+REFRESH_SECONDS = 25
+
+# Thomas Neural voice (Edge TTS) — same as MLB mikey
+THOMAS_VOICE = "en-GB-ThomasNeural"
+PREFIX       = "🎩 Neural Thomas : "
+
+# divider — used between every section
+DIV = "═" * 70
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| NHL X-FACTOR CLASSES — 26 abilities, 4 categories
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+NHL_XFACTORS = {
+    # 🏒 Offensive
+    "Quick Release":   "Faster wrist/snap shot release, pressures goalie readiness",
+    "One T":           "Enhanced one-timer power, accuracy, and pass reception",
+    "Rocket":          "Improved slap shot power and accuracy",
+    "Big Rig":         "Better balance/accuracy driving the net, unlocks one-handed shots",
+    "Pressure+":       "Builds offensive zone pressure faster",
+    "Backhand Beauty": "Improves backhand shots and passes",
+    "Big Tipper":      "Better deflections and tip-in animations",
+
+    # 🧠 Playmaking
+    "Elite Edges":     "Explosive edge work, tight turns, and acceleration",
+    "Ankle Breaker":   "Acceleration and stumble pressure on high-speed dekes",
+    "Quick Draw":      "Faster faceoff pull speed and tie-up leverage",
+    "Tape to Tape":    "Increased pass power and accuracy, unlocks auto saucer passes",
+    "Send It":         "Boosts teammate acceleration on breakout passes",
+    "Wheels":          "Increased top speed and acceleration",
+
+    # 🛡️ Defensive
+    "Truculence":      "Punishing shoulder checks that drain opponent stamina/speed",
+    "No Contest":      "Stronger in puck battles and duels, boosts speed after wins",
+    "Quick Pick":      "Better interceptions, expanded defensive range",
+    "Stick Em Up":     "Masterful poke checking accuracy and recovery",
+    "Warrior":         "Takes less damage from hits/blocks, resists stick loss",
+    "Hipster":         "Powerful hip checks that separate opponents from the puck",
+    "Born Leader":     "Generates team energy through blocks, checks, or shots",
+    "Spark Plug":      "Rallies team with body checks, boosts speed after hits",
+    "Second Wind":     "Instant energy boost when exhausted",
+
+    # 🥅 Goalie
+    "Post to Post":    "Enhanced lateral save speed, windmill saves against one-timers",
+    "Show Stopper":    "Better reflex and consecutive saves, sees through screens",
+    "Sponge":          "Absorbs shots to limit rebounds",
+    "Dialed In":       "Focus and positioning under pressure",
+}
+
+# category index for filtering
+NHL_XFACTOR_CATEGORIES = {
+    "OFF": ["Quick Release", "One T", "Rocket", "Big Rig", "Pressure+",
+            "Backhand Beauty", "Big Tipper"],
+    "PLY": ["Elite Edges", "Ankle Breaker", "Quick Draw", "Tape to Tape",
+            "Send It", "Wheels"],
+    "DEF": ["Truculence", "No Contest", "Quick Pick", "Stick Em Up",
+            "Warrior", "Hipster", "Born Leader", "Spark Plug", "Second Wind"],
+    "GLT": ["Post to Post", "Show Stopper", "Sponge", "Dialed In"],
+}
+
+
+# ─── NHL TEAMS — 32 teams, nickname → full ───
+NHL_TEAMS = {
+    'Ducks':          'Anaheim Ducks',
+    'Bruins':         'Boston Bruins',
+    'Sabres':         'Buffalo Sabres',
+    'Flames':         'Calgary Flames',
+    'Hurricanes':     'Carolina Hurricanes',
+    'Blackhawks':     'Chicago Blackhawks',
+    'Avalanche':      'Colorado Avalanche',
+    'Blue Jackets':   'Columbus Blue Jackets',
+    'Stars':          'Dallas Stars',
+    'Red Wings':      'Detroit Red Wings',
+    'Oilers':         'Edmonton Oilers',
+    'Panthers':       'Florida Panthers',
+    'Kings':          'Los Angeles Kings',
+    'Wild':           'Minnesota Wild',
+    'Canadiens':      'Montreal Canadiens',
+    'Predators':      'Nashville Predators',
+    'Devils':         'New Jersey Devils',
+    'Islanders':      'New York Islanders',
+    'Rangers':        'New York Rangers',
+    'Senators':       'Ottawa Senators',
+    'Flyers':         'Philadelphia Flyers',
+    'Penguins':       'Pittsburgh Penguins',
+    'Sharks':         'San Jose Sharks',
+    'Kraken':         'Seattle Kraken',
+    'Blues':          'St. Louis Blues',
+    'Lightning':      'Tampa Bay Lightning',
+    'Maple Leafs':    'Toronto Maple Leafs',
+    'Utah':           'Utah Hockey Club',
+    'Canucks':        'Vancouver Canucks',
+    'Golden Knights': 'Vegas Golden Knights',
+    'Capitals':       'Washington Capitals',
+    'Jets':           'Winnipeg Jets',
+}
+
+NHL_ABBRS = {
+    'ANA': 'Anaheim Ducks', 'BOS': 'Boston Bruins', 'BUF': 'Buffalo Sabres',
+    'CGY': 'Calgary Flames', 'CAR': 'Carolina Hurricanes', 'CHI': 'Chicago Blackhawks',
+    'COL': 'Colorado Avalanche', 'CBJ': 'Columbus Blue Jackets', 'DAL': 'Dallas Stars',
+    'DET': 'Detroit Red Wings', 'EDM': 'Edmonton Oilers', 'FLA': 'Florida Panthers',
+    'LAK': 'Los Angeles Kings', 'MIN': 'Minnesota Wild', 'MTL': 'Montreal Canadiens',
+    'NSH': 'Nashville Predators', 'NJD': 'New Jersey Devils', 'NYI': 'New York Islanders',
+    'NYR': 'New York Rangers', 'OTT': 'Ottawa Senators', 'PHI': 'Philadelphia Flyers',
+    'PIT': 'Pittsburgh Penguins', 'SJS': 'San Jose Sharks', 'SEA': 'Seattle Kraken',
+    'STL': 'St. Louis Blues', 'TBL': 'Tampa Bay Lightning', 'TOR': 'Toronto Maple Leafs',
+    'UTA': 'Utah Hockey Club', 'VAN': 'Vancouver Canucks', 'VGK': 'Vegas Golden Knights',
+    'WSH': 'Washington Capitals', 'WPG': 'Winnipeg Jets',
+}
+
+FULL_TO_ABBR = {v: k for k, v in NHL_ABBRS.items()}
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| CHAPTER 3: 𝒊 ε epsilon — DEFINITIONS
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+def read_glassnotes():
+    try:
+        with open(GLASSNOTES, 'r', encoding='utf-8') as f:
+            content = f.read()
+        print(f"  {ORG}🟠  GlassNotes loaded!{R}")
+        return content
+    except Exception as e:
+        print(f"  {RED}❌  GlassNotes not found: {e}{R}")
+        return None
+
+def strip_html(html):
+    html = re.sub(r'<style[^>]*>.*?</style>', '', html, flags=re.DOTALL)
+    html = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL)
+    html = re.sub(r'<[^>]+>', ' ', html)
+    html = re.sub(r'\s+', ' ', html)
+    return html.strip()
+
+def extract_intel(html):
+    clean = strip_html(html)
+    clean = clean.replace('&nbsp;', ' ')
+    clean = re.sub(r'\s+', ' ', clean)
+    clean = re.sub(r'\.\s+', '.\n  • ', clean)
+    return clean[:5000]
+
+MIKEY_BRAIN = read_glassnotes()
+
+def show_glassnotes():
+    if MIKEY_BRAIN:
+        intel = extract_intel(MIKEY_BRAIN)
+        print(f"\n  {ORG}📋  MIKEY'S INTEL{R}")
+        print(f"  {ORG}{'─' * 70}{R}")
+        print(intel)
+        print(f"  {ORG}{'─' * 70}{R}")
+        print(f"  {GRN}[DONE]  Mikey sees the INTEL!{R}\n")
+
+def html_to_tokens(html):
+    text = re.sub(r'<script[^>]*>.*?</script>', ' ', html, flags=re.DOTALL)
+    text = re.sub(r'<style[^>]*>.*?</style>', ' ', text, flags=re.DOTALL)
+    text = re.sub(r'<[^>]+>', '\n', text)
+    import html as _h
+    return [_h.unescape(t).strip() for t in text.split('\n') if t.strip()]
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| SECTION PRINT HELPER
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+def section(title, lines):
+    print(f"  {ORG}{DIV}{R}")
+    print(f"  {ORG}▌ {title}{R}")
+    print(f"  {ORG}{DIV}{R}")
+    for ln in lines:
+        print(f"  {ln}")
+    print(f"  {ORG}{DIV}{R}")
+
+
+def banner(title, subtitle=""):
+    print(f"  {ORG}{DIV}{R}")
+    print(f"  {ORG}🏒  {title}{R}")
+    if subtitle:
+        print(f"  {ORG}{subtitle}{R}")
+    print(f"  {ORG}{DIV}{R}")
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| CHAPTER 6: 𝒊 θ theta — SCAVENGER
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+def pick_live_nhl_game():
+    try:
+        req = urllib.request.Request(ESPN_NHL_SCOREBOARD,
+                                     headers={'User-Agent': 'Mozilla/5.0'})
+        html = urllib.request.urlopen(req, timeout=15).read().decode('utf-8', 'replace')
+        m = re.findall(r'/nhl/game/_/gameId/(\d+)/([a-z0-9\-]+)', html)
+        if m:
+            gid, slug = m[0]
+            return f"https://www.espn.com/nhl/game/_/gameId/{gid}/{slug}"
+    except Exception as e:
+        print(f"  {RED}⚠ auto-pick failed: {e}{R}")
+    return None
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| odds def scout_odds(game_id):
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+def scout_odds(game_id, away_abbr=None, home_abbr=None):
+    if not game_id:
+        return []
+    url = f"https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/summary?event={game_id}"
+    try:
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'Mozilla/5.0',
+            'Accept': 'application/json',
+        })
+        raw  = urllib.request.urlopen(req, timeout=15).read().decode('utf-8', 'replace')
+        data = json.loads(raw)
+    except Exception as e:
+        print(f"  {RED}⚠ odds fetch failed: {e}{R}")
+        return []
+
+    pc = data.get("pickcenter") or data.get("odds") or []
+    rows = []
+    for e in pc:
+        a = e.get("awayTeamOdds") or {}
+        h = e.get("homeTeamOdds") or {}
+        rows.append({
+            "provider":     (e.get("provider") or {}).get("name", "ESPN BET"),
+            "away_abbr":    ((a.get("team") or {}).get("abbreviation") or away_abbr),
+            "home_abbr":    ((h.get("team") or {}).get("abbreviation") or home_abbr),
+            "away_ml":      a.get("moneyLine"),
+            "home_ml":      h.get("moneyLine"),
+            "away_spread":  e.get("spread"),
+            "away_sp_odds": a.get("spreadOdds"),
+            "home_sp_odds": h.get("spreadOdds"),
+            "total":        e.get("overUnder"),
+            "over_odds":    e.get("overOdds"),
+            "under_odds":   e.get("underOdds"),
+            "details":      e.get("details") or "",
+        })
+    return rows
+
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| saves odds json for alfy def save_odds(rows, game_id=None, source="ESPN_NHL"):
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+def save_odds(rows, game_id=None, source="ESPN_NHL"):
+    data = {
+        "source":     source.upper(),
+        "fetched_at": datetime.now().isoformat(),
+        "game_id":    game_id,
+        "total":      len(rows),
+        "games":      rows,
+    }
+    path = DATA_DIR / "nhl-odds.json"
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    print(f"  💾  Odds: {path}  ({len(rows)})")
+    return path
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| def scout_yahoo_winprob(url):
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+def scout_yahoo_winprob(url):
+    """
+    Fetch a Yahoo boxscore page and pull the embedded win-prob timeline.
+    Returns list of {clock, period, home_pct, away_pct, home_score, away_score}.
+    """
+    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+    try:
+        raw = urllib.request.urlopen(req, timeout=15).read().decode('utf-8', 'replace')
+    except Exception as e:
+        print(f"  {RED}⚠ winprob fetch failed: {e}{R}")
+        return []
+
+    # 1. Grab the escaped React payload strings and unescape them
+    blobs = re.findall(r'self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)', raw)
+    joined = ""
+    for b in blobs:
+        try:
+            joined += json.loads(b)
+        except Exception:
+            continue
+
+    # Fallback: if Next.js blobs failed, just use the raw HTML
+    if not joined:
+        joined = raw
+
+    # 2. Find the start of the timeline array
+    key = '"winProbabilityTimeline":'
+    idx = joined.find(key)
+    if idx == -1:
+        print(f"  {YLW}⚠ winProbabilityTimeline not found in Yahoo page{R}")
+        return []
+
+    start_bracket = joined.find('[', idx)
+    if start_bracket == -1:
+        return []
+
+    # 3. Use a bracket counter to extract the exact JSON array (handles nested brackets safely)
+    depth = 0
+    end_bracket = -1
+    for i in range(start_bracket, len(joined)):
+        char = joined[i]
+        if char == '[':
+            depth += 1
+        elif char == ']':
+            depth -= 1
+            if depth == 0:
+                end_bracket = i
+                break
+
+    if end_bracket == -1:
+        return []
+
+    json_str = joined[start_bracket:end_bracket+1]
+
+    # 4. Parse the array
+    try:
+        series = json.loads(json_str)
+    except Exception as e:
+        print(f"  {RED}⚠ winprob parse failed: {e}{R}")
+        return []
+
+    # Helper to unwrap nested values like {"value": 63.9} -> 63.9
+    def get_val(obj):
+        if isinstance(obj, dict):
+            return obj.get("value", 0)
+        return obj if obj is not None else 0
+
+    out = []
+    for p in series:
+        clock = p.get("clock") or ""
+        per = None
+        mmss = None
+        
+        # "1st 0:32" → period=1, mm:ss="0:32"
+        mm = re.match(r'^(1st|2nd|3rd|OT)\s+(\d{1,2}:\d{2})$', clock)
+        if mm:
+            per = {"1st": 1, "2nd": 2, "3rd": 3, "OT": 4}[mm.group(1)]
+            mmss = mm.group(2)
+            
+        out.append({
+            "clock":       clock,
+            "period":      per,
+            "time":        mmss,
+            "home_pct":    get_val(p.get("homeTeamProbability")),
+            "away_pct":    get_val(p.get("awayTeamProbability")),
+            "home_score":  get_val(p.get("homeScore")),
+            "away_score":  get_val(p.get("awayScore")),
+        })
+        
+    return out
+
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| def scout_league_scoreboard(): add this near pick live NHL games
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+ESPN_NHL_SCOREBOARD_JSON = (
+    "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/scoreboard"
+)
+
+def scout_league_scoreboard():
+    """
+    Hit ESPN's site API for the NHL scoreboard (all games on the board tonight).
+    Returns list of dicts shaped for nhlscores.json.
+    """
+    try:
+        req = urllib.request.Request(
+            ESPN_NHL_SCOREBOARD_JSON,
+            headers={
+                'User-Agent': 'Mozilla/5.0',
+                'Accept':     'application/json',
+            },
+        )
+        raw = urllib.request.urlopen(req, timeout=15).read().decode('utf-8', 'replace')
+        data = json.loads(raw)
+    except Exception as e:
+        print(f"  {RED}⚠ league scoreboard JSON fetch failed: {e}{R}")
+        return []
+
+    events = data.get("events", []) or []
+    out = []
+
+    for ev in events:
+        try:
+            comp = (ev.get("competitions") or [{}])[0]
+            teams = comp.get("competitors") or []
+            if len(teams) < 2:
+                continue
+
+            # ESPN marks home/away with 'homeAway'
+            by_side = {t.get("homeAway"): t for t in teams}
+            away = by_side.get("away") or teams[0]
+            home = by_side.get("home") or teams[1]
+
+            away_team = away.get("team") or {}
+            home_team = home.get("team") or {}
+
+            away_full = away_team.get("displayName") or away_team.get("name") or "Away"
+            home_full = home_team.get("displayName") or home_team.get("name") or "Home"
+            away_abbr = (away_team.get("abbreviation") or FULL_TO_ABBR.get(away_full, away_full[:3])).upper()
+            home_abbr = (home_team.get("abbreviation") or FULL_TO_ABBR.get(home_full, home_full[:3])).upper()
+
+            away_score = away.get("score")
+            home_score = home.get("score")
+            # ESPN gives scores as strings already; default to "0" pregame
+            away_score = str(away_score) if away_score not in (None, "") else "0"
+            home_score = str(home_score) if home_score not in (None, "") else "0"
+
+            # status
+            status_obj = (comp.get("status") or ev.get("status") or {})
+            st_type    = status_obj.get("type") or {}
+            st_desc    = st_type.get("description") or st_type.get("detail") or "Scheduled"
+            st_state   = st_type.get("state") or ""     # 'pre' | 'in' | 'post'
+            st_detail  = status_obj.get("displayClock") or ""
+            st_period  = status_obj.get("period") or 0
+
+            # Build a compact status like "3rd 5:21", "Final", "7:00 PM ET"
+            if st_state == "in":
+                ord_per = {1: "1st", 2: "2nd", 3: "3rd"}.get(int(st_period) or 0, f"P{st_period}")
+                status = f"{ord_per} {st_detail}".strip() if st_detail else st_desc
+            elif st_state == "post":
+                status = "Final"
+            else:
+                status = st_desc  # usually "7:00 PM ET" or "Scheduled"
+
+            # winner flags
+            try:
+                s1, s2 = int(away_score), int(home_score)
+            except Exception:
+                s1, s2 = 0, 0
+            away_winner = away.get("winner") if isinstance(away.get("winner"), bool) else (s1 > s2 and st_state == "post")
+            home_winner = home.get("winner") if isinstance(home.get("winner"), bool) else (s2 > s1 and st_state == "post")
+
+            gid = ev.get("id") or comp.get("id")
+
+            out.append({
+                "id":          gid,
+                "game_id":     gid,
+                "away":        away_full,
+                "home":        home_full,
+                "away_abbr":   away_abbr,
+                "home_abbr":   home_abbr,
+                "away_score":  away_score,
+                "home_score":  home_score,
+                "status":      status,
+                "away_winner": bool(away_winner),
+                "home_winner": bool(home_winner),
+            })
+        except Exception as e:
+            print(f"  {YLW}⚠ league row skipped: {e}{R}")
+            continue
+
+    return out
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| ICE RINK — 4-zone horizontal rink in box-drawing chars render rink
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+
+def render_rink(puck_zone=None, away_abbr="AWAY", home_abbr="HOME"):
+    """
+    Horizontal NHL rink, 4 even columns.
+    Columns left→right: away zone | away blue-line side | home blue-line side | home zone
+    """
+    L = "│"
+    TL, TR, BL, BR = "╭", "╮", "╰", "╯"
+    TJ, TJB, CROSS = "┬", "┴", "┼"
+    H = "─"
+
+    col = 11   # each column interior width
+
+    # top border
+    top = f"  {TL}" + H*col + TJ + H*col + TJ + H*col + TJ + H*col + TR
+    bot = f"  {BL}" + H*col + TJB + H*col + TJB + H*col + TJB + H*col + BR
+
+    # faceoff dot row — dots in the middle of each column
+    def dot_row(left_dot=True, right_dot=True):
+        a = "    ◯      " if left_dot  else "           "
+        b = "           "
+        c = "           "
+        d = "      ◯    " if right_dot else "           "
+        return f"  {L}{a}{L}{b}{L}{c}{L}{d}{L}"
+
+    def blank_row():
+        return f"  {L}{' '*col}{L}{' '*col}{L}{' '*col}{L}{' '*col}{L}"
+
+    # crease rows — the two middle columns share a symmetric crease
+    def crease_row(top=True):
+        midL = "  ╭─────╮  "
+        midR = "  ╰─────╯  "
+        if top:
+            # both crescents curl inward facing each other
+            return f"  {L}{' '*col}{L}  ╭───┬───╮  {L}{' '*col}{L}"
+        else:
+            return f"  {L}{' '*col}{L}  ╰───┴───╯  {L}{' '*col}{L}"
+
+    lines = []
+    lines.append(top)
+    lines.append(blank_row())
+    lines.append(dot_row())
+    lines.append(blank_row())
+    lines.append(f"  {L}{' '*col}{L}   ╭───┼───╮   {L}{' '*col}{L}")
+    lines.append(f"  {L}{' '*col}{L}   │   │   │   {L}{' '*col}{L}")
+    lines.append(f"  {L}{' '*col}{L}   ╰───┼───╯   {L}{' '*col}{L}")
+    lines.append(blank_row())
+    lines.append(dot_row())
+    lines.append(blank_row())
+    lines.append(bot)
+
+    # team labels under the rink, aligned to the outer columns
+    label_line = (
+        f"  {ORG}{away_abbr:^{col}}{R}"
+        f"{' '*col}"
+        f"{' '*col}"
+        f"{ORG}{home_abbr:^{col}}{R}"
+    )
+    lines.append(label_line)
+
+    return lines
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| def xfactor_for(name):
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--|
+
+def xfactor_for(name):
+    """
+    Look up X-Factor class(es) for a scorer by last name.
+    Strips (N), [PP], [EN] tags before lookup.
+    Returns list of class names, or [] if none matched.
+    """
+    if not name:
+        return []
+    # strip parens and [tags]
+    clean = re.sub(r'\([^)]*\)', '', name)
+    clean = re.sub(r'\[[^\]]*\]', '', clean)
+    clean = clean.strip()
+    if not clean:
+        return []
+    last = clean.split()[-1]
+    for key, classes in NHL_XFACTOR_PLAYERS.items():
+        if key.lower() == last.lower():
+            return classes
+    return []
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| def scout_dump(): scout dump
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--|
+
+def scout_dump():
+    """Grip ESPN NHL Gamecast + Box Score + Play-By-Play → sectioned terminal dump."""
+
+    url     = GAMECAST_NHL_GAME or pick_live_nhl_game()
+    pbp_url = PLAY_BY_PLAY_NHL
+    box_url = SCORING_SUMMARY
+    if not url:
+        print(f"  {RED}⚠ no NHL game URL{R}")
+        return [], "none"
+
+    print(f"  {CYN}🏒  scouting:  {url}{R}")
+    print(f"  {CYN}🏒  boxscore:  {box_url}{R}")
+    print(f"  {CYN}🏒  pbp:       {pbp_url}{R}")
+
+    def grip(u):
+        try:
+            req = urllib.request.Request(u, headers={'User-Agent': 'Mozilla/5.0'})
+            return urllib.request.urlopen(req, timeout=15).read().decode('utf-8', errors='replace')
+        except Exception as e:
+            print(f"  {RED}⚠ fetch failed [{u}]: {e}{R}")
+            return ""
+
+    html     = grip(url)
+    box_html = grip(box_url)
+    pbp_html = grip(pbp_url)
+
+    if not html:
+        return [], "none"
+
+    (DATA_DIR / "espn-nhl-raw.html").write_text(html, encoding='utf-8')
+    if box_html:
+        (DATA_DIR / "espn-nhl-box-raw.html").write_text(box_html, encoding='utf-8')
+    if pbp_html:
+        (DATA_DIR / "espn-nhl-pbp-raw.html").write_text(pbp_html, encoding='utf-8')
+
+    toks     = html_to_tokens(html)
+    box_toks = html_to_tokens(box_html) if box_html else []
+    pbp_toks = html_to_tokens(pbp_html) if pbp_html else []
+
+    def find(a, s=0, tt=None):
+        tt = tt if tt is not None else toks
+        try:    return tt.index(a, s)
+        except: return -1
+
+    def find_seq(seq, s=0, tt=None):
+        tt = tt if tt is not None else toks
+        n = len(seq)
+        for i in range(s, len(tt) - n + 1):
+            if tt[i:i+n] == seq:
+                return i
+        return -1
+
+    def is_int(t):
+        return t.isdigit() and len(t) <= 2
+
+    # ── anchors on gamecast ──
+    i_hdr = -1
+    for i, t in enumerate(toks):
+        if re.match(r'^[A-Z][a-zA-Z .]+ @ [A-Z][a-zA-Z .]+$', t):
+            i_hdr = i
+            break
+
+    i_box     = find_seq(["ESPN", "1", "2", "3", "T"])
+    i_scoring = find("Scoring Summary", tt=box_toks) if box_toks else -1
+    i_odds    = find("Game Odds", tt=box_toks)        if box_toks else -1
+
+    # ── matchup header ──
+    matchup = toks[i_hdr] if i_hdr >= 0 else None
+    away_full = away_abbr = home_full = home_abbr = None
+    if i_hdr >= 0:
+        m = re.match(r'^(.+) @ (.+)$', matchup)
+        if m:
+            away_full, home_full = m.group(1).strip(), m.group(2).strip()
+            away_abbr = FULL_TO_ABBR.get(away_full, away_full.split()[-1][:3].upper())
+            home_abbr = FULL_TO_ABBR.get(home_full, home_full.split()[-1][:3].upper())
+
+    # ═══════════════════════════════════════════════════════════
+    #  feed edge calc later here important dont touch!
+    # ═══════════════════════════════════════════════════════════
+
+    # ═══════════════════════════════════════════════════════════
+    #  LIVE SCORE — box score table is source of truth
+    # ═══════════════════════════════════════════════════════════
+    clock = period = None
+    live_away_score = live_home_score = None
+
+    STATUS_WORDS = ("Final", "Final/OT", "Final/SO", "OT", "SO",
+                    "1st", "2nd", "3rd", "Live", "Scheduled",
+                    "End of 1st", "End of 2nd", "End of 3rd")
+
+    scan_end = min(i_hdr + 40 if i_hdr >= 0 else 200, len(toks) - 4)
+
+    # ── status word (period) — from the gamecast header ──
+    for i in range(0, scan_end):
+        if toks[i] in STATUS_WORDS:
+            period = toks[i]
+            break
+
+    # ── clock — optional, live games only ──
+    for k in range(0, scan_end):
+        if re.match(r'^\d{1,2}:\d{2}$', toks[k]):
+            clock = toks[k]
+            break
+
+    # ── scores — from the box score table (box_toks), not the header ──
+    away_p = home_p = None
+    if box_toks:
+        for i in range(len(box_toks) - 4):
+            if box_toks[i:i+4] == ["1", "2", "3", "T"]:
+                rows = []
+                k = i + 4
+                while k < len(box_toks) - 4 and len(rows) < 2:
+                    if box_toks[k] in NHL_ABBRS or re.match(r'^[A-Z][a-zA-Z ]+$', box_toks[k]):
+                        nums = []
+                        for j in range(k + 1, min(k + 8, len(box_toks))):
+                            if is_int(box_toks[j]):
+                                nums.append(int(box_toks[j]))
+                                if len(nums) >= 4:
+                                    break
+                            elif nums:
+                                break
+                        if len(nums) >= 3:
+                            rows.append(nums)
+                            k += 1 + len(nums)
+                            continue
+                    k += 1
+                if len(rows) >= 2:
+                    def norm(v):
+                        return (v[:-1] + [0]*3)[:3] + [v[-1]]
+                    away_p = norm(rows[0])
+                    home_p = norm(rows[1])
+                break
+
+    if away_p and home_p:
+        live_away_score = away_p[-1]
+        live_home_score = home_p[-1]
+
+    away_score = live_away_score
+    home_score = live_home_score
+
+
+    # ═══════════════════════════════════════════════════════════
+    #  BOX SCORE
+    # ═══════════════════════════════════════════════════════════
+    away_p = home_p = None
+    if i_box > 0:
+        rows = []
+        k = i_box + 5
+        while k < len(toks) - 4 and len(rows) < 4:
+            if re.match(r'^[A-Z][a-zA-Z ]+$', toks[k]):
+                nums = []
+                for j in range(k + 1, min(k + 8, len(toks))):
+                    if is_int(toks[j]):
+                        nums.append(int(toks[j]))
+                        if len(nums) >= 4:
+                            break
+                    elif nums:
+                        break
+                if len(nums) >= 3:
+                    rows.append((toks[k], nums))
+                    k += 1 + len(nums)
+                    continue
+            k += 1
+
+        if len(rows) >= 2:
+            def norm(vals):
+                total = vals[-1]
+                per = (vals[:-1] + [0]*3)[:3]
+                return per + [total]
+
+            away_p = norm(rows[0][1])
+            home_p = norm(rows[1][1])
+
+            if away_score is None: away_score = away_p[-1]
+            if home_score is None: home_score = home_p[-1]
+
+    # ═══════════════════════════════════════════════════════════
+    #  SCORING SUMMARY — from the boxscore page
+    # ═══════════════════════════════════════════════════════════
+    goals = []
+    if box_toks and i_scoring != -1:
+        start = i_scoring
+        end   = i_odds if i_odds != -1 else len(box_toks)
+        k = start
+        cur_period = None
+        while k < end:
+            t = box_toks[k]
+
+            pm = re.match(r'^(1st|2nd|3rd|OT)\s*(?:Period)?$', t, re.IGNORECASE)
+            if pm:
+                cur_period = f"{pm.group(1).upper()} PERIOD"
+                k += 1
+                continue
+
+            # goal row:  "12:55"  then  "Fraser Minten (3)"
+            if cur_period and re.match(r'^\d{1,2}:\d{2}$', t):
+                clock_g = t
+                scorer = None
+                assists = None
+                away_r = home_r = None
+
+                # walk forward
+                for j in range(k + 1, min(k + 14, len(box_toks))):
+                    tok = box_toks[j]
+
+                    # SCORER — name only, look ahead for "(N)" and "(Power Play)" / "(Empty Net)"
+                    if scorer is None and re.match(r"^[A-Z][a-zA-Z\-\.\']+(?: [A-Z][a-zA-Z\-\.\']+)+$", tok):
+                        scorer_name = tok
+                        scorer_num  = ""
+                        pp_flag     = False
+                        en_flag     = False
+                        # peek next 4 tokens for "(N)" and PP/EN tags
+                        for look in range(j + 1, min(j + 5, len(box_toks))):
+                            nxt = box_toks[look]
+                            if re.match(r'^\(\d+\)$', nxt):
+                                scorer_num = nxt
+                            elif nxt == "(Power Play)":
+                                pp_flag = True
+                            elif nxt == "(Empty Net)":
+                                en_flag = True
+                        scorer = f"{scorer_name} {scorer_num}".strip()
+                        # stash flags on a side list — we'll read them below
+                        if pp_flag: scorer += " [PP]"
+                        if en_flag: scorer += " [EN]"
+                        continue
+
+                    # ASSISTS
+                    if scorer and tok.startswith("Assists:"):
+                        assists = tok
+                        continue
+
+                    # Unassisted marker
+                    if scorer and tok == "Unassisted":
+                        assists = "Unassisted"
+                        continue
+
+                    # running score: two consecutive ints
+                    if scorer and re.match(r'^\d+$', tok) and j + 1 < len(box_toks) and re.match(r'^\d+$', box_toks[j+1]):
+                        away_r, home_r = int(tok), int(box_toks[j+1])
+                        break
+
+                if scorer:
+                    goals.append({
+                        "period": cur_period,
+                        "clock":  clock_g,
+                        "scorer": scorer,
+                        "assists": assists or "",
+                        "score":  f"{away_r}-{home_r}" if away_r is not None else "",
+
+                    })
+            k += 1
+
+        # ESPN lists goals newest-first (2nd period before 1st). Reverse-sort
+        # so 1st period prints first, and within a period the newest goal is on top.
+        def goal_sort_key(g):
+            per_num = {"1ST": 1, "2ND": 2, "3RD": 3, "OT": 4, "SO": 5}.get(g["period"].split()[0], 1)
+            # mm:ss → seconds
+            try:
+                m, s = g["clock"].split(":")
+                secs = int(m) * 60 + int(s)
+            except Exception:
+                secs = 0
+            return (per_num, -secs)   # period ascending, clock descending
+
+        goals.sort(key=goal_sort_key)
+
+    # ── goalies ──
+    goalies = []
+    for k in range(0, len(toks) - 6):
+        if toks[k] in ("GOALTENDER",):
+            for j in range(k + 1, min(k + 12, len(toks))):
+                if re.match(r'^[A-Z]\. [A-Z][a-zA-Z\-]+$', toks[j]):
+                    row = toks[j:j+10]
+                    try:
+                        sa  = row[row.index("SA") + 1] if "SA" in row else "—"
+                        ga  = row[row.index("GA") + 1] if "GA" in row else "—"
+                        sv  = row[row.index("SV") + 1] if "SV" in row else "—"
+                        svp = next((x for x in row if re.match(r'^\.\d{3}$', x)), "—")
+                        goalies.append({"name": toks[j], "sa": sa, "ga": ga, "sv": sv, "svp": svp})
+                    except Exception:
+                        pass
+                    break
+
+    # ═══════════════════════════════════════════════════════════
+    #  PLAY-BY-PLAY
+    # ═══════════════════════════════════════════════════════════
+    pbp_rows = []
+    if pbp_toks:
+        cur_period = None
+        k = 0
+        while k < len(pbp_toks):
+            t = pbp_toks[k]
+
+            # Catch both "2nd Period" and "End of 2nd Period"
+            pm = re.match(r'^(?:End of\s+)?(1st|2nd|3rd|OT)\s*(?:Period)?$', t, re.IGNORECASE)
+            if pm:
+                is_end = "End of" in t
+                cur_period = ("END OF " if is_end else "") + pm.group(1).upper() + " PERIOD"
+                k += 1
+                continue
+
+            m = re.match(r'^(\d{1,2}:\d{2})\s*-\s*(\d(?:st|nd|rd)|OT)\s*\((\d+-\d+)\)$', t)
+            if m:
+                desc = pbp_toks[k+1] if k + 1 < len(pbp_toks) else ""
+                if desc and not re.match(r'^\d{1,2}:\d{2}', desc) and len(desc) >= 6:
+                    pbp_rows.append({
+                        "period": m.group(2), "clock": m.group(1),
+                        "score": m.group(3), "desc": desc,
+                    })
+                k += 2
+                continue
+
+            if re.match(r'^\d{1,2}:\d{2}$', t) and k + 1 < len(pbp_toks):
+                desc = pbp_toks[k+1]
+                if desc and len(desc) > 8 and not re.match(r'^\d{1,2}:\d{2}$', desc):
+                    sm = re.match(r'^Start of (1st|2nd|3rd|OT)', desc, re.I)
+                    em = re.match(r'^End of (1st|2nd|3rd|OT)', desc, re.I)   # ← ADD
+                    if sm:
+                        eff_period = sm.group(1).upper() + " PERIOD"
+                    elif em:                                                   # ← ADD
+                        eff_period = "END OF " + em.group(1).upper() + " PERIOD"
+                    else:
+                        eff_period = cur_period or ""
+                    
+                    score = ""
+                    for j in range(k+2, min(k+6, len(pbp_toks))):
+                        if re.match(r'^\d+-\d+$', pbp_toks[j]):
+                            score = pbp_toks[j]; break
+                    pbp_rows.append({
+                        "period": eff_period, "clock": t,
+                        "score": score, "desc": desc,
+                    })
+                    k += 2
+                    continue
+
+            k += 1
+
+    seen = set()
+    deduped = []
+    for r in pbp_rows:
+        sig = (r["clock"], r["period"], r["desc"])
+        if sig in seen:
+            continue
+        seen.add(sig)
+        deduped.append(r)
+    pbp_rows = deduped
+    pbp_rows.reverse()   # ← ESPN ships newest-first; flip so oldest prints first
+
+    # ═══════════════════════════════════════════════════════════
+    #  PRINT
+    # ═══════════════════════════════════════════════════════════
+
+    print()
+    banner("MICHELANGELO  ·  ESPN NHL GAMECAST",
+           f"{matchup or '—'}" + (f"  ·  {period}" + (f" {clock}" if clock else "") if period else ""))
+
+    section("ANCHOR TREE", [
+        f"{RED}ᛉ  i_hdr     = {i_hdr}{R}",
+        f"{RED}ᛉ  i_box     = {i_box}{R}",
+        f"{RED}ᛉ  i_scoring = {i_scoring}{R}",
+        f"{RED}ᛉ  i_odds    = {i_odds}{R}",
+        f"{RED}ᛉ  live: {away_abbr} {live_away_score} - {live_home_score} {home_abbr}  ·  {period} {clock}{R}",
+        f"{RED}ᛉ  box_toks  = {len(box_toks)}{R}",
+        f"{RED}ᛉ  pbp_toks  = {len(pbp_toks)}{R}",
+        f"{RED}ᛉ  pbp rows  = {len(pbp_rows)}{R}",
+        f"{RED}ᛉ  goals     = {len(goals)}{R}",
+    ])
+
+    if away_p and home_p:
+        section("BOX SCORE", [
+            f"{DIM}         1    2    3    T{R}",
+            f"{GRN}{(away_abbr or 'AWAY'):<5}{R}  " + "  ".join(f"{v:>3}" for v in away_p),
+            f"{GRN}{(home_abbr or 'HOME'):<5}{R}  " + "  ".join(f"{v:>3}" for v in home_p),
+        ])
+
+    # ── ICE RINK ──
+    section("ICE RINK", render_rink(
+        puck_zone=None,
+        away_abbr=(away_abbr or "AWAY"),
+        home_abbr=(home_abbr or "HOME"),
+    ))
+
+    # ── SCORING SUMMARY (from boxscore) ──
+    if goals:
+        lines = []
+        last_p = None
+        for g in goals:
+            if g["period"] != last_p:
+                lines.append(f"{ORG}{g['period']}{R}")
+                last_p = g["period"]
+
+            lines.append(f"{DIM}{g['clock']:>6}{R}   {YLW}⭐ {g['scorer']}{R}")
+
+
+            if g["assists"]:
+                lines.append(f"{DIM}        {g['assists']}{R}")
+            if g["score"]:
+                lines.append(f"{DIM}        {g['score']}{R}")
+        section("SCORING SUMMARY - X factor stars of the game ⭐", lines)
+        print(f"\n  {ORG}{'═' * 70}{R}\n")  # <--- ADD THIS
+
+    if goalies:
+        lines = []
+        for g in goalies:
+            lines.append(
+                f"{g['name']:<15} {g['sa']:>3} SA  {g['ga']:>2} GA  {g['sv']:>3} SV  {g['svp']}"
+            )
+        section("GOALIES", lines)
+        print(f"\n  {ORG}{'═' * 70}{R}\n")  # <--- ADD THIS
+
+
+    # ── PLAY-BY-PLAY ──
+    if pbp_rows:
+        lines = []
+        last_p = None
+        for p in pbp_rows:
+            if p["period"] and p["period"] != last_p:
+                lines.append(f"{ORG}{p['period']}{R}")
+                last_p = p["period"]
+            score = f"({p['score']}) " if p["score"] else ""
+            lines.append(f"{DIM}{p['clock']:>6}{R}  {score}{p['desc']}")
+        section("PLAY-BY-PLAY", lines)
+    else:
+        section("PLAY-BY-PLAY", [f"{DIM}no pbp rows parsed — check {DATA_DIR}/espn-nhl-pbp-raw.html{R}"])
+
+    # ═══════════════════════════════════════════════════════════
+    #  SCORE = newest parsed goal's running score (goals[0] is newest)
+    # ═══════════════════════════════════════════════════════════
+
+
+
+    print()
+
+    game = {
+        "team1": away_full or "Away",
+        "team2": home_full or "Home",
+        "score1": str(away_score if away_score is not None else 0),
+        "score2": str(home_score if home_score is not None else 0),
+        "status": f"{period} {clock}".strip() if period else "Live",
+        "game_id": re.search(r'/gameId/(\d+)', url).group(1) if re.search(r'/gameId/(\d+)', url) else None,
+    }
+    # CHANGED: return pbp_rows + goals + goalies too
+    return [game], "espn_nhl", pbp_rows, goals, goalies
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| def save_playbyplay_json( add this near alfred 
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+def save_playbyplay_json(pbp_rows, goals, goalies, game=None):
+    """Dump FULL play-by-play, goals, and goalies to JSON."""
+    payload = {
+        "source": "ESPN_NHL",
+        "fetched_at": datetime.now().isoformat(),
+        "game": game or {},
+        "play_by_play_count": len(pbp_rows),
+        "play_by_play": pbp_rows,          # ← ALL rows, nothing truncated
+        "goals_count": len(goals),
+        "goals": goals,
+        "goalies": goalies,
+    }
+    path = DATA_DIR / "nhl-playbyplay.json"
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(payload, f, indent=2, ensure_ascii=False)
+    print(f"  💾  Play-by-Play JSON: {path}  ({len(pbp_rows)} rows)")
+    return path
+
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| saves scores for alfred :def save_league_scores(games, source="ESPN_NHL"):
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+
+def save_league_scores(games, source="ESPN_NHL"):
+    """Write the full league scoreboard to nhlscores.json (dashboard shape)."""
+    data = {
+        "source":     source.upper(),
+        "fetched_at": datetime.now().isoformat(),
+        "total":      len(games),
+        "games":      games,
+    }
+    json_path = DATA_DIR / "nhlscores.json"
+    with open(json_path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    print(f"  💾  League scoreboard: {json_path}  ({len(games)} games)")
+    return json_path
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| JSON SAVE — Alfred shape
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+def save_scores_for_alfred(games, source="ESPN_NHL"):
+    data = {
+        "source": source.upper(),
+        "fetched_at": datetime.now().isoformat(),
+        "total": len(games),
+        "games": []
+    }
+    for game in games:
+        team1 = game.get('team1', 'Unknown')
+        team2 = game.get('team2', 'Unknown')
+        score1 = game.get('score1', '0')
+        score2 = game.get('score2', '0')
+        status = game.get('status', 'Scheduled')
+        try:
+            s1, s2 = int(score1), int(score2)
+        except:
+            s1, s2 = 0, 0
+        data["games"].append({
+            "away": team1,
+            "home": team2,
+            "away_score": str(score1),
+            "home_score": str(score2),
+            "status": status,
+            "away_winner": s1 > s2,
+            "home_winner": s2 > s1,
+        })
+    json_path = DATA_DIR / "nhlscores.json"
+    with open(json_path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    print(f"  💾  JSON saved for Alfred: {json_path}")
+    return json_path
+
+#+--|----------------------------------------------------------------------------------------------->
+#+--| json Leonardo write better for live nil json
+#+--|----------------------------------------------------------------------------------------------->
+#+--|
+def save_leonardo_compat(games):
+    away = games[0]["team1"] if games else "Away"
+    home = games[0]["team2"] if games else "Home"
+    
+    # 1. Grab the raw status
+    raw_status = games[0]["status"] if games else "Scheduled"
+    
+    # 2. FIX: If the clock is 0:00, force "End of..." so the dashboard knows
+    if "0:00" in raw_status and "End" not in raw_status:
+        per = raw_status.split()[0]
+        status = f"End of {per}"
+    else:
+        status = raw_status
+
+    payload = {
+        "timestamp": datetime.now().isoformat(),
+        "source_url": GAMECAST_NHL_GAME,
+        "game_data": {
+            "teams": [
+                {"name": away, "abbr": FULL_TO_ABBR.get(away, away[:3].upper())},
+                {"name": home, "abbr": FULL_TO_ABBR.get(home, home[:3].upper())},
+            ],
+            "away_score": games[0]["score1"] if games else "0",
+            "home_score": games[0]["score2"] if games else "0",
+            "status": status, # <--- USES THE FIXED STATUS
+            "recent_plays": [],
+            "win_prob_away": None,
+            "win_prob_home": None,
+        },
+    }
+    path = DATA_DIR / "nhl_live.json"
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(payload, f, indent=2, ensure_ascii=False)
+    print(f"  💾  Leonardo-compat: {path}")
+    return path
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| CHAPTER 4: 𝒊 ζ zeta — VERIFIERS
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+previous_scores = {}
+_prev_numeric = {}
+
+def check_score_changes(games):
+    global previous_scores, _prev_numeric
+    changes = []
+    for g in games:
+        team1 = g.get('team1', '')
+        team2 = g.get('team2', '')
+        key = f"{team1}|{team2}"
+        score1 = g.get('score1', '0')
+        score2 = g.get('score2', '0')
+        cur = f"{score1}-{score2}"
+        status = g.get('status', 'Unknown')
+
+        try:
+            s1, s2 = int(score1), int(score2)
+            total_now = s1 + s2
+        except Exception:
+            total_now = None
+
+        prev_total = _prev_numeric.get(key)
+
+        # only fire when the total strictly increased (goals are monotonic)
+        if key in previous_scores and previous_scores[key] != cur:
+            if total_now is None or prev_total is None or total_now > prev_total:
+                changes.append({
+                    'game': f"{team1} @ {team2}",
+                    'old': previous_scores[key],
+                    'new': cur,
+                    'status': status,
+                })
+
+        previous_scores[key] = cur
+        if total_now is not None:
+            _prev_numeric[key] = total_now
+    return changes
+
+def send_score_notification(change):
+    try:
+        script = f'''
+        display notification "{change['game']}: {change['old']} → {change['new']}" with title "🏒 GOAL" subtitle "{change['status']}" sound name "Ping"
+        '''
+        subprocess.run(['osascript', '-e', script], capture_output=True, timeout=5)
+        print(f"  {ORG}🔔 Score change!{R}")
+        print(f"  {GRN}  {change['game']}: {change['old']} → {change['new']}{R}")
+    except Exception as e:
+        print(f"  {RED}⚠️ Notification failed: {e}{R}")
+
+
+def speak_score_change(change):
+    text = f"Goal. {change['game']}. {change['old']} to {change['new']}."
+    try:
+        mp3 = DATA_DIR / "thomas_nhl_voice.mp3"
+        r = subprocess.run([
+            "edge-tts",
+            "--voice", THOMAS_VOICE,
+            "--text", text,
+            "--write-media", str(mp3)
+        ], capture_output=True, text=True, timeout=15)
+        if r.returncode != 0:
+            print(f"  {YLW}⚠️ TTS skipped (edge-tts 403 — Bing token issue){R}")
+            return
+        subprocess.run(['afplay', str(mp3)], check=False)
+        print(f"  {GRN}🎩 Thomas voice dropped{R}")
+    except FileNotFoundError:
+        print(f"  {YLW}⚠️ edge-tts not installed — run: pip install edge-tts{R}")
+    except Exception as e:
+        print(f"  {YLW}⚠️ TTS failed: {e}{R}")
+
+
+def darwin_format(games, source):
+    output = []
+    output.append(DIV)
+    output.append(f"🏒  nhl SCOREBOARD  —  {time.strftime('%A, %B %d, %Y — %I:%M %p')}  🟠🐢")
+    output.append(DIV)
+    if games:
+        output.append(f"  📡 Source: {source.upper()}")
+        output.append(DIV)
+        for i, game in enumerate(games, 1):
+            team1 = game.get('team1', '?')
+            team2 = game.get('team2', '?')
+            score1 = game.get('score1', '0')
+            score2 = game.get('score2', '0')
+            status = game.get('status', 'Scheduled')
+            if 'Final' in status:
+                output.append(f"  {i:2}. {team1:24} {score1} — {score2} {team2:24}  [DONE] Final")
+            elif status == 'Scheduled':
+                output.append(f"  {i:2}. {team1:24} vs {team2:24}  ⏰ Scheduled")
+            else:
+                output.append(f"  {i:2}. {team1:24} {score1} — {score2} {team2:24}  🏒 {status}")
+            output.append(DIV)
+    else:
+        output.append("  ⏳ No game found")
+        output.append(DIV)
+    return "\n".join(output)
+
+
+def mikey_countdown(seconds=25):
+    frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+    idx = 0
+    for remaining in range(seconds, 0, -1):
+        for _ in range(10):
+            print(f"\r  {ORG}{frames[idx % len(frames)]}{R}  {DIM}next grip in {remaining:3}s{R}",
+                  end="", flush=True)
+            idx += 1
+            time.sleep(0.08)
+    print()
+
+
+def exit_handler(sig, frame):
+    print(f"\n  {ORG}🟠  Mikey dropping the nunchucks...{R}")
+    print(f"  {ORG}🟠  COWABUNGA forever. ❤️{R}\n")
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, exit_handler)
+signal.signal(signal.SIGTERM, exit_handler)
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| CHAPTER 1: 𝒊 α alpha — LAUNCH SYMBOL
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+def main():
+    print("\n" + DIV)
+    print("🟠  MICHELANGELO  —  NHL SCOREBOARD SCOUT")
+    print("📅", time.strftime("%A, %B %d, %Y — %I:%M %p"))
+    print(f"📡  GAMECAST: {GAMECAST_NHL_GAME or '(auto-pick live game)'}")
+    print(f"📡  PBP:      {PLAY_BY_PLAY_NHL}")
+    print(f"⏱️  REFRESH: Every {REFRESH_SECONDS} seconds")
+    print(DIV + "\n")
+
+    show_glassnotes()
+
+    last_odds_refresh = 0          # ← initialized ONCE, before the loop
+    last_wp_refresh   = 0          # ← initialized ONCE, before the loop
+
+    cycle = 0
+    while True:
+        cycle += 1
+
+        # ── pinned game scout (rink, PBP, goals, goalies) ──
+        try:
+            games, source, pbp_rows, goals, goalies = scout_dump()
+        except Exception as e:
+            print(f"  {RED}scout error: {e}{R}")
+            mikey_countdown(REFRESH_SECONDS)
+            continue
+
+        # ── league-wide scoreboard (ALL games tonight) ──
+        league_games = scout_league_scoreboard()
+        if league_games:
+            save_league_scores(league_games, source)
+            
+            # 🔥 NEW: Override the broken boxscore score with the accurate league score!
+            if games:
+                gid = games[0].get("game_id")
+                for lg in league_games:
+                    if str(lg.get("id")) == str(gid):
+                        games[0]["score1"] = lg.get("away_score")
+                        games[0]["score2"] = lg.get("home_score")
+                        games[0]["status"] = lg.get("status")
+                        break
+        else:
+            print(f"  {YLW}⚠ league scoreboard empty — leaving nhlscores.json as-is{R}")
+
+        if not games:
+            mikey_countdown(REFRESH_SECONDS)
+            continue
+
+        changes = check_score_changes(games)
+        for change in changes:
+            send_score_notification(change)
+            threading.Thread(target=speak_score_change, args=(change,), daemon=True).start()
+
+        output = darwin_format(games, source)
+        print("\n" + output)
+
+        txt_file = DATA_DIR / f"{source}_scoreboard.txt"
+        with open(txt_file, 'w', encoding='utf-8') as f:
+            f.write(output)
+        print(f"  💾  Saved TXT: {txt_file}")
+
+        # ── odds — pinned game only, refresh every 10 min ──
+        if time.time() - last_odds_refresh > 250:
+            g0 = games[0] if games else {}
+            gid = g0.get("game_id")
+            rows = scout_odds(
+                gid,
+                away_abbr=FULL_TO_ABBR.get(g0.get("team1", ""), (g0.get("team1") or "")[:3].upper()),
+                home_abbr=FULL_TO_ABBR.get(g0.get("team2", ""), (g0.get("team2") or "")[:3].upper()),
+            )
+
+
+            if rows:
+                save_odds(rows, gid)
+            last_odds_refresh = time.time()
+
+        save_leonardo_compat(games)
+
+        # save full play-by-play JSON
+        save_playbyplay_json(pbp_rows, goals, goalies,
+                             game=games[0] if games else None)
+
+        # ── yahoo win-prob → nhl-chart.json (pinned game only, hourly) ──
+        # ── yahoo win-prob → nhl-chart.json (pinned game only, hourly) ──
+        if WP and time.time() - last_wp_refresh > 12:
+            wp = scout_yahoo_winprob(WP)
+            if wp:
+                payload = {
+                    "source":     "YAHOO",
+                    "game_id":    games[0].get("game_id") if games else None,
+                    "fetched_at": datetime.now().isoformat(),
+                    "series":     wp,
+                }
+                path = DATA_DIR / "nhl-chart.json"
+                with open(path, 'w', encoding='utf-8') as f:
+                    json.dump(payload, f, indent=2, ensure_ascii=False)
+                print(f"  💾  Win-prob: {path}  ({len(wp)} points)")
+
+                # mirror latest win prob into nhl_live.json
+                try:
+                    leo = DATA_DIR / "nhl_live.json"
+                    if leo.exists():
+                        with open(leo, 'r', encoding='utf-8') as f:
+                            leo_data = json.load(f)
+                        latest = wp[-1]
+                        leo_data["game_data"]["win_prob_away"] = latest.get("away_pct")
+                        leo_data["game_data"]["win_prob_home"] = latest.get("home_pct")
+                        with open(leo, 'w', encoding='utf-8') as f:
+                            json.dump(leo_data, f, indent=2, ensure_ascii=False)
+                except Exception as e:
+                    print(f"  {YLW}⚠ win-prob mirror failed: {e}{R}")
+
+                last_wp_refresh = time.time()
+                
+                # 🔥 UPDATE LEONARDO JSON WITH WIN PROB
+                latest = wp[-1]
+                leo_path = DATA_DIR / "nhl_live.json"
+                if leo_path.exists():
+                    with open(leo_path, 'r') as f:
+                        leo = json.load(f)
+                    leo["game_data"]["win_prob_away"] = latest.get("away_pct")
+                    leo["game_data"]["win_prob_home"] = latest.get("home_pct")
+                    with open(leo_path, 'w') as f:
+                        json.dump(leo, f, indent=2)
+                        
+            last_wp_refresh = time.time()
+
+
+
+
+        print(f"\r  {GRN}[DONE]  Cycle {cycle} · {len(games)} game(s). Waiting {REFRESH_SECONDS}s...{R}")
+        mikey_countdown(REFRESH_SECONDS)
+
+
+if __name__ == "__main__":
+    main()
