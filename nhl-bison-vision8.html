@@ -1,0 +1,2011 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NHL Rink · 3D</title>
+
+
+<link rel="icon" href="/themes/nhl/favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="/themes/nhl/favicon.ico" type="image/x-icon">
+
+
+
+
+<style>
+
+
+:root{--bg:#02050a;--panel:rgba(6,12,22,.9);--border:rgba(59,130,246,.3);--text:#dbeafe;--dim:#6b8bb5;--acc:#3b82f6;--acc2:#60a5fa;--goal:#facc15;--pen:#f87171;--font:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px var(--font);overflow:hidden}
+body>canvas{position:fixed!important;inset:0;z-index:0;touch-action:none}
+#hdr{position:fixed;top:0;left:0;right:0;z-index:30;display:flex;align-items:center;gap:8px;padding:8px 12px;padding-top:calc(8px + env(safe-area-inset-top,0px));background:linear-gradient(180deg,rgba(2,5,10,.96),rgba(2,5,10,.75));backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+#brand{font-weight:800;letter-spacing:2px;font-size:17px;color:var(--acc2);padding-right:10px;border-right:1px solid var(--border)}
+#nav{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;flex:1}
+.tab{padding:7px 13px;border-radius:7px;font-size:12px;font-weight:600;color:var(--dim);cursor:pointer;white-space:nowrap;border:0;background:none}
+.tab.on{color:var(--text);background:rgba(59,130,246,.2);box-shadow:inset 0 0 0 1px var(--border)}
+#strip{position:fixed;left:0;right:0;z-index:20;top:calc(54px + env(safe-area-inset-top,0px));display:flex;gap:6px;padding:6px 12px;overflow-x:auto;scrollbar-width:none}
+.chip{flex:none;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--panel);font-size:12px;cursor:pointer}
+.chip.on{border-color:var(--acc2);box-shadow:0 0 10px rgba(59,130,246,.4)}
+.chip b{color:var(--acc2)}
+.chip i{color:var(--dim);font-style:normal;font-size:10px;margin-left:6px}
+.pane{position:fixed;z-index:15;left:0;right:0;bottom:0;padding:10px 12px calc(12px + env(safe-area-inset-bottom,0px));background:var(--panel);backdrop-filter:blur(14px);border-top:1px solid var(--border);display:none;max-height:55%;overflow:auto}
+.pane.on{display:block}
+#ctl{display:flex;align-items:center;gap:8px}
+#ctl button{width:38px;height:34px;border-radius:8px;border:1px solid var(--border);background:rgba(59,130,246,.12);color:var(--text);font-size:15px}
+#ctl input{flex:1;accent-color:var(--acc)}
+#info{margin-top:8px;color:var(--dim);font-size:12px;min-height:16px}
+#info b{color:var(--text)}
+#wp{margin-top:8px;display:none;height:18px;border-radius:9px;overflow:hidden;background:#0b1d3a;font-size:10px;line-height:18px;color:#fff;border:1px solid var(--border)}
+#wp div{height:100%;padding:0 8px;float:left;white-space:nowrap}
+#xfBox .pl{margin-bottom:12px}
+#xfBox .nm{font-size:14px;font-weight:700;color:var(--goal)}
+#xfBox .nm i{font-style:normal;color:var(--dim);font-weight:500;font-size:11px;margin-left:6px}
+#xfBox .gl{padding:7px 8px;margin-top:4px;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;color:var(--text)}
+#xfBox .gl:active{background:rgba(59,130,246,.2)}
+#xfBox .gl small{display:block;color:var(--dim);margin-top:2px}
+.hubb{padding:7px 12px;border-radius:7px;font-size:12px;font-weight:700;color:var(--goal);border:1px solid rgba(250,204,21,.4);background:rgba(250,204,21,.08);cursor:pointer;white-space:nowrap}
+.hubb.on{background:rgba(250,204,21,.2)}
+#nav .hubb{flex:none}
+#plBtn{margin-left:auto}
+@media(max-width:700px){.tab .ic{display:none}.tab{padding:6px 6px!important;font-size:11.5px}#hdr{gap:6px;padding:6px 8px;padding-top:calc(6px + env(safe-area-inset-top,0px))}#brand{font-size:14px;letter-spacing:1px;padding-right:7px}#nav{gap:2px}.tab{padding:6px 9px;font-size:12px}.hubb{padding:6px 9px;font-size:14px}.hubb .lbl{display:none}}
+/* ═════ MOMENTUM ALERTS ═════ */
+#toastBox {
+  position: fixed;
+  top: calc(110px + env(safe-area-inset-top, 0px));
+  right: 12px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+.momentum-alert {
+  background: var(--panel);
+  border: 2px solid var(--acc2);
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.8), 0 0 15px rgba(59,130,246,0.3);
+  padding: 10px;
+  width: 280px;
+  pointer-events: auto;
+  animation: slideInRight 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.momentum-alert.out { animation: slideOutRight 0.3s ease-in forwards; }
+@keyframes slideInRight {
+  from { transform: translateX(120%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes slideOutRight {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(120%); opacity: 0; }
+}
+.momentum-alert .ma-hd {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  display: flex;
+  justify-content: space-between;
+}
+.momentum-alert .ma-hd span { color: var(--acc2); }
+.momentum-alert canvas {
+  width: 100%;
+  height: 60px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: #02050a;
+}
+/* scoreboard widget (TV-style): period/clock | logo+abbr | score | win % */
+#sb{position:fixed;z-index:18;left:12px;top:calc(100px + env(safe-area-inset-top,0px));display:none;background:rgba(6,12,22,.94);border:1px solid var(--border);border-radius:9px;overflow:hidden;box-shadow:0 6px 22px rgba(0,0,0,.55);font-weight:800;user-select:none}
+#sb .gr{display:grid;grid-template-columns:64px minmax(86px,auto) 40px 52px;align-items:stretch}
+#sb .tm{grid-row:1/3;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:2px;padding:4px 8px;background:#111827;color:#fff;font-size:15px;line-height:1.1;text-align:center;border-right:1px solid var(--border)}
+#sb .tm small{font-size:14px;color:#fff;font-weight:800}
+#sb .t{display:flex;align-items:center;gap:6px;padding:5px 10px;color:#fff;font-size:15px;letter-spacing:.5px}
+#sb .t.a{background:#1d4ed8}#sb .t.h{background:#0e7490}
+#sb .t .lg{height:22px;width:22px;object-fit:contain}
+#sb .s{display:flex;align-items:center;justify-content:center;background:#f8fafc;color:#0b1220;font-size:24px;border-top:1px solid #cbd5e1;transition:background .3s}
+#sb .s.r1{border-top:0}
+#sb .s.bump{background:var(--goal)}
+#sb .w{display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0b1424;color:var(--dim);font-size:15px;line-height:1.05;border-top:1px solid rgba(59,130,246,.25)}
+#sb .w.r1{border-top:0}#sb .w.lead{color:var(--goal)}
+#sb .w small{font-size:8px;letter-spacing:1px;font-weight:700;color:var(--dim)}
+#sb .bar{grid-column:1/-1;display:flex;height:4px}#sb .bar i{display:block;height:100%}
+#hub{position:fixed;z-index:40;top:calc(54px + env(safe-area-inset-top,0px));right:0;bottom:0;width:min(360px,100%);background:var(--panel);backdrop-filter:blur(16px);border-left:1px solid var(--border);display:flex;flex-direction:column;transform:translateX(105%);transition:transform .25s}
+#hub.on{transform:none}
+#hub .hd{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--border);font-weight:800;letter-spacing:1.5px;color:var(--goal)}
+#hub .hd button{background:none;border:0;color:var(--dim);font-size:18px}
+#hubBody{overflow:auto;padding:10px 12px calc(14px + env(safe-area-inset-bottom,0px));flex:1;-webkit-overflow-scrolling:touch}
+.card{border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:10px;background:rgba(15,30,60,.35)}
+.card h4{margin:0 0 8px;font-size:10px;letter-spacing:1.6px;color:var(--dim);text-transform:uppercase;font-weight:700}
+.sr{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;text-align:center;padding:3px 0;font-size:12px}
+.sr b{color:var(--text)} .sr span{color:var(--dim);font-size:11px}
+.sr.top{font-weight:800;color:var(--acc2);margin-bottom:4px}
+.row{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px solid rgba(59,130,246,.15);font-size:12px}
+.row:first-of-type{border-top:0} .row em{font-style:normal;color:var(--dim);font-size:11px;white-space:nowrap}
+.pf{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+.pf button{padding:4px 10px;border-radius:999px;border:1px solid var(--border);background:none;color:var(--dim);font-size:11px;font-weight:700}
+.pf button.on{color:var(--text);background:rgba(59,130,246,.25);border-color:var(--acc2)}
+.pb{display:grid;grid-template-columns:54px 24px 1fr;gap:6px;align-items:start;padding:6px 4px;border-top:1px solid rgba(59,130,246,.15);font-size:12px;cursor:pointer}
+.pb:first-of-type{border-top:0}
+.pb em{font-style:normal;color:var(--dim);font-size:11px;padding-top:1px}
+.pb span:before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;background:#475569}
+.pb.g span:before{background:var(--goal)} .pb.s span:before{background:var(--acc2)} .pb.p span:before{background:var(--pen)}
+.pb.g span{color:var(--goal);font-weight:700} .pb.p span{color:var(--pen)}
+.pb b{display:flex;justify-content:center;padding-top:0}.pb b .lg{width:22px;height:22px;margin:0}
+.pb.cur{background:rgba(59,130,246,.22);border-radius:6px}
+@media(max-width:700px){#hub{top:auto;height:62%;width:100%;border-left:0;border-top:1px solid var(--border);border-radius:14px 14px 0 0;transform:translateY(105%)}}
+.od{display:grid;grid-template-columns:84px 1fr 1fr;gap:8px;align-items:center;font-size:13px}
+.od .h{color:var(--acc2);font-weight:800;text-align:center;letter-spacing:1px}
+.od .l{color:var(--dim);font-size:11px}
+.od .v{text-align:center;padding:8px 6px;border:1px solid var(--border);border-radius:8px;background:rgba(15,30,60,.4)}
+.od .v b{display:block;font-size:15px}.od .v small{color:var(--dim);font-size:10px}
+.od .fav{border-color:var(--acc2);box-shadow:0 0 8px rgba(59,130,246,.35)}
+.od .win{border-color:#4ade80;background:rgba(74,222,128,.16);box-shadow:0 0 10px rgba(74,222,128,.4)}
+.od .win b{color:#4ade80}
+.od .lose{opacity:.45}
+.od-res{margin-top:8px;font-size:11px;color:#4ade80;font-weight:700}
+.wpb{display:block;height:20px;border-radius:10px;overflow:hidden;background:#0b1d3a;font-size:11px;line-height:20px;color:#fff;border:1px solid var(--border);margin:4px 0 12px}
+.wpb div{height:100%;padding:0 8px;float:left;white-space:nowrap}
+.src{color:var(--dim);font-size:10px;margin-top:8px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+td,th{padding:5px 8px;border-bottom:1px solid var(--border);text-align:left}
+th{color:var(--acc2);font-weight:600}
+.xs{overflow-x:auto}
+#histBox table{width:100%;border-collapse:collapse;font-size:12px;min-width:340px}
+#histBox th{color:var(--dim);font-weight:600;text-align:right;padding:5px 6px;border-bottom:1px solid var(--border);white-space:nowrap}
+#histBox td{padding:6px;text-align:right;border-bottom:1px solid rgba(30,58,138,.35);white-space:nowrap}
+#histBox th:first-child,#histBox td:first-child{text-align:left}
+#histBox tr.hl td{background:rgba(59,130,246,.16)}
+#histBox tr.trow{cursor:pointer}#histBox tr.trow:active,#histBox tr.sel td{background:rgba(59,130,246,.28)}
+#histBox tr.tcard>td{padding:0;text-align:left;white-space:normal}
+.tcw{padding:8px 10px;background:rgba(15,30,60,.55);border-left:2px solid var(--acc2)}
+.tch{font-weight:800;color:var(--acc2);margin-bottom:4px}.tch i{font-style:normal;color:var(--dim);font-weight:500;font-size:11px;margin-left:8px}
+.tsub{font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:var(--dim);margin:8px 0 2px}
+.tg{display:grid;grid-template-columns:52px 1fr auto;gap:8px;align-items:center;padding:4px 0;border-top:1px solid rgba(59,130,246,.15);font-size:12px}
+.tg:first-of-type{border-top:0}.tg em{font-style:normal;color:var(--dim);font-size:11px}.tg i{font-style:normal;font-weight:700;font-size:10px;margin-right:4px}.tg small{color:var(--dim);font-size:10px}.tg b{font-size:11px}
+#histBox .w{color:#4ade80}#histBox .l{color:#f87171}#histBox .o{color:#fbbf24}
+.hctl{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center}
+.lg{width:16px;height:16px;object-fit:contain;vertical-align:-3px;margin:0 4px}
+#vidBox video{width:100%;height:auto;max-height:none;object-fit:contain;background:#000;border-radius:8px;display:block}
+.vchips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.vchip{padding:5px 9px;border:1px solid var(--border);border-radius:8px;font-size:11px;cursor:pointer;background:rgba(15,30,60,.35)}
+.vchip.on{border-color:var(--acc2);box-shadow:0 0 8px rgba(59,130,246,.4)}
+.vnote{color:var(--dim);font-size:11px;margin-top:6px}
+svg text{fill:var(--dim);font:10px var(--font)}
+.legend{display:flex;gap:12px;font-size:11px;color:var(--dim);margin-bottom:6px}
+.legend span:before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;background:var(--c)}
+#messyText {
+  width: 100%;
+  height: 140px;
+  margin-top: 10px;
+  background: #0b1424;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+/* standings widget */
+#standBox table{width:100%;border-collapse:collapse;font-size:12px;min-width:340px}
+#standBox th{color:var(--dim);font-weight:600;text-align:right;padding:5px 6px;border-bottom:1px solid var(--border);white-space:nowrap}
+#standBox td{padding:6px;text-align:right;border-bottom:1px solid rgba(30,58,138,.35);white-space:nowrap}
+#standBox th:nth-child(1),#standBox td:nth-child(1){text-align:center;width:24px;color:var(--dim)}
+#standBox th:nth-child(2),#standBox td:nth-child(2){text-align:left}
+#standBox td.pt{font-weight:800;color:var(--acc2)}
+#standBox tr.sg th{text-align:left;color:var(--goal);letter-spacing:1.4px;font-size:10px;text-transform:uppercase;padding:10px 6px 4px;border-bottom:1px solid var(--border)}
+#standBox tr.hl td{background:rgba(59,130,246,.16)}
+/* cards widget (tap to flip) */
+#cardGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px;perspective:900px}
+.fc{cursor:pointer;display:grid;-webkit-tap-highlight-color:transparent}
+.fc .fi{display:grid;transform-style:preserve-3d;transition:transform .55s cubic-bezier(.4,.2,.2,1)}
+.fc.flip .fi{transform:rotateY(180deg)}
+.fc .ff,.fc .fb{grid-area:1/1;backface-visibility:hidden;-webkit-backface-visibility:hidden;border-radius:10px;overflow:hidden}
+.fc .ff img{width:100%;height:auto;display:block}
+.fc .fb{transform:rotateY(180deg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px;text-align:center;background:linear-gradient(160deg,#0b1424,#050a14);border:2px solid var(--cc,var(--border));box-shadow:0 0 14px var(--cc,transparent) inset}
+.fc .fb b{font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:var(--cc,var(--acc2))}
+.fc .fb span{font-size:11px;color:var(--dim)}
+.fc .fb img.big{width:62%;max-width:110px;height:auto;filter:drop-shadow(0 0 8px rgba(0,0,0,.6))}
+.fc .fb .tn{font-size:15px;font-weight:800;letter-spacing:1px;color:var(--text);text-transform:none}
+</style>
+</head>
+<body>
+<div id="hdr"><div id="brand"><img src="/themes/nhl/nhl.png" alt="NHL" style="height:22px;width:auto;vertical-align:middle" onload="this.nextElementSibling.style.display='none'" onerror="this.style.display='none'"><span>NHL</span></div>
+
+
+
+<div id="nav">
+
+<button class="tab on" data-t="rink" id="rinkTab">
+
+
+    <span class="ic" style="display:inline-flex; align-items:center; justify-content:center; margin-right:4px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom;">
+        <rect x="2" y="6" width="20" height="12" rx="4" ry="4"></rect>
+        <line x1="12" y1="6" x2="12" y2="18"></line>
+        <circle cx="12" cy="12" r="2.5"></circle>
+        <circle cx="6" cy="12" r="1.5"></circle>
+        <circle cx="18" cy="12" r="1.5"></circle>
+      </svg>
+    </span>Rink
+  </button>
+  
+  <button class="tab" data-t="graph">
+    <span class="ic" style="display:inline-flex; align-items:center; justify-content:center; margin-right:4px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom;">
+        <path d="M3 3v18h18"></path>
+        <path d="M3 12h8l3-9 4 18 3-9"></path>
+      </svg>
+    </span>Graph
+  </button>
+
+
+<button class="tab" data-t="xf">
+  <span class="ic" style="display:inline-flex; align-items:center; justify-content:center; margin-right:4px;">
+
+
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 0 3px rgba(239,68,68,0.6)); vertical-align: text-bottom;">
+      <line x1="18" y1="6" x2="6" y2="18"></line>
+      <line x1="6" y1="6" x2="18" y2="18"></line>
+    </svg>
+  </span> Factor
+</button>
+
+
+<button class="tab" data-t="odds">
+  <span class="ic" style="display:inline-flex; align-items:center; justify-content:center; margin-right:4px;">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom;">
+      <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+    </svg>
+  </span>Odds
+</button>
+
+<button class="tab" data-t="vid">
+  <span class="ic" style="display:inline-flex; align-items:center; justify-content:center; margin-right:4px;">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom;">
+      <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+      <polygon points="10 9 15 12 10 15 10 9"></polygon>
+    </svg>
+  </span>Video
+</button>
+
+<button class="tab" data-t="hist">
+  <span class="ic" style="display:inline-flex; align-items:center; justify-content:center; margin-right:4px;">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom;">
+      <line x1="18" y1="20" x2="18" y2="10"></line>
+      <line x1="12" y1="20" x2="12" y2="4"></line>
+      <line x1="6" y1="20" x2="6" y2="14"></line>
+    </svg>
+  </span>History
+</button>
+
+<button class="tab" data-t="stand">
+  <span class="ic" style="display:inline-flex; align-items:center; justify-content:center; margin-right:4px;">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom;">
+      <line x1="8" y1="6" x2="21" y2="6"></line>
+      <line x1="8" y1="12" x2="21" y2="12"></line>
+      <line x1="8" y1="18" x2="21" y2="18"></line>
+      <line x1="3" y1="6" x2="3.01" y2="6"></line>
+      <line x1="3" y1="12" x2="3.01" y2="12"></line>
+      <line x1="3" y1="18" x2="3.01" y2="18"></line>
+    </svg>
+  </span>Standings
+</button>
+
+
+
+
+<button class="tab" data-t="cards">
+  <span class="ic" style="display:inline-flex; align-items:center; justify-content:center; margin-right:4px;">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#facc15" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom;">
+      <rect x="5" y="3" width="14" height="18" rx="2"></rect>
+      <path d="M9 8h6M9 12h6"></path>
+    </svg>
+  </span>Cards
+</button>
+
+<button class="hubb on" id="plBtn" title="Show / hide mini holo players">
+  <span style="display:inline-flex; align-items:center; justify-content:center; margin-right:4px; vertical-align:text-bottom;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#facc15" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+      <circle cx="9" cy="7" r="4"></circle>
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+      <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+    </svg>
+  </span><span class="lbl">Players</span>
+</button>
+<button class="hubb" id="hubBtn" title="Break zone">
+  <span style="display:inline-flex; align-items:center; justify-content:center; margin-right:4px; vertical-align:text-bottom;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#facc15" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="6" y="4" width="4" height="16"></rect>
+      <rect x="14" y="4" width="4" height="16"></rect>
+    </svg>
+  </span><span class="lbl">Break</span>
+</button></div>
+</div>
+<div id="strip"></div>
+<div id="toastBox"></div>
+
+<div id="sb"></div>
+<div id="hub"><div class="hd"><span>⏸ BREAK ZONE</span><button id="hubX" aria-label="Close">✕</button></div><div id="hubBody">
+  </div>
+</div>
+
+<!-- ADD THIS CANVAS HERE -->
+<canvas id="jumboCanvas" width="512" height="216" style="display:none;"></canvas>
+
+<div class="pane on" id="p-rink">
+
+  <div id="ctl"><button id="prev">◀</button><input type="range" id="sl" min="0" max="0" value="0"><button id="next">▶</button><button id="play">⏵</button><button id="flip" title="Flip which end each team attacks">⇄</button></div>
+  <div id="info"></div><div id="wp"></div>
+</div>
+<div class="pane" id="p-graph">
+  <div class="legend"><span style="--c:#0e7490">Home win %</span><span style="--c:#1d4ed8">Away win %</span><span style="--c:#facc15">Goal</span><span style="--c:#60a5fa">Shot</span><span style="--c:#f87171">Penalty</span><span style="--c:#475569">Other</span></div>
+  <div class="xs"><svg id="chart" viewBox="0 0 800 310" style="width:100%;min-width:560px"></svg></div>
+
+  <!-- ADD THIS LINE -->
+  <div id="messyText" placeholder="play-byplay.json"></div>
+</div> <!-- ⬅️ ADD THIS MISSING CLOSING DIV FOR THE GRAPH PANE -->
+
+<div class="pane" id="p-xf"><div id="xfBox"></div></div>
+<div class="pane" id="p-odds"><div class="xs" id="oddsBox">Loading…</div></div>
+<div class="pane" id="p-hist"><div class="xs" id="histBox">Loading history…</div></div>
+<div class="pane" id="p-stand"><div class="xs" id="standBox">Loading standings…</div></div>
+<div class="pane" id="p-cards"><div id="cardGrid"></div></div>
+<div class="pane" id="p-vid"><div id="vidBox">Looking for videos in /data/nhl-video/ …</div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ═════ CONFIG ═════ */
+const DATA = '/data/';                       // same convention as NFL build
+const FILES = {scores:'nhlscores.json', live:'nhl_live.json', pbp:'nhl-playbyplay.json', odds:'nhl-odds.json', upcoming:'nhl-upcoming.json', chart:'nhl-chart.json', history:'nhl-history.json', standings:'nhl-standings.json'};
+const ABBR = {'Anaheim Ducks':'ANA','Boston Bruins':'BOS','Buffalo Sabres':'BUF','Calgary Flames':'CGY','Carolina Hurricanes':'CAR','Chicago Blackhawks':'CHI','Colorado Avalanche':'COL','Columbus Blue Jackets':'CBJ','Dallas Stars':'DAL','Detroit Red Wings':'DET','Edmonton Oilers':'EDM','Florida Panthers':'FLA','Los Angeles Kings':'LAK','Minnesota Wild':'MIN','Montreal Canadiens':'MTL','Nashville Predators':'NSH','New Jersey Devils':'NJD','New York Islanders':'NYI','New York Rangers':'NYR','Ottawa Senators':'OTT','Philadelphia Flyers':'PHI','Pittsburgh Penguins':'PIT','San Jose Sharks':'SJS','Seattle Kraken':'SEA','St. Louis Blues':'STL','Tampa Bay Lightning':'TBL','Toronto Maple Leafs':'TOR','Utah Mammoth':'UTA','Utah Hockey Club':'UTA','Vancouver Canucks':'VAN','Vegas Golden Knights':'VGK','Washington Capitals':'WSH','Winnipeg Jets':'WPG'};
+/* Yahoo win-probability series (fallback if /data/nhl-chart.json isn't served) */
+const CHART_FALLBACK = null;
+/* team images live in themes/nhl/<abbr>.png (not in /data/); missing ones just hide */
+const IMG='/themes/nhl/', IMGMAP={NJ:'njd',SJ:'sjs',TB:'tbl',LA:'lak',LV:'vgk',UTAH:'uta',WAS:'wsh',CLB:'cbj'};
+const logo=a=>{const f=IMGMAP[a]||String(a||'').toLowerCase(); return /^[a-z]{2,4}$/.test(f)?`<img class="lg" src="${IMG}${f}.png" alt="" onerror="this.style.display='none'">`:''};
+const abbr = n => ABBR[n] || (n||'').slice(0,3).toUpperCase();
+const POLL_MS = 15000;
+const L = 100, Wd = 42.5, R = 28;            // rink half-length / half-width / corner radius (ft)
+
+
+/* ═════ THREE SCENE ═════ */
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x02050a);
+const cam = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, .1, 1000);
+const ren = new THREE.WebGLRenderer({antialias:true}); ren.setPixelRatio(Math.min(devicePixelRatio,2));
+ren.setSize(innerWidth, innerHeight); document.body.appendChild(ren.domElement);
+
+const mat = (c,o=1)=>new THREE.LineBasicMaterial({color:c,transparent:true,opacity:o});
+const BLUE=0x3b82f6, LIGHT=0x2563eb, DIM=0x1e3a8a, WHITE=0xffffff, RED=0xef4444;
+const rink = new THREE.Group(); scene.add(rink);
+const P = (x,y,h=0)=>new THREE.Vector3(x,h,y);       // rink (x,y) → three (X,Z)
+function line(pts,c,o=1,loop=false){const g=new THREE.BufferGeometry().setFromPoints(pts);const l=loop?new THREE.LineLoop(g,mat(c,o)):new THREE.Line(g,mat(c,o));rink.add(l);return l}
+function arc(cx,cy,r,a0,a1,n=40){const p=[];for(let i=0;i<=n;i++){const a=a0+(a1-a0)*i/n;p.push(P(cx+Math.cos(a)*r,cy+Math.sin(a)*r))}return p}
+
+// boards (rounded rectangle) – double outline for a holo "thickness"
+function boardPts(inset){
+  const l=L-inset,w=Wd-inset,r=R,p=[];
+  [[l-r,w-r,0],[-l+r,w-r,Math.PI/2],[-l+r,-w+r,Math.PI],[l-r,-w+r,Math.PI*1.5]].forEach(([cx,cy,a])=>p.push(...arc(cx,cy,r,a,a+Math.PI/2,12)));
+  return p;
+}
+function boards(inset,c,o){return line(boardPts(inset),c,o,true)}
+/* resample the closed boards path every `step` ft so walls/posts are evenly spaced */
+function resampleLoop(pts,step){
+  const n=pts.length,out=[];let carry=0;
+  for(let i=0;i<n;i++){const a=pts[i],b=pts[(i+1)%n],len=a.distanceTo(b);
+    for(let d=carry;d<len;d+=step){const f=len?d/len:0;out.push(new THREE.Vector3(a.x+(b.x-a.x)*f,0,a.z+(b.z-a.z)*f))}
+    carry=((carry-len)%step+step)%step; if(carry===0&&len%step===0)carry=0}
+  return out}
+boards(0,0x1d4ed8,1); boards(1.2,BLUE,.35);
+
+/* ═════ HOLOGRAM WALLS: dasher boards (0→3.5 ft) + glass (3.5→8.5 ft), blue/white, with a scan line sweeping up ═════ */
+const DASH_H=3.5, WALL_H=8.5;
+function wallBand(pts,y0,y1,color,opacity){
+  const pos=[],n=pts.length;
+  for(let i=0;i<n;i++){const a=pts[i],b=pts[(i+1)%n];
+    pos.push(a.x,y0,a.z, b.x,y0,b.z, b.x,y1,b.z,  a.x,y0,a.z, b.x,y1,b.z, a.x,y1,a.z)}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color,transparent:true,opacity,side:THREE.DoubleSide,depthWrite:false}));
+  m.renderOrder=1; rink.add(m); return m}
+const wallPts=resampleLoop(boardPts(0),3), postPts=resampleLoop(boardPts(0),9);
+wallBand(wallPts,0,DASH_H,0x2563eb,.30);
+wallBand(wallPts,DASH_H,WALL_H,0x93c5fd,.10);
+[[DASH_H,0x60a5fa,.9],[WALL_H,0xffffff,.95]].forEach(([h,c,o])=>line(boardPts(0).map(v=>new THREE.Vector3(v.x,h,v.z)),c,o,true));
+{const seg=[];postPts.forEach(v=>{seg.push(new THREE.Vector3(v.x,0,v.z),new THREE.Vector3(v.x,WALL_H,v.z))});
+ const pg=new THREE.BufferGeometry().setFromPoints(seg); rink.add(new THREE.LineSegments(pg,mat(0xbfdbfe,.35)))}
+const wallScan=line(boardPts(0),0xffffff,.7,true);
+
+// ice fill + grid
+const ice = new THREE.Mesh(new THREE.PlaneGeometry(L*2,Wd*2), new THREE.MeshBasicMaterial({color:0xeef4ff,transparent:true,opacity:.96,side:THREE.DoubleSide}));
+ice.rotation.x=-Math.PI/2; ice.position.y=-.05; rink.add(ice);
+
+
+// Replace the flat grid with a stadium bowl
+scene.background = new THREE.Color(0x02050a); // Keep the deep space black
+
+// scene.fog = new THREE.FogExp2(0x02050a, 0.003);   // disabled to test rink visibility
+
+// const grid = new THREE.GridHelper(260,26,0x0b2a5c,0x071a38); grid.position.y=-.2; scene.add(grid);
+
+/* ═════ HOLOGRAPHIC STADIUM & CROWD ═════ */
+const stadiumGroup = new THREE.Group(); scene.add(stadiumGroup);
+
+// 1. The Stadium Bowl (a low poly ring that steps upward)
+const bowlGeo = new THREE.CylinderGeometry(140, 90, 40, 8, 1, true);
+const bowlMat = new THREE.MeshBasicMaterial({color: 0x1e3a8a, transparent: true, opacity: 0.15, wireframe: false, side: THREE.DoubleSide});
+const bowl = new THREE.Mesh(bowlGeo, bowlMat);
+bowl.position.y = 10;
+bowl.rotation.y = Math.PI / 8; // Align the flat sides
+stadiumGroup.add(bowl);
+
+
+// 2. The Crowd — instanced so it doesn't tank the frame rate
+const crowdGroup = new THREE.Group();
+stadiumGroup.add(crowdGroup);
+
+const chairMat = new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:1.00});
+
+const seatGeo = new THREE.BoxGeometry(1.6, 0.4, 1.6);
+const backGeo = new THREE.BoxGeometry(1.6, 1.6, 0.4);
+
+// pre-count chairs so we can allocate instanced buffers
+const rings = 16;
+let totalChairs = 0;
+for (let r = 0; r < rings; r++) {
+  const radius = 105 + (r * 2.5);
+  totalChairs += Math.floor(radius * 0.6);
+}
+
+const seatInst  = new THREE.InstancedMesh(seatGeo, chairMat, totalChairs);
+const backInst  = new THREE.InstancedMesh(backGeo, chairMat, totalChairs);
+const dummy = new THREE.Object3D();
+let ci = 0;
+
+for (let r = 0; r < rings; r++) {
+  const radius = 105 + (r * 2.5);
+  const y      = 2   + (r * 1.8);
+  const num    = Math.floor(radius * 0.6);
+  for (let c = 0; c < num; c++) {
+    const angle = (c / num) * Math.PI * 2;
+    const px = Math.cos(angle) * radius;
+    const pz = Math.sin(angle) * radius;
+
+    dummy.position.set(px, y, pz);
+    dummy.rotation.set(0, -angle + Math.PI/2, 0);
+    dummy.updateMatrix();
+    seatInst.setMatrixAt(ci, dummy.matrix);
+
+    dummy.position.set(px, y + 0.8, pz);
+    dummy.updateMatrix();
+    backInst.setMatrixAt(ci, dummy.matrix);
+
+    ci++;
+  }
+}
+
+seatInst.instanceMatrix.needsUpdate = true;
+backInst.instanceMatrix.needsUpdate = true;
+crowdGroup.add(seatInst, backInst);
+
+// 3. The Jumbotron (Hovering at one end)
+const jumboGeo = new THREE.BoxGeometry(30, 15, 5);
+const jumboMat = new THREE.MeshBasicMaterial({color: 0x0b1424, transparent: true, opacity: 0.8});
+const jumbo = new THREE.Mesh(jumboGeo, jumboMat);
+jumbo.position.set(0, 35, -90); // Hovering over the far end boards
+stadiumGroup.add(jumbo);
+
+// Jumbotron glowing screen outline
+const jumboEdge = new THREE.LineSegments(
+  new THREE.EdgesGeometry(jumboGeo), 
+  new THREE.LineBasicMaterial({color: 0x60a5fa, transparent: true, opacity: 0.8})
+);
+jumboEdge.position.copy(jumbo.position);
+stadiumGroup.add(jumboEdge);
+
+// Jumbotron Screen (live feed from the camera crew)
+const jumboScreenGeo = new THREE.PlaneGeometry(26, 11);
+const JUMBO_RT_W = 512, JUMBO_RT_H = 216;                 // 26:11 aspect
+const jumboRT = new THREE.WebGLRenderTarget(JUMBO_RT_W, JUMBO_RT_H, {
+  minFilter: THREE.LinearFilter,
+  magFilter: THREE.LinearFilter,
+  format: THREE.RGBAFormat
+});
+const jumboScreenMat = new THREE.MeshBasicMaterial({map: jumboRT.texture});
+const jumboScreen = new THREE.Mesh(jumboScreenGeo, jumboScreenMat);
+jumboScreen.position.set(0, 35, -87.4); // Just in front of the jumbotron box
+stadiumGroup.add(jumboScreen);
+
+// Support pillars for the Jumbotron
+const pillarMat = new THREE.LineBasicMaterial({color: 0x3b82f6, transparent: true, opacity: 0.3});
+const pillarGeo = new THREE.BufferGeometry().setFromPoints([
+  new THREE.Vector3(-10, 0, -90), new THREE.Vector3(-10, 35, -90),
+  new THREE.Vector3(10, 0, -90), new THREE.Vector3(10, 35, -90)
+]);
+stadiumGroup.add(new THREE.LineSegments(pillarGeo, pillarMat));
+
+
+/* ═════ THE BENCHES & CAMERA CREW ═════ */
+// 1. The Benches (Home and Away)
+// Home bench (Right side, near center ice)
+const homeBenchGeo = new THREE.BoxGeometry(25, 2, 6);
+const homeBenchMat = new THREE.MeshBasicMaterial({color: 0x0e7490, transparent: true, opacity: 0.4, wireframe: false});
+const homeBench = new THREE.Mesh(homeBenchGeo, homeBenchMat);
+homeBench.position.set(35, 1, -55); // Just outside the boards
+stadiumGroup.add(homeBench);
+
+// Away bench (Left side)
+const awayBenchGeo = new THREE.BoxGeometry(25, 2, 6);
+const awayBenchMat = new THREE.MeshBasicMaterial({color: 0x1d4ed8, transparent: true, opacity: 0.4, wireframe: false});
+const awayBench = new THREE.Mesh(awayBenchGeo, awayBenchMat);
+awayBench.position.set(-35, 1, -55); // Just outside the boards
+stadiumGroup.add(awayBench);
+
+// 2. The Camera Crew (On the far side, pointing at the ice)
+const camCrew = new THREE.Group();
+// Tripod
+const tripodGeo = new THREE.CylinderGeometry(0.2, 0.2, 4, 8);
+const tripodMat = new THREE.MeshBasicMaterial({color: 0x64748b});
+const tripod = new THREE.Mesh(tripodGeo, tripodMat);
+tripod.position.y = 2;
+camCrew.add(tripod);
+
+// Camera Body
+const camBodyGeo = new THREE.BoxGeometry(3, 2, 5);
+const camBodyMat = new THREE.MeshBasicMaterial({color: 0x60a5fa, wireframe: false});
+const camBody = new THREE.Mesh(camBodyGeo, camBodyMat);
+camBody.position.y = 4.5;
+camCrew.add(camBody);
+
+// Lens
+const lensGeo = new THREE.CylinderGeometry(0.8, 1, 2, 12);
+const lensMat = new THREE.MeshBasicMaterial({color: 0xffffff});
+const lens = new THREE.Mesh(lensGeo, lensMat);
+lens.rotation.x = Math.PI / 2;
+lens.position.set(0, 4.5, 2.5);
+camCrew.add(lens);
+
+// Red "On Air" Light
+const airLightGeo = new THREE.SphereGeometry(0.5, 8, 8);
+const airLightMat = new THREE.MeshBasicMaterial({color: 0xff0000});
+const airLight = new THREE.Mesh(airLightGeo, airLightMat);
+airLight.position.set(0, 6, 0);
+camCrew.add(airLight);
+
+// Position the camera crew
+camCrew.position.set(0, 0, 55); // Far side boards
+// We no longer hardcode rotation.y = Math.PI here. 
+// We will make it look at the puck inside the animate loop.
+stadiumGroup.add(camCrew);
+
+// The cameraman's lens is a real PerspectiveCamera, parented to the crew group,
+// so it inherits the crew's puck-tracking lookAt automatically. Lens cylinder points
+// along +Z of the group at y≈4.5; the camera sits just behind the lens and aims +Z.
+
+const jumboCam = new THREE.PerspectiveCamera(55, JUMBO_RT_W / JUMBO_RT_H, 1, 600);
+jumboCam.position.set(0, 26, 55);      // same spot as the crew, lifted up
+jumboCam.lookAt(0, 0, 0);              // locked down at center ice
+scene.add(jumboCam);                   // world-space, not parented to camCrew
+
+// main camera: also render layer 1
+cam.layers.enable(1);
+// jumboCam: leave it on layer 0 only (default)
+
+
+
+
+
+
+
+
+
+
+
+
+
+// lines: center red→(blueprint white-blue), blue lines, goal lines
+line([P(0,-Wd),P(0,Wd)],RED,.95);
+[-25,25].forEach(x=>line([P(x,-Wd),P(x,Wd)],BLUE,1));
+[-89,89].forEach(x=>{line([P(x,-Wd+3),P(x,Wd-3)],BLUE,.6)});
+// circles + dots
+line(arc(0,0,15,0,Math.PI*2,64),RED,.9,true);
+const dots=[[0,0],[-20,-22],[-20,22],[20,-22],[20,22],[-69,-22],[-69,22],[69,-22],[69,22]];
+dots.forEach(([x,y])=>{line(arc(x,y,1,0,Math.PI*2,16),RED,1,true)});
+[[-69,-22],[-69,22],[69,-22],[69,22]].forEach(([x,y])=>{line(arc(x,y,15,0,Math.PI*2,64),RED,.85,true);
+  [-1,1].forEach(s=>[-1,1].forEach(t=>line([P(x+s*2,y+t*15),P(x+s*2,y+t*17)],RED,.85)))});
+// creases + nets
+[-1,1].forEach(s=>{
+  line(arc(s*89,0,6,s>0?Math.PI/2:-Math.PI/2,s>0?Math.PI*1.5:Math.PI/2,24),LIGHT,.9);
+  const x0=s*89,x1=s*(89+3.3);
+  line([P(x0,-3),P(x1,-3),P(x1,3),P(x0,3)],LIGHT,1);
+  line([P(x0,-3,4),P(x1,-3,4),P(x1,3,4),P(x0,3,4)],BLUE,.6);
+  [-3,3].forEach(y=>{line([P(x0,y),P(x0,y,4)],BLUE,.6);line([P(x1,y),P(x1,y,4)],BLUE,.6)});
+});
+
+/* ═════ PUCK + EVENT MARKERS ═════ */
+const puck = new THREE.Group();
+
+// Load NHL logo
+const puckTex = new THREE.TextureLoader().load('/themes/nhl/nhl.png', undefined, undefined, () => {
+  console.warn('[puck] NHL logo failed to load — puck will render without texture');
+});
+
+// [Side, Top, Bottom] — black sides, logo on top
+const pmMats = [
+  new THREE.MeshBasicMaterial({color:0x000000}),
+  new THREE.MeshBasicMaterial({map:puckTex, transparent:true}),
+  new THREE.MeshBasicMaterial({color:0x000000})
+];
+
+// [puck size] — half
+
+const pm = new THREE.Mesh(new THREE.CylinderGeometry(1.0,1.0,.7,20), pmMats);
+
+const ring = new THREE.Mesh(new THREE.RingGeometry(2.4,2.7,32), new THREE.MeshBasicMaterial({color:0x93c5fd,transparent:true,opacity:.8,side:THREE.DoubleSide}));
+ring.rotation.x=-Math.PI/2; ring.position.y=.1; ring.layers.set(1); puck.add(pm,ring); puck.position.set(0,.5,0); scene.add(puck);
+
+let puckTarget = new THREE.Vector3(0,.5,0);
+let markers = null;
+const KIND_COL = {g:0xf59e0b,s:0x2563eb,p:0xdc2626,o:0x64748b};   // darker marker colors so they show on white ice
+
+
+
+/* ═════ GOAL JERSEY TEXTURES ═════ */
+const texCache = {};
+const texLoader = new THREE.TextureLoader();
+function getTeamTex(abbr) {
+  if (!abbr) return null;
+  const f = IMGMAP[abbr] || String(abbr).toLowerCase();
+  if (!texCache[f]) {
+    texCache[f] = texLoader.load(`/themes/nhl/${f}.png`);
+  }
+  return texCache[f];
+}
+
+
+/* ═════ HOME TEAM LOGO AT CENTER ICE: follows the selected game's home team (themes/nhl/<abbr>.png) ═════ */
+const homeLogo=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({transparent:true,opacity:.9,depthWrite:false,side:THREE.DoubleSide}));
+homeLogo.rotation.x=-Math.PI/2; homeLogo.position.y=.08; homeLogo.renderOrder=2; homeLogo.visible=false; rink.add(homeLogo);
+let homeShown=null;
+function setHomeLogo(ab){
+  if(ab===homeShown)return; homeShown=ab; homeLogo.visible=false;
+  const f=IMGMAP[ab]||String(ab||'').toLowerCase(); if(!/^[a-z]{2,4}$/.test(f))return;
+  new THREE.TextureLoader().load(IMG+f+'.png',tex=>{
+    if(homeShown!==ab)return;                                   // game changed while loading
+    const im=tex.image, k=(im&&im.width&&im.height)?im.width/im.height:1, S=26;
+    homeLogo.scale.set(k>=1?S:S*k,k>=1?S/k:S,1);
+    if(homeLogo.material.map)homeLogo.material.map.dispose();
+    homeLogo.material.map=tex; homeLogo.material.needsUpdate=true; homeLogo.visible=true;
+  },undefined,()=>{if(homeShown===ab)homeLogo.visible=false});    // missing png → just no logo
+}
+
+
+
+/* ═════ HOLOGRAPHIC PLAYER TAG ═════ */
+const tagCanvas = document.createElement('canvas');
+tagCanvas.width = 512; tagCanvas.height = 128;
+const tagCtx = tagCanvas.getContext('2d');
+const tagTex = new THREE.CanvasTexture(tagCanvas);
+const tagMat = new THREE.SpriteMaterial({ map: tagTex, transparent: true, depthTest: false });
+const tagSprite = new THREE.Sprite(tagMat);
+tagSprite.scale.set(16, 4, 1); // Size of the tag on the ice
+tagSprite.visible = false;
+scene.add(tagSprite);
+
+function updatePlayerTag(name) {
+  if (!name) { tagSprite.visible = false; return; }
+  
+  // Clean up the name (remove things like "Wrist Shot")
+
+let cleanName = name.replace(/^\s*(giveaway|takeaway) by\s+/i,'').replace(/(Wrist|Snap|Slap|Backhand|Tip-in|Deflect|Wrap|Shot|Goal|hit|blocked|saved|faceoff).*/gi, '').trim();
+
+if (cleanName.match(/summary|period|end of|start of/i)) cleanName = ""; // Ignore headers
+
+// If the text is just a team name, grab the player from the score description instead
+if (cleanName.includes("Avalanche") || cleanName.includes("Penguins") || cleanName.includes("Maple Leafs")) {
+    cleanName = name.replace(/.*Goal\s*\(?\d*\)?\s*/i, '').split(',')[0].trim();
+}
+
+  if (!cleanName) { tagSprite.visible = false; return; }
+
+  // Draw the hologram tag on a canvas
+  tagCtx.clearRect(0, 0, 512, 128);
+  tagCtx.fillStyle = 'rgba(6, 12, 22, 0.85)';
+  tagCtx.fillRect(0, 0, 512, 128);
+  tagCtx.strokeStyle = '#60a5fa';
+  tagCtx.lineWidth = 6;
+  tagCtx.strokeRect(3, 3, 506, 122);
+  
+  const label = cleanName.toUpperCase();
+  let fs = 48; const fnt = px => 'bold ' + px + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  tagCtx.font = fnt(fs);
+  while (tagCtx.measureText(label).width > 470 && fs > 20) { fs -= 2; tagCtx.font = fnt(fs); }   // long names shrink to fit the tag instead of clipping
+  tagCtx.fillStyle = '#ffffff';
+  tagCtx.textAlign = 'center';
+  tagCtx.textBaseline = 'middle';
+  tagCtx.fillText(label, 256, 64);
+  
+  tagTex.needsUpdate = true;
+  tagSprite.visible = true;
+}
+
+
+/* ═════ ICE CONDITION: fresh pale-blue ice at the start of a period → stays fresh to 10 min elapsed → fades & scuffs by the horn;
+   intermission = worn ice until the Zamboni lays fresh strips; new period = fresh again ═════ */
+const ICE_FRESH=new THREE.Color(0xbcd9ff), ICE_WORN=new THREE.Color(0xf1f3f6), ICE_NEUTRAL=new THREE.Color(0xeef4ff), iceTarget=new THREE.Color();
+const scuffs=(()=>{let sd=12345;const rnd=()=>{sd=(sd+0x6D2B79F5)|0;let t=Math.imul(sd^sd>>>15,1|sd);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
+  const inRink=(x,z)=>{if(Math.abs(x)>L-2||Math.abs(z)>Wd-2)return false;
+    if(Math.abs(x)>L-R&&Math.abs(z)>Wd-R)return Math.hypot(Math.abs(x)-(L-R),Math.abs(z)-(Wd-R))<R-2; return true};
+  const pts=[];let n=0;
+  while(n<300){const cx=(rnd()-.5)*190,cz=(rnd()-.5)*80,ang=rnd()<.8?(rnd()-.5)*.9:rnd()*Math.PI,len=6+rnd()*18,dx=Math.cos(ang)*len/2,dz=Math.sin(ang)*len/2;
+    if(!inRink(cx-dx,cz-dz)||!inRink(cx+dx,cz+dz))continue;
+    pts.push(new THREE.Vector3(cx-dx,.02,cz-dz),new THREE.Vector3(cx+dx,.02,cz+dz));n++}
+  const m=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0x8fa6c4,transparent:true,opacity:0,depthWrite:false}));
+  rink.add(m);return m})();
+function iceWear(){            // 0 = fresh … 1 = worn; null = no live clock (scheduled / final) → neutral white ice
+  const g=games.find(x=>x.id==gameSel); if(!g)return null;
+  const st=String(g.st||''); if(/end of|inter|break/i.test(st))return 1;
+  const m=st.match(/\b([1-3])(?:st|nd|rd)\b\s+(\d{1,2}):(\d{2})/i); if(!m)return null;
+  const el=Math.max(0,Math.min(1200,1200-(+m[2]*60+ +m[3])));            // the status clock counts down → elapsed in the period
+  return Math.max(0,Math.min(1,(el-600)/600))}
+function iceUpdate(){
+  let w=null; try{w=iceWear()}catch(e){}
+  if(w==null)iceTarget.copy(ICE_NEUTRAL); else iceTarget.copy(ICE_FRESH).lerp(ICE_WORN,w);
+  ice.material.color.lerp(iceTarget,.04);
+  const to=w==null?0:.6*w; scuffs.material.opacity+=(to-scuffs.material.opacity)*.04}
+
+/* ═════ ZAMBONI: hologram ice resurfacer drives lanes down the rink during intermissions (add ?zam=1 to the URL to preview any time) ═════ */
+const zam=new THREE.Group(); zam.visible=false; rink.add(zam);
+const zBeacon=new THREE.Mesh(new THREE.SphereGeometry(.8,10,8),new THREE.MeshBasicMaterial({color:0xfacc15}));
+{const holo=(w,h,d,x,y,z,op)=>{const g=new THREE.BoxGeometry(w,h,d);
+   const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:0x60a5fa,transparent:true,opacity:op,depthWrite:false})); m.position.set(x,y,z);
+   const e=new THREE.LineSegments(new THREE.EdgesGeometry(g),new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:.95})); e.position.set(x,y,z); zam.add(m,e)};
+ holo(16,3.2,8, 0,2.2,0, .35);        // chassis (front = +x)
+ holo(6,3.4,7, 5,5.3,0, .4);          // cab
+ holo(9,3,6.2, -3.5,4.9,0, .3);       // water tank
+ holo(3,1,7.6, 8.5,.9,0, .5);         // conditioner
+ [[-5,3.7],[-5,-3.7],[5,3.7],[5,-3.7]].forEach(([x,z])=>holo(2.6,2.6,.8, x,1.3,z, .6));
+ zBeacon.position.set(4,8,0); zam.add(zBeacon)}
+const ZL=[]; for(let z=-34;z<=34.1;z+=8.5)ZL.push(z);      // 9 lanes across the 85 ft width
+const ZX=84, ZSPEED=24, ZTURN=3, ZPARK=5;                           // lane half-length (ft), ft/s, seconds per U-turn
+const zStrips=ZL.map(z=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(1,8.2),new THREE.MeshBasicMaterial({color:0x9ccbff,transparent:true,opacity:.7,depthWrite:false,side:THREE.DoubleSide}));
+  m.rotation.x=-Math.PI/2; m.position.set(0,.03,z); m.scale.x=.001; m.visible=false; rink.add(m); return m});
+let zOn=false, zT0=0;
+function zamWanted(){
+  if(/[?&]zam=1/.test(location.search))return true;
+  const g=games.find(x=>x.id==gameSel); return !!g&&/end of|inter|break/i.test(String(g.st||''))}
+function zamUpdate(t,on){
+  if(on!==zOn){zOn=on; zam.visible=on; zT0=t; zStrips.forEach(m=>{m.visible=false;m.scale.x=.001})}
+  if(!on)return;
+  const LT=2*ZX/ZSPEED, per=LT+ZTURN, run=per*ZL.length, u=(t-zT0)%(run+ZPARK);
+  if(u>=run){zam.visible=false;return}                                      // finished the sheet → parks out of sight, then starts over
+  zam.visible=true;
+  const i=Math.min(ZL.length-1,Math.floor(u/per)), r=u-i*per, dir=i%2===0?1:-1;
+  if(i===0&&r<.1)zStrips.forEach(m=>{m.visible=false;m.scale.x=.001});     // new pass → fresh ice again
+  let x,z=ZL[i],ang;
+  if(r<LT){const f=r/LT; x=dir*(-ZX+2*ZX*f); ang=dir>0?0:Math.PI;
+    const m=zStrips[i]; m.visible=true; m.scale.x=Math.max(.001,2*ZX*f); m.position.x=dir*(-ZX+ZX*f)}      // freshly resurfaced strip behind it
+  else{const f=(r-LT)/ZTURN, nz=ZL[Math.min(i+1,ZL.length-1)]; x=dir*ZX; z=z+(nz-z)*f; ang=dir>0?-Math.PI*f:Math.PI+Math.PI*f}
+  zam.position.set(x,0,z); zam.rotation.y=ang; zBeacon.visible=Math.floor(t*4)%2===0}
+
+
+
+/* ═════ CAMERA (drag orbit + wheel/pinch zoom) ═════ */
+let yaw=0, pitch=0.85, dist=296, drag=null, pinch=null; // dist=296 ≈ 80% zoom of 245
+
+function fit(){cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix()}
+
+const camLook=new THREE.Vector3();   // camera aim point: eases toward the puck so the action stays on screen (strongest on narrow/portrait screens)
+function placeCam(){cam.position.set(camLook.x+Math.sin(yaw)*Math.cos(pitch)*dist,Math.sin(pitch)*dist,camLook.z+Math.cos(yaw)*Math.cos(pitch)*dist);cam.lookAt(camLook.x,0,camLook.z)}
+const cv = ren.domElement;
+cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);drag={x:e.clientX,y:e.clientY,id:e.pointerId};cv._pts=(cv._pts||new Map()).set(e.pointerId,e)});
+cv.addEventListener('pointermove',e=>{
+  const pts=cv._pts; if(!pts||!pts.has(e.pointerId))return; pts.set(e.pointerId,e);
+  if(pts.size===2){const [a,b]=[...pts.values()];const d=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);if(pinch)dist=Math.min(196,Math.max(60,dist*pinch/d));pinch=d;return}
+  if(drag){yaw-=(e.clientX-drag.x)*.006;pitch=Math.min(1.5,Math.max(.25,pitch+(e.clientY-drag.y)*.005));drag.x=e.clientX;drag.y=e.clientY}
+});
+const up=e=>{cv._pts&&cv._pts.delete(e.pointerId);pinch=null;drag=null};
+cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+
+cv.addEventListener('wheel',e=>{e.preventDefault();dist=Math.min(300,Math.max(60,dist*(1+e.deltaY*.001)))},{passive:false});
+
+addEventListener('resize',()=>{fit();ren.setSize(innerWidth,innerHeight)});fit();
+
+
+
+
+
+/* ═════ MINI HOLO PLAYERS: 5 skaters + goalie per team, built from Holo_Hockey_Player.html (black fill + glowing wire),
+   merged into 3 meshes each so 12 players stay cheap. They follow the play: set by select(), eased every frame. ═════ */
+const PL_SCALE = 5.1;                       // model is ~1.9 units tall → ≈ 6 ft on the 200 ft rink
+const PL_PAL = { A:{main:0x5b9bff, acc:0xc7dcff}, H:{main:0x22d3ee, acc:0xcffafe} };   // match the scoreboard blue / teal
+const plV=(x,y,z)=>new THREE.Vector3(x,y,z);
+const plTemplate=(()=>{
+  const fill=[],main=[],acc=[], UP=plV(0,1,0), Q0=new THREE.Quaternion(), S1=plV(1,1,1);
+  const add=(geo,kind,pos,quat,scl)=>{const m=new THREE.Matrix4().compose(pos,quat||Q0,scl||S1);const g=geo.clone();g.applyMatrix4(m);fill.push(g);(kind==='a'?acc:main).push(g)};
+  const part=(geo,kind,pos)=>add(geo,kind,pos);
+  const limb=(a,b,ra,rb,kind='m',scl)=>{const d=b.clone().sub(a),len=d.length();
+    add(new THREE.CylinderGeometry(rb,ra,len,6,1),kind,a.clone().add(b).multiplyScalar(.5),new THREE.Quaternion().setFromUnitVectors(UP,d.normalize()),scl)};
+  [-1,1].forEach(s=>{                                                    // skates + legs
+    part(new THREE.BoxGeometry(.12,.17,.3,1,1,2),'a',plV(.17*s,.14,.04));
+    part(new THREE.BoxGeometry(.015,.05,.38,1,1,3),'a',plV(.17*s,.025,.04));
+    const hip=plV(.11*s,1,0),knee=plV(.15*s,.56,.1),ank=plV(.17*s,.22,.02);
+    limb(hip,knee,.095,.075); limb(knee,ank,.07,.055); part(new THREE.SphereGeometry(.08,6,5),'m',knee.clone().add(plV(0,0,.03)))});
+  part(new THREE.CylinderGeometry(.22,.21,.32,8,1).scale(1,1,.75),'m',plV(0,.98,0));      // pants
+  limb(plV(0,1.1,-.01),plV(0,1.5,.07),.23,.27,'m',plV(1,1,.7));                           // torso
+  [-1,1].forEach(s=>part(new THREE.SphereGeometry(.105,7,6),'a',plV(.29*s,1.5,.06)));    // shoulders
+  limb(plV(0,1.5,.07),plV(0,1.62,.08),.07,.06);                                            // neck
+  part(new THREE.SphereGeometry(.125,9,7).scale(1,1.05,1.15),'a',plV(0,1.72,.09));        // helmet
+  part(new THREE.BoxGeometry(.2,.09,.03,2,1,1),'m',plV(0,1.7,.2));                        // visor
+  const T=plV(-.04,1.02,.34),B=plV(.12,.06,.72),D=B.clone().sub(T),top=T.clone().sub(D.clone().multiplyScalar(.4));
+  limb(top,B,.013,.013,'a'); part(new THREE.BoxGeometry(.02,.08,.32,1,1,3),'a',plV(B.x,.04,B.z+.12));   // stick
+  const hands=[[-1,T.clone()],[1,T.clone().add(D.clone().multiplyScalar(.2))]];
+  hands.forEach(([s,h])=>{const sh=plV(.29*s,1.47,.06),el=sh.clone().add(h).multiplyScalar(.5).add(plV(.12*s,-.08,-.04));
+    limb(sh,el,.075,.06); limb(el,h,.06,.05); part(new THREE.SphereGeometry(.07,6,5),'a',h)});
+  const merge=list=>{let vc=0,ic=0;list.forEach(g=>{vc+=g.attributes.position.count;ic+=g.index?g.index.count:g.attributes.position.count});
+    const pos=new Float32Array(vc*3),idx=new Uint32Array(ic);let vo=0,io=0;
+    list.forEach(g=>{pos.set(g.attributes.position.array,vo*3);const n=g.attributes.position.count;
+      if(g.index){for(let i=0;i<g.index.count;i++)idx[io++]=g.index.array[i]+vo}else{for(let i=0;i<n;i++)idx[io++]=vo+i}vo+=n});
+    const o=new THREE.BufferGeometry();o.setAttribute('position',new THREE.BufferAttribute(pos,3));o.setIndex(new THREE.BufferAttribute(idx,1));return o};
+  return {fill:merge(fill),main:merge(main),acc:merge(acc)}})();
+const plFillMat=new THREE.MeshBasicMaterial({color:0x000000,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1});
+const plGroup=new THREE.Group(); scene.add(plGroup);
+const plLogoGeo=new THREE.PlaneGeometry(.34,.34);
+const pls=[];                                              
+
+
+// index 0-5 = away (A), 6-11 = home (H); role order G,D1,D2,F1(C),F2,F3
+
+['A','H'].forEach(side=>{for(let r=0;r<6;r++){
+  const root=new THREE.Group(), body=new THREE.Group(), pal=PL_PAL[side];
+  const xfMat = new THREE.MeshBasicMaterial({color:0xff3333, wireframe:false, transparent:true, opacity:.95});
+  const mainMesh = new THREE.Mesh(plTemplate.main, new THREE.MeshBasicMaterial({color:pal.main,wireframe:false,transparent:true,opacity:.95}));
+  const accMesh  = new THREE.Mesh(plTemplate.acc,  new THREE.MeshBasicMaterial({color:pal.acc, wireframe:false,transparent:true,opacity:.95}));
+  body.add(new THREE.Mesh(plTemplate.fill,plFillMat), mainMesh, accMesh);
+  const lgGeo=plLogoGeo, lm=[];
+  [[0,.225,0],[Math.PI,-.153,0]].forEach(([ry,z])=>{
+    const m=new THREE.Mesh(lgGeo,new THREE.MeshBasicMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide,opacity:.97}));
+    m.position.set(0,1.33,z); m.rotation.set(.2,ry,0); m.visible=false; m.renderOrder=3; body.add(m); lm.push(m)});
+  root.add(body); root.scale.setScalar(PL_SCALE*(r===0?1.12:1)); root.position.set(side==='A'?-60:60,0,(r-2.5)*8);
+  plGroup.add(root);
+  pls.push({root,body,side,r,logos:lm,xfMat,mainMesh,accMesh,x:root.position.x,z:root.position.z,tx:root.position.x,tz:root.position.z,hd:side==='A'?Math.PI/2:-Math.PI/2,ph:Math.random()*6,sp:0})}});
+
+
+/* team PNGs (themes/nhl/<abbr>.png) → jerseys; follows the selected game's away/home teams, missing PNG → jersey stays plain */
+const jTex={};
+function jerseyTex(ab,cb){
+  const f=IMGMAP[ab]||String(ab||'').toLowerCase(); if(!/^[a-z]{2,4}$/.test(f)){cb(null);return}
+  const c=jTex[f]; if(c){if(c.t)cb(c.t);else if(c.fail)cb(null);else c.q.push(cb);return}
+  const e=jTex[f]={t:null,q:[cb],fail:false};
+  new THREE.TextureLoader().load(IMG+f+'.png',t=>{e.t=t;e.q.splice(0).forEach(fn=>fn(t))},undefined,()=>{e.fail=true;e.q.splice(0).forEach(fn=>fn(null))})}
+let plLogoKey='';
+function plSetLogos(a,h){
+  const key=(a||'')+'|'+(h||''); if(key===plLogoKey)return; plLogoKey=key;
+  [['A',a],['H',h]].forEach(([side,ab])=>{
+    pls.filter(p=>p.side===side).forEach(p=>p.logos.forEach(m=>{m.visible=false}));
+    jerseyTex(ab,tex=>{ if(plLogoKey!==key||!tex)return;
+      const im=tex.image,k=(im&&im.width&&im.height)?im.width/im.height:1;
+      pls.filter(p=>p.side===side).forEach(p=>p.logos.forEach(m=>{
+        m.material.map=tex; m.material.needsUpdate=true; m.scale.set(k>=1?1:k,k>=1?1/k:1,1); m.visible=true}))})})}
+const plRing=new THREE.Mesh(new THREE.RingGeometry(2.3,2.7,32),new THREE.MeshBasicMaterial({color:0xfacc15,transparent:true,opacity:.9,side:THREE.DoubleSide,depthWrite:false}));
+plRing.rotation.x=-Math.PI/2; plRing.position.y=.12; plGroup.add(plRing);
+let plMode='mirror', plOn=true, plCarrier=null, plSide='A', plGoalT=0;
+const plClamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+/* where everyone should be for play `e` (rink feet: x -100..100 along the length, y = three Z across the width) */
+
+
+function setFormation(e){
+  if(!e)return;
+
+  // ─── ZAMBONI CHECK: Send everyone to the bench during intermission ───
+  const g = games.find(x=>x.id==gameSel);
+  if (g && /end of|inter|break/i.test(String(g.st||''))) {
+    pls.forEach((p) => {
+      const benchX = p.side === 'A' ? -35 : 35;
+      const benchZ = -55 + (p.r * 3) - 7.5; 
+      p.tx = benchX;
+      p.tz = benchZ;
+    });
+    plCarrier = null;
+    plGoalT = 0;
+    return; // Stop here! Don't draw the diamond.
+  }
+  // ────────────────────────────────────────────────────────────────────
+
+  if(e.side)plSide=e.side;
+  const att=plSide, def=att==='A'?'H':'A', per=e.per||1;
+  const dir=((att==='A')===(per%2===1)?1:-1)*(flipEnds?-1:1);
+  const px=e.px||0, py=e.py||0;
+  const cx=x=>plClamp(x,-93,93), cy=y=>plClamp(y,-37,37), T={};
+  const A=(role,x,y)=>{T[(att==='A'?0:6)+role]=[cx(x),cy(y)]};
+  const Dd=(role,x,y)=>{T[(def==='A'?0:6)+role]=[cx(x),cy(y)]};
+
+  const G=0,D1=1,D2=2,C=3,W1=4,W2=5;
+
+  // Goalies sit in their creases
+  A(G,-dir*86,0);
+  Dd(G, dir*86,0);
+
+  // ─── ATTACKING DIAMOND (Wide wings) ───
+  const WING_SPREAD = 52;
+  const WING_DEPTH  = 10;
+  const D_DEPTH_1   = 22;
+  const D_DEPTH_2   = 34;
+
+  A(C,  px,                  py);
+  A(W1, px - dir * WING_DEPTH, py - WING_SPREAD);
+  A(W2, px - dir * WING_DEPTH, py + WING_SPREAD);
+  A(D1, px - dir * D_DEPTH_1,  py);
+  A(D2, px - dir * D_DEPTH_2,  py);
+
+  // ─── DEFENDING DIAMOND (Mirror) ───
+  const back = cx(px + dir * (Math.abs(px - dir*86) > 40 ? 25 : 12));
+  const by   = cy(py);
+
+  Dd(C,  back,                      by);
+  Dd(W1, back - dir * WING_DEPTH,   by - WING_SPREAD);
+  Dd(W2, back - dir * WING_DEPTH,   by + WING_SPREAD);
+  Dd(D1, back - dir * D_DEPTH_1,    by);
+  Dd(D2, back - dir * D_DEPTH_2,    by);
+
+  plCarrier = T[(att==='A'?0:6)+C];
+  plGoalT = 0;
+  pls.forEach((p,i)=>{const t=T[i]; if(t){p.tx=t[0];p.tz=t[1]}});
+}
+
+
+function plStep(dt,t){
+  plGroup.visible=plOn&&ev.length>0;
+  if(!plGroup.visible)return;
+  const k=1-Math.exp(-dt*(plGoalT?2.2:3.2)), MAXS=plGoalT?55:70;       // ft/s cap so a long change of play reads as skating
+  pls.forEach((p,i)=>{
+    const ox=Math.sin(t*.9+p.ph)*(p.r===0?.4:1.1), oz=Math.cos(t*.7+p.ph)*(p.r===0?.4:1.1);   // idle drift so they never freeze
+    let dx=p.tx+ox-p.x, dz=p.tz+oz-p.z; const dist=Math.hypot(dx,dz);
+    let step=Math.min(dist*k, MAXS*dt); if(dist>1e-4){p.x+=dx/dist*step; p.z+=dz/dist*step}
+    const sp=step/Math.max(dt,1e-3);                                   // current speed ft/s
+    p.sp+=(sp-p.sp)*Math.min(1,dt*6);
+
+
+    p.ph+=dt*(3+p.sp*.18);
+    const mv=Math.min(1,p.sp/30);
+    p.root.position.set(p.x,0,p.z); p.root.rotation.y=p.hd;
+    p.body.rotation.x=.18*mv; p.body.rotation.z=Math.sin(p.ph)*.09*mv; p.body.position.y=Math.abs(Math.sin(p.ph))*.05*mv
+      +(plGoalT?Math.abs(Math.sin(t*7+i))*.35*(p.side===plSide?1:0)*(p.r?1:0):0);     // scoring team hops
+  });
+  if(plCarrier){plRing.visible=true;plRing.position.x=p0(plCarrier)[0];plRing.position.z=p0(plCarrier)[1];
+    const s=1+((t*1.4)%1)*.5;plRing.scale.set(s,s,1);plRing.material.opacity=.9*(1-((t*1.4)%1))}
+  else plRing.visible=false;
+}
+const p0=c=>{const ap=pls.find(p=>Math.abs(p.tx-c[0])<.01&&Math.abs(p.tz-c[1])<.01);return ap?[ap.x,ap.z]:c};
+
+
+let t0=performance.now(), tPrev=t0;
+/* ═════ PUCK MOTION: glide to puckTarget (set by select()) with a little hop + a fading comet trail ═════ */
+const TRAIL_N=28, trailPts=Array.from({length:TRAIL_N},()=>puck.position.clone());
+const trailGeo=new THREE.BufferGeometry().setFromPoints(trailPts);
+const trail=new THREE.Line(trailGeo,new THREE.LineBasicMaterial({color:0x2563eb,transparent:true,opacity:.0,depthWrite:false}));
+trail.frustumCulled=false; scene.add(trail);
+let trailOp=0;
+function puckStep(dt){
+  const dx=puckTarget.x-puck.position.x, dz=puckTarget.z-puck.position.z, dist=Math.hypot(dx,dz);
+  const k=1-Math.exp(-dt*(dist>40?5:7));                       // quick, then settles
+  puck.position.x+=dx*k; puck.position.z+=dz*k;
+  puck.position.y=.5+Math.min(5,dist*.07);                     // small hop while it travels
+
+// puck.rotation.y+=dt*(2+dist*.13);   // spinning disabled
+
+  // comet trail: shift the history and append the current spot
+  for(let i=0;i<TRAIL_N-1;i++)trailPts[i].copy(trailPts[i+1]);
+  trailPts[TRAIL_N-1].set(puck.position.x,.13,puck.position.z);
+  const pos=trailGeo.attributes.position;
+  for(let i=0;i<TRAIL_N;i++)pos.setXYZ(i,trailPts[i].x,trailPts[i].y,trailPts[i].z);
+  pos.needsUpdate=true;
+  trailOp+=((dist>1.5?.9:0)-trailOp)*Math.min(1,dt*8); trail.material.opacity=trailOp}
+(function animate(){
+  requestAnimationFrame(animate);
+  const now=performance.now(), t=(now-t0)/1000, dt=Math.min(.05,(now-tPrev)/1000); tPrev=now;
+  puckStep(dt); try{plStep(dt,t)}catch(e){}
+
+
+  try{const g=games.find(x=>x.id==gameSel); setHomeLogo(g?g.h:null); plSetLogos(g?g.a:null,g?g.h:null)}catch(e){} 
+  // Make the physical camera model look at the puck
+  camCrew.lookAt(puck.position.x, 0, puck.position.z);
+  ring.scale.setScalar(1+((t*1.2)%1)*1.2); ring.material.opacity=.8*(1-((t*1.2)%1));
+  iceUpdate();
+  {let zw=false; try{zw=zamWanted()}catch(e){} zamUpdate(t,zw)} 
+  {const f=(t*.35)%1; wallScan.position.y=f*WALL_H; wallScan.material.opacity=.75*(1-f)} 
+
+  // Render the cameraman's view into the Jumbotron render target
+  jumboScreen.visible = false;                       // don't film the screen that's showing the film
+  const prevTarget = ren.getRenderTarget();
+  ren.setRenderTarget(jumboRT);
+  ren.setClearColor(0x02050a, 1);
+  ren.clear();
+  ren.render(scene, jumboCam);
+  ren.setRenderTarget(prevTarget);
+  jumboScreen.visible = true;
+
+  // Render the main camera view
+  placeCam(); 
+  ren.render(scene,cam);
+})();
+
+
+/* ═════ DATA NORMALIZING (tolerant: our own shape OR raw NHL api-web shape) ═════ */
+const mmss=s=>{const m=String(s||'0:00').split(':');return (+m[0]||0)*60+(+m[1]||0)};
+const perNum=v=>{v=String(v??'');const m=v.match(/(\d)/);return m?+m[1]:/ot|overtime/i.test(v)?4:1};
+function typeFromDesc(desc){const d=String(desc).toLowerCase();
+  if(/\bgoal\s*\(\d+\)/.test(d))return 'goal';
+  if(/penalt|minor|major|misconduct|roughing|hooking|tripping|slashing|interference|holding/.test(d))return 'penalty';
+  if(/blocked/.test(d))return 'blocked-shot';
+  if(/saved by/.test(d))return 'shot-on-goal';
+  if(/above crossbar|\bwide\b|missed shot|\bshort\b/.test(d))return 'missed-shot';
+  if(/\b(wrist|snap|slap|backhand|tip-in|deflect|wrap|shot)\b/.test(d))return 'shot';
+  if(/faceoff/.test(d))return 'faceoff'; if(/\bhit\b/.test(d))return 'hit';
+  if(/giveaway/.test(d))return 'giveaway'; if(/takeaway/.test(d))return 'takeaway';
+  return 'stoppage'}
+function kindOf(t){t=(t||'').toLowerCase();
+  if(t.includes('goal')&&!t.includes('shot'))return 'g'; if(t.includes('penalt'))return 'p';
+  if(t.includes('shot'))return 's'; return 'o'}
+/* Accepts the ESPN scraper shape {play_by_play:[{period,clock,desc}], goals:[…]} (no coords yet)
+   or any list that carries x/y (x:-100..100, y:-42.5..42.5) */
+function normPbp(raw){
+  if(!raw)return [];
+  const arr=Array.isArray(raw)?raw:(raw.play_by_play||raw.plays||raw.events||raw.playByPlay||[]);
+  let pl=arr.map(p=>{const d=p.details||{},c=p.coordinate||{};
+    return {per:p.period??p.periodDescriptor?.number??1,clock:p.clock??p.timeInPeriod??'0:00',desc:p.desc??p.description??'',
+      type:p.type??p.typeDescKey??null,x:p.x??d.xCoord??c.x??null,y:p.y??d.yCoord??c.y??null,team:p.team??p.teamAbbr??d.eventOwnerTeamId??''}});
+  if(pl.length>1){ // feed is newest-first → flip to chronological (clock is ELAPSED time)
+    const a=pl[0],z=pl[pl.length-1],pa=perNum(a.per),pz=perNum(z.per);
+    if(pa!==pz?pa>pz:mmss(a.clock)>mmss(z.clock))pl.reverse();
+  }
+  // scraper labels every play "1st"; trust "Start of 3rd Period" markers instead when labels are all identical
+  const same=new Set(pl.map(p=>String(p.per))).size===1; let cp=null;
+  pl.forEach(p=>{const m=String(p.desc).match(/start of (1st|2nd|3rd|ot|overtime|\d\w*)/i);if(m)cp=perNum(m[1]);p.per2=(same&&cp!=null)?cp:perNum(p.per)});
+  let out=pl.map(p=>{const type=p.type||typeFromDesc(p.desc);
+    return {per:p.per2,clock:p.clock,type,kind:kindOf(type),x:p.x==null?null:+p.x,y:p.y==null?null:+p.y,team:p.team,desc:p.desc,
+      t:Math.min(p.per2-1,3)*1200+mmss(p.clock)}});
+  // goals[] covers every period: enrich matches, add the ones the feed doesn't include
+  (raw.goals||[]).forEach(g=>{const per=perNum(g.period),t=Math.min(per-1,3)*1200+mmss(g.clock);
+    const m=out.find(e=>e.kind==='g'&&e.t===t);
+    if(m)m.desc+=` · ${g.score}`;
+    else out.push({per,clock:g.clock,type:'goal',kind:'g',x:null,y:null,team:'',desc:`${g.scorer} · ${g.score}`,t,syn:true})});
+  out=out.map((e,i)=>({e,i})).sort((a,b)=>a.e.t-b.e.t||a.i-b.i).map((o,i)=>({...o.e,i}));
+  // ── who plays for whom: anchor on goal scorers (score delta says which side scored), then propagate through
+  //    "A hit B", "A faceoff won against B", "A shot saved by G", "A shot blocked by B" (always opposite teams)
+  const gm=raw.game||{}, abbrOf={A:abbr(gm.team1||''),H:abbr(gm.team2||'')}, roster={};
+  let pa=0,ph=0;
+  [...(raw.goals||[])].map(g=>({g,t:Math.min(perNum(g.period)-1,3)*1200+mmss(g.clock)})).sort((x,y)=>x.t-y.t).forEach(({g})=>{
+    const m=String(g.score).match(/(\d+)\D+(\d+)/); if(!m)return; const a=+m[1],h=+m[2];
+    const sd=a>pa?'A':h>ph?'H':null; pa=a;ph=h; const nm=String(g.scorer).replace(/\s*[\(\[].*$/,'').trim(); if(sd&&nm)roster[nm]=sd});
+  const SH=String.raw`(?:wrist shot|snap shot|slap shot|backhand|tip-in|deflect\w*|wrap\S*|poke|shot)`;
+  const PEN=String.raw`(?:slashing|roughing|hooking|tripping|holding|interference|cross-checking|high-sticking|boarding|charging|elbowing|kneeing|unsportsmanlike\w*|delay\w*)`;
+  const who=e=>{const d=e.desc;let m;
+    if(e.type==='goal'&&(m=d.match(/^(.+?)\s+goal\s*\(/i)))return {a:m[1]};
+    if(e.type==='goal'&&(m=d.match(/^(.+?)\s*\(\d+\)/)))return {a:m[1]};
+    if(m=d.match(new RegExp('^(.+?)\\s+'+SH+'\\b(.*)$','i'))){const r=m[2],o=r.match(/(?:blocked|saved) by\s+(.+)$/i);return {a:m[1],b:o&&o[1],opp:!!o}}
+    if(m=d.match(/^(.+?)\s+(?:hit|faceoff won against)\s+(.+)$/i))return {a:m[1],b:m[2],opp:true};
+    if(m=d.match(new RegExp('^(.+?)\\s+'+PEN+'\\b.*?against\\s+(.+)$','i')))return {a:m[1],b:m[2],opp:true};
+    if(m=d.match(/^(?:giveaway|takeaway) by (.+)$/i))return {a:m[1]};
+    return null};
+  const W=out.map(who), flip=x=>x==='A'?'H':'A';
+  for(let pass=0;pass<8;pass++){let ch=false;
+    W.forEach(w=>{if(!w||!w.opp||!w.b)return;
+      if(roster[w.a]&&!roster[w.b]){roster[w.b]=flip(roster[w.a]);ch=true}
+      else if(roster[w.b]&&!roster[w.a]){roster[w.a]=flip(roster[w.b]);ch=true}});
+    if(!ch)break}
+  out.forEach((e,k)=>{const w=W[k];e.side=w?(roster[w.a]||(w.opp&&w.b&&roster[w.b]?flip(roster[w.b]):null)):null;
+    if(e.side)e.team=abbrOf[e.side]||e.team});
+  return out;
+}
+function normScores(raw){
+  const g=Array.isArray(raw)?raw:(raw&&(raw.games||raw.scores))||[];
+  return g.map((x,i)=>{const a=x.away??x.awayTeam??{},h=x.home??x.homeTeam??{};
+    const an=typeof a==='string'?a:(a.name||a.abbr||a.abbrev||''), hn=typeof h==='string'?h:(h.name||h.abbr||h.abbrev||'');
+    const st=String(x.status??x.gameState??x.clock??'').replace(/\s*None$/,'');
+    return {id:x.id??x.game_id??x.gameId??i,a:x.away_abbr||abbr(an),an,as:+(x.away_score??a.score??0),h:x.home_abbr||abbr(hn),hn,hs:+(x.home_score??h.score??0),st,
+      aw:!!x.away_winner,hw:!!x.home_winner}});
+}
+function normLive(raw){ // nhl_live.json → {a,h,as,hs,st,wpA,wpH,plays}
+  const d=raw&&raw.game_data; if(!d)return null; const t=d.teams||[];
+  return {a:t[0]?.abbr||abbr(t[0]?.name),h:t[1]?.abbr||abbr(t[1]?.name),as:+d.away_score||0,hs:+d.home_score||0,
+    st:String(d.status||'').replace(/\s*None$/,''),wpA:d.win_prob_away,wpH:d.win_prob_home,plays:d.recent_plays||[],
+    gid:(String(raw.source_url||'').match(/gameId\/(\d+)/)||[])[1]};
+}
+
+/* ═════ STATE + UI ═════ */
+let flipEnds=false;
+const hash=e=>{const h=(Math.imul(e.t+1,2654435761)^Math.imul(e.i+7,40503))>>>0;return {a:(h%1000)/1000,b:((h>>>10)%1000)/1000}};
+/* Estimated spots: shooter's team attacks the net its opponent defends (teams swap ends each period).
+   Shots go to a plausible distance for the shot type; "wide right/left" skews the side.
+   Faceoffs after a goal / period start → center ice. Everything else holds the last known spot. */
+function place(list){
+  let px=0,py=0;
+  list.forEach((e,k)=>{e.loc='held';e.mx=e.my=null;
+    if(e.x!=null){px=e.x;py=e.y;e.loc='exact';e.mx=px;e.my=py}
+    else{const d=e.desc.toLowerCase(),h=hash(e),prev=list[k-1];let ex=null,ey=null;
+      if(['goal','shot-on-goal','missed-shot','blocked-shot','shot'].includes(e.type)&&e.side){
+        const dir=((e.side==='A')===(e.per%2===1)?1:-1)*(flipEnds?-1:1);
+        let dist=e.type==='goal'?8+h.a*17:e.type==='blocked-shot'?38+h.a*14:/slap/.test(d)?52+h.a*12:/backhand|tip-in|deflect/.test(d)?10+h.a*12:/wrap/.test(d)?5:28+h.a*17;
+        ex=dir*(89-dist);
+        const w=/wide right/.test(d)?1:/wide left/.test(d)?-1:0;
+        ey=w?w*dir*(8+h.b*12):(h.b-.5)*2*(dist<15?7:20);
+      }else if(e.type==='faceoff'&&prev&&(prev.kind==='g'||/start of/i.test(prev.desc))){ex=0;ey=0}
+      if(ex!=null){px=ex;py=ey;e.loc='est';e.mx=ex;e.my=ey}
+      else{ // no coordinates and team unknown (e.g. a 0-0 game has no goal to learn the sides from): move the puck anyway
+        // with an illustrative spot by play type. No marker dot is drawn for these, so the rink never shows a fake shot location.
+        const D=[[0,0],[-20,-22],[-20,22],[20,-22],[20,22],[-69,-22],[-69,22],[69,-22],[69,22]];
+        let ix=null,iy=null;
+        if(e.type==='faceoff'){const q=D[Math.floor(h.a*D.length)];ix=q[0];iy=q[1]}
+        else if(e.type==='hit'){ix=(h.a-.5)*150;iy=(h.b<.5?-1:1)*(34+h.a*6)}
+        else if(['shot','shot-on-goal','missed-shot','blocked-shot'].includes(e.type)){const sx=h.b<.5?-1:1;ix=sx*(48+h.a*28);iy=(h.a-.5)*34}
+        else if(e.type==='giveaway'||e.type==='takeaway'){ix=(h.a-.5)*130;iy=(h.b-.5)*64}
+        if(ix!=null){px=ix;py=iy;e.loc='ill'}}}
+    e.px=px;e.py=py});
+}
+let ev=[], idx=0, games=[], gameSel=null, playing=null;
+const $=id=>document.getElementById(id), sl=$('sl'), info=$('info');
+
+
+let markerGroup = new THREE.Group();
+scene.add(markerGroup);
+
+function buildMarkers(){
+  // Clear old markers
+  while(markerGroup.children.length > 0){ 
+    markerGroup.remove(markerGroup.children[0]); 
+  }
+
+  ev.forEach(e=>{
+    if(e.mx==null) return;
+
+    // 1. GOALS: Show the Team Logo (Holographic Jersey)
+    if(e.kind === 'g') {
+      const g = games.find(x => x.id == gameSel);
+      // Figure out which team scored based on A (away) or H (home)
+      const abbr = e.side === 'A' ? (g ? g.a : null) : e.side === 'H' ? (g ? g.h : null) : null;
+      const tex = getTeamTex(abbr);
+      
+      if (tex) {
+        const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0.85, depthWrite: false });
+        const sprite = new THREE.Sprite(mat);
+        sprite.position.set(e.mx, 1.5, e.my); // Float slightly above ice
+        sprite.scale.set(6, 6, 1); // Size of the jersey
+        markerGroup.add(sprite);
+      }
+    } 
+    // 2. OTHER EVENTS: Keep them as simple colored dots
+    else {
+      const geo = new THREE.CircleGeometry(0.8, 8);
+      const mat = new THREE.MeshBasicMaterial({ color: KIND_COL[e.kind], transparent: true, opacity: 0.8, side: THREE.DoubleSide });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.rotation.x = -Math.PI / 2; // Lay flat on the ice
+      mesh.position.set(e.mx, 0.2, e.my);
+      markerGroup.add(mesh);
+    }
+  });
+}
+
+function select(i,fromSlider){
+  if(!ev.length)return; idx=Math.max(0,Math.min(ev.length-1,i)); const e=ev[idx];
+
+
+puckTarget.set(e.px||0,.5,e.py||0); if(!fromSlider)sl.value=idx;
+try{setFormation(e)}catch(err){console.warn('[players]',err)}
+tagSprite.position.set(e.px||0, 8, e.py||0); // Float the tag above the puck
+updatePlayerTag(e.desc);
+
+(()=>{const s=new Set();ev.forEach(x=>{if(x.kind==='g'){const a=x.desc.match(/^([A-Z][a-zA-Z\-\.']+(?:\s+[A-Z][a-zA-Z\-\.']+)+)/);if(a)s.add(a[1]);const b=x.desc.match(/assists?:\s*(.+)$/i);if(b)b[1].split(',').forEach(n=>{const m=n.replace(/\([^)]*\)/g,'').trim();if(/^[A-Z]/.test(m))s.add(m)})}});const isXF=[...s].some(n=>e.desc&&e.desc.includes(n));pls.forEach(p=>{if(isXF&&p.side===e.side){p.mainMesh.material=p.xfMat;p.accMesh.material=p.xfMat}else{p.mainMesh.material.color.setHex(PL_PAL[p.side].main);p.accMesh.material.color.setHex(PL_PAL[p.side].acc)}})})();
+
+  const per=e.per>3?'OT':'P'+e.per;
+  info.innerHTML=`<b>${per} ${e.clock}</b> · ${e.type.replace(/-/g,' ')} ${e.team?'· '+logo(e.team)+e.team:''}${e.loc==='exact'?` · (${e.x}, ${e.y})`:e.loc==='est'?' · ≈ est. spot':e.loc==='ill'?' · puck position illustrative':''}${e.desc?'<br>'+e.desc:''}`;
+
+  // ─── ADD THIS LINE ───
+  checkMomentumAlert(e); 
+
+  drawChart(); if(typeof renderWP==='function'&&wpSeries)renderWP(); if(typeof markPb==='function')markPb();
+}
+$('prev').onclick=()=>select(idx-1); $('next').onclick=()=>select(idx+1);
+sl.oninput=()=>select(+sl.value,true);
+$('flip').onclick=()=>{flipEnds=!flipEnds;place(ev);buildMarkers();select(idx)};
+$('play').onclick=()=>{ if(playing){clearInterval(playing);playing=null;$('play').textContent='⏵';return}
+  $('play').textContent='⏸'; playing=setInterval(()=>{ if(idx>=ev.length-1){$('play').click();return} select(idx+1)},900)};
+
+function setEvents(list){
+  const follow=!ev.length||idx>=ev.length-1;            // first load / sitting on newest play → ride the live edge
+  place(list); ev=list; sl.max=Math.max(0,ev.length-1); buildMarkers(); select(follow?ev.length-1:Math.min(idx,ev.length-1)); drawChart(); renderXF();
+}
+
+/* X Factor: scorers ranked by goals; tap a goal → rink tab, puck jumps to it */
+
+
+
+
+function renderXF(){
+  const box=$('xfBox'),by={};
+  ev.forEach((e,i)=>{if(e.kind!=='g')return;
+    const m=e.desc.match(/^(.+?)\s+(?:goal\s*)?\(\d+\)/i); if(!m)return; const nm=m[1].trim();
+    const as=(e.desc.match(/assists?:\s*(.+?)(?:\s·\s\d+-\d+)?$/i)||[])[1]||'';
+    const sc=(e.desc.match(/(\d+-\d+)\s*$/)||[])[1]||'';
+    (by[nm]=by[nm]||{nm,team:e.team,g:[]}).g.push({i,e,as:as.replace(/\s*\(\d+\)/g,''),sc,pp:/\[PP\]/i.test(e.desc)})});
+  const list=Object.values(by).sort((a,b)=>b.g.length-a.g.length||a.g[0].e.t-b.g[0].e.t);
+  if(!list.length){box.textContent='No goals yet.';return}
+  
+  box.innerHTML=list.map(p=>{
+    const teamIcon = p.team ? logo(p.team) : '';
+    return `<div class="pl">
+      <div class="nm">${teamIcon} ${p.nm}<i>${p.team||''} · ${p.g.length} goal${p.g.length>1?'s':''}</i></div>`+
+      p.g.map(x=>`<div class="gl" data-i="${x.i}">${x.e.per>3?'OT':'P'+x.e.per} ${x.e.clock}${x.pp?' · PP':''}${x.sc?' · '+x.sc:''}${x.as?`<small>A: ${x.as}</small>`:''}</div>`).join('')+`</div>`;
+  }).join('');
+}
+
+$('xfBox').addEventListener('click',e=>{const g=e.target.closest('.gl');if(!g)return;
+  document.querySelector('.tab[data-t="rink"]').click();select(+g.dataset.i)});
+
+/* graph: 4 lanes (goal/shot/pen/other) over game time, click to jump */
+/* Yahoo win-probability series → [{t (elapsed s), h (home %), a, hs, as, clock}] */
+let wpSeries=null, wpGid=null;
+function normWP(raw){
+  const s=raw&&raw.series; if(!Array.isArray(s)||!s.length)return null;
+  let rows=s.map((p,i)=>{
+    const fin=/final/i.test(p.clock||''), pre=/pre/i.test(p.clock||'');
+    const t=pre?0:fin?Infinity:Math.min(perNum(p.period)-1,3)*1200+mmss(p.time);
+    return {t,h:+p.home_pct,a:+p.away_pct,hs:+p.home_score||0,as:+p.away_score||0,clock:p.clock,i}});
+  rows.sort((x,y)=>(x.t-y.t)||(x.i-y.i));
+  const last=rows.filter(r=>isFinite(r.t)).pop(); const endT=Math.max(3600,last?last.t:0);
+  rows.forEach(r=>{if(!isFinite(r.t))r.t=endT});
+  return rows}
+
+/* does the chart belong to the game on screen? id match, else matching final score */
+function wpFits(){
+  if(!wpSeries || !wpSeries.length) return false;
+  const c = games.find(g => g.id == gameSel);
+  if (wpGid && c && String(wpGid) === String(c.id)) return true;
+  const last = wpSeries[wpSeries.length - 1];
+  if (c && last && last.hs === c.hs && last.as === c.as) return true;
+  return !c;
+}
+
+/* value of the win-prob series at a given elapsed game-time (seconds) */
+function wpAt(t){
+  if(!wpSeries||!wpSeries.length)return {h:50,a:50,hs:0,as:0};
+  let lo=wpSeries[0],hi=wpSeries[wpSeries.length-1];
+  if(t<=lo.t)return lo; if(t>=hi.t)return hi;
+  for(let i=1;i<wpSeries.length;i++){ if(wpSeries[i].t>=t){ lo=wpSeries[i-1]; hi=wpSeries[i]; break; } }
+  const span=hi.t-lo.t, f=span>0?(t-lo.t)/span:0;
+  return {h:lo.h+(hi.h-lo.h)*f, a:lo.a+(hi.a-lo.a)*f, hs:hi.hs, as:hi.as};
+}
+
+/* graph: win-prob curve on top, then 4 lanes (goal/shot/pen/other) over game time, click to jump */
+
+
+
+/* ═════ OUR OWN LINE + ANIMAL SIGNALS ═════
+   1. Every game starts 50:50. The line is OURS: built from the goals (score diff) and the clock — NOT from the site's win %.
+   2. Between goals the line keeps moving forward with the clock (a lead gets stronger as time runs out).
+   3. ONE trigger per game: the first time a team's line reaches SIGNAL_AT (63%) = the game is decided. Printed once (🦌), never again.
+   4. After the trigger the animals keep showing on our line (sensor ticks): they climb or fall as the game goes for/against the trigger.
+   5. Pre-trigger there are no signals. Ladder + season colours are Raphael's (edit.txt). */
+const SEASON_COL={1:'#bf5b2c',2:'#4c5b7a',3:'#2f7343',4:'#8a2be2'};
+const WP_LADDER=[[79,'DRAGON',4,'🐉'],[78,'SCORPION',4,'🦂'],[76,'LYNX',4,'🐱'],[72,'EAGLE',4,'🦅'],[66,'VULTURE',4,'🦅'],[65,'CROW',4,'🐦'],
+  [63,'WOLF',3,'🐺'],[62,'GOAT',3,'🐐'],[61,'RAM',3,'🐏'],[60,'HORSE',2,'🐎'],[59,'BADGER',2,'🦡'],[58,'BEAR',2,'🐻'],[57,'OTTER',2,'🦦'],
+  [56,'DEER',1,'🦌'],[54,'SNOW LEOPARD',1,'❄️'],[0,'OWL',1,'🦉']].map(([min,animal,season,emoji])=>({min,animal,season,emoji,color:SEASON_COL[season]}));
+const wpAnimal=p=>WP_LADDER.find(b=>p>=b.min);
+const SIGNAL_AT=63, GOALS_PER_GAME=6, CALC_UNTIL=1800;   // first 30:00 = calculation only, no 🦌 / animals before it          // 6 total goals per 60 min = real NHL scoring; sigma = sqrt(6 * timeLeft/3600)
+function erfA(x){const sg=x>=0?1:-1;x=Math.abs(x);const t=1/(1+0.3275911*x);
+  return sg*(1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x))}
+// home win % (0-100) given home goal diff, elapsed seconds, and game end
+function ownWP(diff,t,endT){const left=endT-t; if(diff===0) return 50; if(left<=0) return diff>0?100:0;
+  return 100*0.5*(1+erfA(diff/Math.sqrt(GOALS_PER_GAME*left/3600)/Math.SQRT2))}
+// goals → [{t, d}]  d = home goals − away goals AFTER the goal. Score text is "away-home" (e.g. SJS 1 – TOR 3 → "1-3")
+function goalsOf(evs){const o=[];evs.forEach(e=>{if(e.kind!=='g')return;const m=String(e.desc||'').match(/(\d+)\s*-\s*(\d+)\s*$/);if(m)o.push({t:e.t,d:(+m[2])-(+m[1])})});return o}
+// our line: starts 50:50, steps at every goal, keeps drifting with the clock in between
+function ownLine(goals,tLast){
+  const endT=tLast>3600?3900:3600, rows=[]; let d=0, from=0;
+  const seg=(t0,t1,dd)=>{for(let t=t0;t<t1;t+=20){const h=ownWP(dd,t,endT);rows.push({t,h,a:100-h})} const h=ownWP(dd,t1,endT);rows.push({t:t1,h,a:100-h})};
+  goals.forEach(g=>{const tg=Math.min(g.t,tLast); seg(from,tg,d); d=g.d; from=tg});
+  seg(from,tLast,d); return rows}
+// ONE trigger (first time a side reaches SIGNAL_AT), then sensor ticks whenever the leader's animal changes
+function ownSignals(line){
+  let trig=null, key=null; const sensors=[];
+  for(const r of line){
+    if(r.t<CALC_UNTIL) continue;
+    const side=r.h>r.a?'h':r.a>r.h?'a':null; const p=side?Math.round(r[side]):50, b=wpAnimal(p), k=(side||'-')+b.animal;
+    if(!trig){ if(side&&p>=SIGNAL_AT){trig={t:r.t,side,p,h:r.h}; key=k} continue }
+    if(k!==key){ key=k; sensors.push({t:r.t,side,p,h:r.h,b}) } }
+  return {trig,sensors}}
+
+function drawChart(){
+  const svg=$('chart'); if(!svg) return;
+  if(!ev.length && !wpSeries){svg.innerHTML='';return}
+  const wp = wpFits() ? wpSeries : null;
+  const maxT=Math.max(3600,...ev.map(e=>e.t),...(wp?wp.map(r=>r.t):[0])), X=t=>40+(t/maxT)*740;
+  const T0=24,T1=140,Y=p=>T1-(p/100)*(T1-T0), MID=Y(50);
+  const lane={g:180,s:215,p:250,o:285}, col={g:'#facc15',s:'#60a5fa',p:'#f87171',o:'#475569'};
+  
+  let h='<defs>';
+  if(wp)h+=`<clipPath id="wpUp"><rect x="40" y="${T0}" width="740" height="${MID-T0}"/></clipPath><clipPath id="wpDn"><rect x="40" y="${MID}" width="740" height="${T1-MID}"/></clipPath>`;
+  
+  // Add CSS for the flashing animation
+  h += `<style>
+    @keyframes flashBar {
+      0% { opacity: 0.3; }
+      50% { opacity: 1; }
+      100% { opacity: 0.3; }
+    }
+    .signal-bar {
+      animation: flashBar 1s infinite;
+    }
+  </style>`;
+  h+='</defs>';
+
+  // ═════ BANDS ═════
+  const edges=[0,1200,2400,3600,maxT];
+  const perCol=['#0b1f3a','#0a1a30','#0b1f3a','#0d2440'];
+  for(let p=0;p<4;p++){
+    const x0=X(edges[p]), x1=X(edges[p+1]);
+    if(x1<=x0) continue;
+    h+=`<rect x="${x0}" y="15" width="${x1-x0}" height="280" fill="${perCol[p]}"/>`;
+  }
+  const laneBand={g:'rgba(250,204,21,.06)',s:'rgba(96,165,250,.06)',p:'rgba(248,113,113,.06)',o:'rgba(71,85,105,.05)'};
+  Object.entries(lane).forEach(([k,y])=>{
+    h+=`<rect x="40" y="${y-14}" width="740" height="28" fill="${laneBand[k]}"/>`;
+  });
+
+  for(let p=0;p<=Math.ceil(maxT/1200);p++){const x=X(p*1200);h+=`<line x1="${x}" x2="${x}" y1="15" y2="295" stroke="#1e3a8a" stroke-dasharray="3 4"/><text x="${x+4}" y="12">${p<3?'P'+(p+1):p===3?'OT':''}</text>`}
+
+  if(wp){
+    const g=(games.find(g=>g.id==gameSel)||{}), hn=g.h||'HOME', an=g.a||'AWAY';
+
+    // ─── ZONES ───
+    const zones=[
+      {lo:90, hi:100, c:'#ef4444', op:.25},
+      {lo:75, hi:90,  c:'#f97316', op:.18},
+      {lo:50, hi:75,  c:'#0ea5e9', op:.08},
+      {lo:25, hi:50,  c:'#0ea5e9', op:.08},
+      {lo:10, hi:25,  c:'#f97316', op:.18},
+      {lo:0,  hi:10,  c:'#ef4444', op:.25},
+    ];
+    zones.forEach(z=>{
+      const yTop=Y(z.hi), yBot=Y(z.lo);
+      h+=`<rect x="40" y="${yTop}" width="740" height="${yBot-yTop}" fill="${z.c}" opacity="${z.op}"/>`;
+    });
+    
+    h+=`<rect x="40" y="${Y(52)}" width="740" height="${Y(48)-Y(52)}" fill="#111827" opacity=".8"/>`;
+
+    const pts=[];
+    wp.forEach(r=>pts.push([X(r.t), Y(r.h)]));
+    const areaPts=`${X(wp[0].t)},${MID} ${pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')} ${X(wp[wp.length-1].t)},${MID}`;
+    h+=`<polygon points="${areaPts}" fill="#0e7490" opacity=".55" clip-path="url(#wpUp)"/>`;
+    h+=`<polygon points="${areaPts}" fill="#1d4ed8" opacity=".60" clip-path="url(#wpDn)"/>`;
+
+    const lnStr=pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+    h+=`<polyline points="${lnStr}" fill="none" stroke="#e0f2fe" stroke-width="2" stroke-linejoin="round"/>`;
+
+    [0,25,50,75,100].forEach(p=>{
+      h+=`<line x1="40" x2="780" y1="${Y(p)}" y2="${Y(p)}" stroke="${p===50?'#2b4a85':'#0f2447'}" stroke-opacity=".8"/>
+          <text x="4" y="${Y(p)+3}">${p}%</text>`;
+    });
+    
+    h+=`<text x="44" y="${T0+10}" style="fill:#22d3ee;font-weight:700">${hn} ▲</text>
+        <text x="44" y="${T1-4}" style="fill:#60a5fa;font-weight:700">${an} ▼</text>`;
+
+
+
+
+
+    // ─── OUR LINE (yellow) + ONE TRIGGER + SENSOR ANIMALS ───
+    const tLast=Math.max(0,...ev.map(e=>e.t),...wp.map(r=>r.t));
+    const goals=goalsOf(ev), own=ownLine(goals,tLast), sig=ownSignals(own);
+    if(goals.length||ev.length){
+      h+=`<polyline points="${own.map(r=>X(r.t).toFixed(1)+','+Y(r.h).toFixed(1)).join(' ')}" fill="none" stroke="#fde047" stroke-width="2.4" stroke-linejoin="round" style="pointer-events:none"/>`;
+      h+=`<text x="776" y="${T1-4}" text-anchor="end" style="fill:#fde047;font-weight:700">— our line</text>`;
+      let lastX=-99;
+      sig.sensors.forEach(sn=>{const x=X(sn.t); if(x-lastX<15&&sn.b.animal!=='OWL') return; lastX=x;
+        h+=`<circle cx="${x}" cy="${Y(sn.h)}" r="3" fill="${sn.b.color}" stroke="#fff" stroke-width="1" style="pointer-events:none"/>`;
+        h+=`<text x="${x}" y="${Y(sn.h)+(sn.h>=50?-8:16)}" text-anchor="middle" style="font-size:12px;pointer-events:none">${sn.b.emoji}</text>`});
+      if(sig.trig){const x=X(sig.trig.t), team=sig.trig.side==='h'?hn:an, dc=SEASON_COL[1];
+        h+=`<rect class="signal-bar" x="${x-2}" y="15" width="4" height="280" fill="${dc}" style="pointer-events:none;"/>`;
+        h+=`<text x="${x}" y="292" text-anchor="middle" style="fill:${dc};font-size:11px;font-weight:900;">🦌 ${team}</text>`;
+        h+=`<circle cx="${x}" cy="${Y(sig.trig.h)}" r="5" fill="${dc}" stroke="#fff" stroke-width="2" style="pointer-events:none"/>`} }
+
+    const ownAt=t=>{let r=own[0];for(const q of own){if(q.t<=t)r=q;else break}return r};
+    const cur=ev.length&&own.length?ownAt(ev[idx].t):null;
+    if(cur){const sd=cur.h>=cur.a?'h':'a', pp=Math.round(cur[sd]), bk=wpAnimal(pp);
+      h+=`<text x="44" y="${T0-12}" style="fill:${bk.color};font-weight:900">${bk.emoji} ${bk.animal} · S${bk.season} · ${pp===50?'50:50':(sd==='h'?hn:an)+' '+pp+'%'}</text>`}
+    if(cur)h+=`<text x="776" y="${T0-12}" text-anchor="end"
+                    style="fill:#e0f2fe;font-weight:700">${hn} ${Math.round(cur.h)}% · ${an} ${Math.round(cur.a)}%</text>`;
+  }
+
+  Object.entries(lane).forEach(([k,y])=>{h+=`<line x1="40" x2="780" y1="${y}" y2="${y}" stroke="#0f2447"/>`});
+  
+  ev.forEach((e,i)=>{
+    const x = X(e.t), y = lane[e.kind];
+    const isSel = i === idx;
+
+    if (e.kind === 'g') {
+      const size = 6;
+      const glow = isSel ? 'filter="drop-shadow(0 0 4px #fff)"' : '';
+      h += `<g data-i="${i}" style="cursor:pointer" ${glow}>
+              <line x1="${x-size}" y1="${y-size}" x2="${x+size}" y2="${y+size}" stroke="#ef4444" stroke-width="${isSel?4:3}" stroke-linecap="round"/>
+              <line x1="${x+size}" y1="${y-size}" x2="${x-size}" y2="${y+size}" stroke="#ef4444" stroke-width="${isSel?4:3}" stroke-linecap="round"/>
+            </g>`;
+    } else {
+      const r = e.kind === 'o' ? 3 : 5;
+      h += `<circle data-i="${i}" cx="${x}" cy="${y}" r="${r}" fill="${col[e.kind]}" opacity="${isSel ? 1 : 0.65}" ${isSel ? 'stroke="#fff" stroke-width="2"' : ''} style="cursor:pointer"/>`;
+    }
+  });
+
+  if(ev.length)h+=`<line x1="${X(ev[idx].t)}" x2="${X(ev[idx].t)}" y1="15" y2="295" stroke="#93c5fd" stroke-width="1.5"/>`;
+  svg.innerHTML=h; svg._X={maxT};
+}
+
+$('chart').addEventListener('click',e=>{const i=e.target.dataset&&e.target.dataset.i;if(i!=null){select(+i);return}
+  const svg=$('chart'),r=svg.getBoundingClientRect(),k=800/r.width,x=(e.clientX-r.left)*k,y=(e.clientY-r.top)*k;
+  if(!ev.length||!svg._X||y>150)return; const t=Math.max(0,(x-40)/740*svg._X.maxT);
+  let b=0;ev.forEach((q,j)=>{if(Math.abs(q.t-t)<Math.abs(ev[b].t-t))b=j});select(b)});
+
+/* odds: moneyline / puck line / total for the selected game; also gives an odds-implied win % */
+let oddsRaw=null;
+const am=n=>(n==null||n===''||isNaN(+n))?'–':(+n>0?'+'+(+n):String(+n));
+const imp=ml=>ml>0?100/(ml+100):-ml/(-ml+100);
+function oddsFor(){
+  if(!oddsRaw)return null;
+  const rows=Array.isArray(oddsRaw)?oddsRaw:(oddsRaw.games||oddsRaw.odds)||[oddsRaw], fid=oddsRaw.game_id;
+  return rows.find(r=>{const id=r.game_id||fid;return !id||String(id)==String(gameSel)})||null;
+}
+function oddsModel(o){
+  if(!o||isNaN(+o.away_ml)||isNaN(+o.home_ml))return null;
+  let pa=imp(+o.away_ml),ph=imp(+o.home_ml);const t=pa+ph;pa/=t;ph/=t;       // strip the bookmaker's margin
+  const fav=+o.home_ml<+o.away_ml?'H':'A', line=Math.abs(+o.away_spread||+o.home_spread||1.5);
+  const aSp=fav==='A'?-line:line;
+  return {A:o.away_abbr||'AWY',H:o.home_abbr||'HME',pa:Math.round(pa*100),ph:100-Math.round(pa*100),fav,aSp,hSp:-aSp,o};
+}
+/* when the selected game is final, work out which odds cashed from the final score */
+function oddsResult(m){
+  const g=games.find(x=>x.id==gameSel); if(!g||!/final/i.test(g.st||''))return null;
+  const as=+g.as, hs=+g.hs; if(isNaN(as)||isNaN(hs)||as===hs)return null;
+  const tot=+m.o.total, sum=as+hs, ca=as+m.aSp-hs, ch=hs+m.hSp-as;
+  return {as,hs,sum,tot,ml:as>hs?'A':'H',sp:ca>0?'A':ch>0?'H':null,tt:isNaN(tot)||sum===tot?null:(sum>tot?'O':'U')};
+}
+function oddsHTML(m,compact){
+  const res=oddsResult(m);
+  const o=m.o, v=(side,b,s2,k)=>{const cls=res?(res[k]==null?'':res[k]===side?'win':'lose'):(m.fav===side?'fav':'');
+    return `<div class="v ${cls}"><b>${b}</b>${s2?`<small>${s2}</small>`:''}</div>`};
+  const sd=x=>x==='A'?m.A:m.H, resLine=res?`<div class="od-res">Final ${res.as}–${res.hs} · ${sd(res.ml)} ML ✓ · ${res.sp?sd(res.sp)+' '+am(res.sp==='A'?m.aSp:m.hSp)+' ✓':'Puck line push'} · ${res.tt?(res.tt==='O'?'Over':'Under')+' '+res.tot+' ✓ ('+res.sum+' goals)':'Total push'}</div>`:'';
+  const bar=res?(res.ml==='A'?`<div style="width:100%;background:#16a34a">${m.A} 100% · WON</div>`:`<div style="width:100%;background:#16a34a;text-align:right">WON · 100% ${m.H}</div>`)
+    :`<div style="width:${m.pa}%;background:#1d4ed8">${m.A} ${m.pa}%</div><div style="width:${m.ph}%;background:#0e7490;text-align:right">${m.ph}% ${m.H}</div>`;
+  return `<span class="wpb">${bar}</span>`+
+   `<div class="od"><span></span><div class="h">${m.A}</div><div class="h">${m.H}</div>`+
+   `<div class="l">Moneyline</div>${v('A',am(o.away_ml),'','ml')}${v('H',am(o.home_ml),'','ml')}`+
+   `<div class="l">Puck line</div>${v('A',am(m.aSp),am(o.away_sp_odds),'sp')}${v('H',am(m.hSp),am(o.home_sp_odds),'sp')}`+
+   `<div class="l">Total ${o.total??''}</div>${v('O','O '+am(o.over_odds),'','tt')}${v('U','U '+am(o.under_odds),'','tt')}</div>`+resLine+
+   `<div class="src">${o.provider||'Odds'}${o.details?' · '+o.details:''} · ${res?`pregame win %: ${m.A} ${m.pa} / ${m.H} ${m.ph}`:'win % from moneyline'}</div>`;
+}
+function renderOdds(){
+  const box=$('oddsBox'), m=oddsModel(oddsFor());
+  box.innerHTML=m?oddsHTML(m):(oddsRaw?'No odds loaded for this game yet.':'No odds file yet (nhl-odds.json).');
+}
+
+/* scores strip */
+function renderStrip(){
+  $('strip').innerHTML=games.map(g=>`<div class="chip ${g.id==gameSel?'on':''}" data-id="${g.id}">${logo(g.a)}${g.a} <b>${g.as}</b> – <b>${g.hs}</b> ${g.h}${logo(g.h)}<i>${g.st}</i>${vidsFor(g).length?' 🎬':''}</div>`).join('');
+}
+$('strip').addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;gameSel=c.dataset.id==='undefined'?null:isNaN(+c.dataset.id)?c.dataset.id:+c.dataset.id;renderStrip();pull()});
+
+/* ═════ VIDEO: files in /data/nhl-video/ matched to games (by game id, team abbr or team name in the file name) ═════ */
+const VDIR=DATA+'nhl-video/', VEXT=/\.(mp4|m4v|mov|webm)$/i;
+const TEAMS={ANA:['ducks','anaheim'],BOS:['bruins','boston'],BUF:['sabres','buffalo'],CGY:['flames','calgary'],CAR:['hurricanes','carolina'],CHI:['blackhawks','chicago'],COL:['avalanche','colorado'],CBJ:['bluejackets','columbus','jackets'],DAL:['stars','dallas'],DET:['redwings','detroit'],EDM:['oilers','edmonton'],FLA:['panthers','florida'],LA:['kings','losangeles','lak'],MIN:['wild','minnesota'],MTL:['canadiens','montreal','habs'],NSH:['predators','nashville','nas'],NJ:['devils','newjersey','njd'],NYI:['islanders','nyislanders'],NYR:['rangers','nyrangers'],OTT:['senators','ottawa'],PHI:['flyers','philadelphia'],PIT:['penguins','pittsburgh'],SEA:['kraken','seattle'],SJ:['sharks','sanjose','sjs'],STL:['blues','stlouis'],TB:['lightning','tampa','tbl'],TOR:['mapleleafs','leafs','toronto'],UTA:['mammoth','utah','utah'],VAN:['canucks','vancouver'],VGK:['goldenknights','knights','vegas','lv'],WSH:['capitals','washington','wsh'],WPG:['jets','winnipeg']};
+let vids=[], vidSel=null, vpos={}, vposT=0;
+try{vpos=JSON.parse(localStorage.getItem('nhlVidPos')||'{}')||{}}catch(e){}
+function vSave(v,force){if(!v||!v.dataset.u)return;const n=Date.now();if(!force&&n-vposT<1000)return;vposT=n;
+  vpos[v.dataset.u]={t:v.ended?0:v.currentTime||0,playing:!v.paused&&!v.ended};
+  try{localStorage.setItem('nhlVidPos',JSON.stringify(vpos))}catch(e){}}
+const CANON={NJD:'NJ',SJS:'SJ',TBL:'TB',LAK:'LA'}, canon=a=>CANON[String(a||'').toUpperCase()]||String(a||'').toUpperCase();
+const vnorm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+function vTeam(name,ab){const n=vnorm(name), flat=n.replace(/ /g,''), toks=n.split(' '), A=String(ab||'').toLowerCase();
+  if(A&&toks.includes(A))return true;
+  return (TEAMS[canon(ab)]||[]).some(w=>w.length>3?flat.includes(w):toks.includes(w))}
+function vidMatches(v,g){const n=vnorm(v.name+' '+(v.title||'')+' '+(v.game||''));
+  if(v.id!=null&&String(v.id)===String(g.id))return true;
+  if(String(g.id).length>5&&n.split(' ').includes(String(g.id)))return true;
+  return vTeam(n,g.a)&&vTeam(n,g.h)}
+const vidsFor=g=>g?vids.filter(v=>vidMatches(v,g)):[];
+const vKind=v=>/highlight|recap|condensed/i.test(v.name+' '+(v.title||''))?'Highlights':/full|replay|game/i.test(v.name)?'Full game':'Video';
+async function loadVideos(){
+  let list=[];
+  for(const [url,base] of [[VDIR+'videos.json',VDIR],[DATA+'videos.json',DATA],['/videos.json','/']]){
+    try{const r=await fetch(url+'?t='+Date.now(),{cache:'no-store'});
+      if(r.ok){const j=await r.json();list=(Array.isArray(j)?j:(j.videos||[])).map(x=>typeof x==='string'?{file:x}:x).filter(x=>x&&x.file&&VEXT.test(x.file)).map(x=>({...x,base}));
+        if(list.length)break}}catch(e){}}
+  if(!list.length){try{
+    const r=await fetch(VDIR,{cache:'no-store'});
+    if(r.ok){const t=await r.text(), seen=new Set();
+      [...t.matchAll(/href=["']([^"'#?]+)["']/gi)].forEach(m=>{let f=decodeURIComponent(m[1]).split('/').pop();
+        if(VEXT.test(f)&&!seen.has(f)){seen.add(f);list.push({file:f,base:VDIR})}})}
+  }catch(e){}}
+  vids=list.map(x=>({...x,name:x.file.split('/').pop(),url:x.base+x.file.split('/').map(encodeURIComponent).join('/')}));
+  renderStrip(); renderVidSoft()}
+let vidKey='';
+const vKey=()=>gameSel+'|'+vidSel+'|'+vids.map(v=>v.url).join(',');
+function renderVidSoft(){if(vKey()===vidKey)return;renderVid()}
+function renderVid(){
+  const box=$('vidBox'); if(!box)return; vidKey=vKey(); vSave($('vid'),true);
+  const g=games.find(x=>x.id==gameSel), mine=vidsFor(g), rest=vids.filter(v=>!mine.includes(v));
+  if(!vids.length){box.innerHTML='<div class="vnote">No videos found. Put .mp4 / .webm files in <b>data/nhl-video/</b> (name them with both teams or the game id, e.g. <b>CGY-VGK-highlights.mp4</b>), or add a <b>videos.json</b> list there.</div>';return}
+  const cur=vids.find(v=>v.url===vidSel)||mine[0]||null;
+  const chip=v=>`<div class="vchip ${cur&&v.url===cur.url?'on':''}" data-u="${v.url.replace(/"/g,'&quot;')}">${vKind(v)} · ${(v.title||v.name).replace(/</g,'&lt;')}</div>`;
+  let h=cur?`<video id="vid" controls playsinline preload="metadata" data-u="${cur.url.replace(/"/g,'&quot;')}" src="${cur.url.replace(/"/g,'&quot;')}"></video>`:`<div class="vnote">No video matched ${g?g.a+' @ '+g.h:'this game'} yet — pick one below.</div>`;
+  if(mine.length)h+=`<div class="vchips">${mine.map(chip).join('')}</div>`;
+  if(rest.length)h+=`<div class="vnote">${mine.length?'Other videos':'All videos'}</div><div class="vchips">${rest.map(chip).join('')}</div>`;
+  box.innerHTML=h;
+  const vd=$('vid');
+  if(vd){const sv=vpos[vd.dataset.u];
+    vd.addEventListener('loadedmetadata',()=>{if(sv&&sv.t>2&&sv.t<vd.duration-2)vd.currentTime=sv.t;if(sv&&sv.playing)vd.play().catch(()=>{})},{once:true});
+    ['timeupdate','pause','play','seeked'].forEach(e=>vd.addEventListener(e,()=>vSave(vd,e!=='timeupdate')));
+    vd.addEventListener('ended',()=>vSave(vd,true))}
+  if(vd)vd.onerror=()=>{vd.insertAdjacentHTML('afterend','<div class="vnote">This browser can\'t play that file (try H.264 .mp4) or the server didn\'t serve it.</div>')}}
+$('vidBox').addEventListener('click',e=>{const c=e.target.closest('.vchip');if(!c)return;vidSel=c.dataset.u;renderVid()});
+
+/* ═════ HISTORY: nhl-history.json (preseason + regular season) → per-team records, loaded once + every 10 min ═════ */
+const NICK={Ducks:'ANA',Bruins:'BOS',Sabres:'BUF',Flames:'CGY',Hurricanes:'CAR',Blackhawks:'CHI',Avalanche:'COL','Blue Jackets':'CBJ',Stars:'DAL','Red Wings':'DET',Oilers:'EDM',Panthers:'FLA',Kings:'LA',Wild:'MIN',Canadiens:'MTL',Predators:'NSH',Devils:'NJ',Islanders:'NYI',Rangers:'NYR',Senators:'OTT',Flyers:'PHI',Penguins:'PIT',Kraken:'SEA',Sharks:'SJ',Blues:'STL',Lightning:'TB','Maple Leafs':'TOR',Mammoth:'UTA',Canucks:'VAN','Golden Knights':'VGK',Capitals:'WSH',Jets:'WPG'};
+let hist=null;
+function normHist(j){
+  if(!j||!Array.isArray(j.games))return null;
+  const games=[],upcoming=[],unmapped=new Set();
+  j.games.forEach(x=>{const A=NICK[x.away&&x.away.team],H=NICK[x.home&&x.home.team];
+    if(!A)unmapped.add(x.away&&x.away.team); if(!H)unmapped.add(x.home&&x.home.team); if(!A||!H)return;
+    const row={date:x.date,pre:x.type==='Pre Season',a:A,h:H,as:x.away.score,hs:x.home.score,st:x.status,ot:/OT|SO/.test(x.status||'')};
+    (row.as!=null&&row.hs!=null&&/^Final/.test(row.st||''))?games.push(row):upcoming.push(row)});
+  games.sort((p,q)=>p.date<q.date?-1:p.date>q.date?1:0);
+  return {season:j.season,games,upcoming,unmapped:[...unmapped]}}
+function histTable(opts){const inc=!opts||opts.pre!==false, T={};
+  if(!hist)return T;
+  hist.games.forEach(g=>{if(g.pre&&!inc)return;
+    [[g.a,g.as,g.hs],[g.h,g.hs,g.as]].forEach(([t,f,a])=>{
+      const r=T[t]||(T[t]={gp:0,w:0,l:0,otl:0,gf:0,ga:0,pts:0,last:[],m:[],t:[]});
+      r.gp++;r.gf+=f;r.ga+=a;r.m.push(f-a);r.t.push(f+a);
+      if(f>a){r.w++;r.pts+=2;r.last.push('W')}else if(g.ot){r.otl++;r.pts+=1;r.last.push('OTL')}else{r.l++;r.last.push('L')}})});
+  return T}
+async function loadHistory(){
+  try{const r=await fetch(DATA+FILES.history+'?t='+Date.now(),{cache:'no-store'});
+    if(r.ok){const h=normHist(await r.json()); if(h){hist=h; window.NHLHIST={get data(){return hist},table:histTable}; renderHistSoft(); if(typeof updateCards==='function')updateCards()}}}catch(e){}}
+
+let hSort='best', hPre=true, hKey='', hTeam=null, hWin=10, hHunt=false;
+
+const HK=()=>[gameSel,hSort,hPre,hTeam,hWin,hHunt,hist?hist.games.length:0].join('|');
+const rate=(arr,fn,n)=>{const w=n?arr.slice(-n):arr;return w.length?100*w.filter(fn).length/w.length:0};
+const hold25=m=>m>=-2, over45=t=>t>=5;
+const pc=v=>`<span class="${v>=80?'w':v>=60?'o':'l'}">${Math.round(v)}%</span>`;
+function renderHist(){
+  const box=$('histBox'); if(!box)return;
+  const T=histTable({pre:hPre}), rows=Object.entries(T);
+  hKey=HK();
+  const ctl=`<div class="hctl"><div class="vchip ${hSort==='worst'?'on':''}" data-hs="worst">Worst first</div><div class="vchip ${hSort==='best'?'on':''}" data-hs="best">Best first</div><div class="vchip ${hPre?'on':''}" data-hp="1">${hPre?'✓ ':''}Preseason</div><div class="vchip ${hHunt?'on':''}" data-hh="1">${hHunt?'✓ ':''}Hunters 80%+</div><span style="width:8px"></span>${[5,10,0].map(n=>`<div class="vchip ${hWin===n?'on':''}" data-hw="${n}">${n?'L'+n:'All'}</div>`).join('')}</div>`;
+  if(!hist||!rows.length){box.innerHTML=ctl+'<div class="vnote">No history loaded. Put <b>nhl-history.json</b> in data/.</div>';return}
+  const g=games.find(x=>x.id==gameSel), mine=g?[canon(g.a),canon(g.h)]:[];
+  const H=r=>rate(r.m,hold25,hWin), O=r=>rate(r.t,over45,hWin);
+  let rs=rows.map(([t,r])=>({t,r,h:H(r),o:O(r)}));
+  if(hHunt)rs=rs.filter(x=>x.h>=80||x.o>=80);
+  rs.sort((p,q)=>{const d=(p.h-q.h)||(p.o-q.o);return hSort==='worst'?d:-d});
+  let h=ctl+`<table><tr><th>Team</th><th>GP</th><th>W-L-OT</th><th>+2.5</th><th>O 4.5</th></tr>`;
+  rs.forEach(({t,r,h:hv,o})=>{const open=hTeam===t;
+    h+=`<tr class="trow ${mine.includes(t)?'hl':''} ${open?'sel':''}" data-team="${t}"><td>${logo(t)}${t}</td><td>${r.gp}</td><td>${r.w}-${r.l}-${r.otl}</td><td>${pc(hv)}</td><td>${pc(o)}</td></tr>`;
+    if(open)h+=`<tr class="tcard"><td colspan="5">${teamCard(t)}</td></tr>`});
+  if(!rs.length)h+='<tr><td colspan="5" class="vnote">No team at 80%+ in this window.</td></tr>';
+  box.innerHTML=h+'</table><div class="vnote">'+(hPre?'Preseason + regular season':'Regular season only')+' · '+hist.games.length+' finals loaded'+(hist.games.length?' · through '+hist.games[hist.games.length-1].date:'')+' · tap a team for its games</div>'}
+function teamCard(t){
+  const fmt=d=>{const [,m,dd]=d.split('-');return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m-1]+' '+(+dd)};
+  const mk=(g,fin)=>{const home=g.h===t, opp=home?g.a:g.h, f=home?g.hs:g.as, a=home?g.as:g.hs;
+    let res='',c='',mk2='';
+    if(fin){mk2=`<i class="${hold25(f-a)?'w':'l'}">${hold25(f-a)?'✓':'✗'}+2.5</i> <i class="${over45(f+a)?'w':'o'}">${f+a>=5?'O':'U'}${f+a}</i> `;if(f>a){res='W';c='w'}else if(g.ot){res='OTL';c='o'}else{res='L';c='l'}}
+    return `<div class="tg"><em>${fmt(g.date)}</em><span>${home?'vs':'@'} ${logo(opp)}${opp}${g.pre?' <small>pre</small>':''}</span><b class="${c}">${mk2}${fin?`${res} ${f}–${a}${g.ot?' '+(/SO/.test(g.st)?'SO':'OT'):''}`:(g.st||'')}</b></div>`};
+  const played=hist.games.filter(g=>(g.a===t||g.h===t)&&(hPre||!g.pre)).reverse();
+  const next=hist.upcoming.filter(g=>g.a===t||g.h===t).sort((p,q)=>p.date<q.date?-1:1).slice(0,3);
+  return `<div class="tcw"><div class="tch">${logo(t)}${t}<i>${played.length} played</i></div>`+
+    (next.length?`<div class="tsub">Next</div>`+next.map(g=>mk(g,false)).join(''):'')+
+    `<div class="tsub">Results</div>`+(played.map(g=>mk(g,true)).join('')||'<div class="vnote">No games yet.</div>')+`</div>`}
+function renderHistSoft(){if($('p-hist').classList.contains('on')&&hKey!==HK())renderHist()}
+$('histBox').addEventListener('click',e=>{
+  const tr=e.target.closest('tr.trow');
+  if(tr){hTeam=hTeam===tr.dataset.team?null:tr.dataset.team; renderHist(); const o=$('histBox').querySelector('tr.sel'); if(o)o.scrollIntoView({block:'nearest'}); return}
+  const c=e.target.closest('.vchip');if(!c)return;
+  if(c.dataset.hs)hSort=c.dataset.hs; if(c.dataset.hp)hPre=!hPre; if(c.dataset.hh)hHunt=!hHunt; if(c.dataset.hw!=null)hWin=+c.dataset.hw; renderHist()});
+
+/* ═════ STANDINGS WIDGET (data/nhl-standings.json) ═════ */
+let stand=null;
+const ST_NICK={}; Object.entries(TEAMS).forEach(([ab,n])=>{ST_NICK[n[0]]=ab});
+const nick2ab=n=>ST_NICK[String(n||'').toLowerCase().replace(/[^a-z]/g,'')]||'';
+function normStand(j){
+  const out=[];
+  ((j&&j.standings)||[]).forEach(c=>(c.divisions||[]).forEach(d=>(d.teams||[]).forEach(t=>{
+    const gp=+t.gp||((+t.wins||0)+(+t.losses||0)+(+t.otl||0)), pts=+t.points||0;
+    out.push({name:t.team,ab:nick2ab(t.team),conf:t.conference||c.league,div:t.division||d.name,
+      gp,w:+t.wins||0,l:+t.losses||0,otl:+t.otl||0,pts,pct:t.pct!=null?+t.pct:(gp?pts/(2*gp):0),rank:+t.rank||99})})));
+  return out.length?out:null}
+async function loadStand(){
+  try{const r=await fetch(DATA+FILES.standings+'?t='+Date.now(),{cache:'no-store'});
+    if(r.ok){const s=normStand(await r.json()); if(s){stand=s; if($('p-stand').classList.contains('on'))renderStand(); if(typeof updateCards==='function')updateCards()}}}catch(e){}
+  if(!stand&&$('p-stand').classList.contains('on'))renderStand()}
+function renderStand(){
+  const box=$('standBox'); if(!box)return;
+  if(!stand){box.innerHTML='<div class="vnote">No standings loaded. Put <b>nhl-standings.json</b> in data/.</div>';return}
+  const rows=stand.slice().sort((a,b)=>b.pts-a.pts||b.pct-a.pct||b.w-a.w);
+  const g=games.find(x=>x.id==gameSel), mine=g?[canon(g.a),canon(g.h)]:[];
+  let h='<table><tr><th>#</th><th>Team</th><th>GP</th><th>W</th><th>L</th><th>OT</th><th>PTS</th><th>P%</th></tr>';
+  rows.forEach((t,i)=>{
+    h+=`<tr class="${t.ab&&mine.includes(t.ab)?'hl':''}"><td>${i+1}</td><td>${logo(t.ab)}${t.name}</td><td>${t.gp}</td><td>${t.w}</td><td>${t.l}</td><td>${t.otl}</td><td class="pt">${t.pts}</td><td>${t.pct.toFixed(3).replace(/^0/,'')}</td></tr>`});
+  box.innerHTML=h+'</table><div class="vnote">'+rows.length+' teams · best to worst by points</div>'}
+
+/* ═════ CARDS WIDGET: images from /themes/nhl/, tap a card to flip ═════ */
+/* which team each card follows: 'hist' = best team in History, 'stand' = best team in Standings */
+const CARDS=[['ultimate','Ultimate','#c084fc','hist'],['gold','Gold','#facc15','hist'],['gold-white','Gold · White','#fde68a','hist'],
+             ['silver','Silver','#cbd5e1','stand'],['silver-white','Silver · White','#e2e8f0','stand'],['bronze','Bronze','#d97706','stand']];
+$('cardGrid').innerHTML=CARDS.map(([f,n,c,src])=>`<div class="fc" style="--cc:${c}" data-card="${f}" data-src="${src}"><div class="fi"><div class="ff"><img src="${IMG}${f}-card.png" alt="${n} card" onerror="this.closest('.fc').style.display='none'"></div><div class="fb"></div></div></div>`).join('');
+$('cardGrid').addEventListener('click',e=>{const c=e.target.closest('.fc'); if(c)c.classList.toggle('flip')});
+function bestHist(){
+  const rows=Object.entries(histTable({pre:hPre})).map(([t,r])=>({t,h:rate(r.m,hold25,hWin),o:rate(r.t,over45,hWin)}));
+  if(!rows.length)return null;
+  rows.sort((p,q)=>(q.h-p.h)||(q.o-p.o));
+  return rows.slice(0,3).map(b=>({ab:b.t,name:b.t,line:`+2.5 ${Math.round(b.h)}% · O 4.5 ${Math.round(b.o)}%`}))}
+function bestStand(){
+  if(!stand||!stand.length)return null;
+  return stand.slice().sort((a,c)=>c.pts-a.pts||c.pct-a.pct||c.w-a.w).slice(0,3).map(b=>({ab:b.ab,name:b.name,line:`${b.pts} pts · ${b.w}-${b.l}-${b.otl}`}))}
+function updateCards(){
+  const H=bestHist()||[], S=bestStand()||[], n={hist:0,stand:0};
+  document.querySelectorAll('#cardGrid .fc').forEach(c=>{
+    const hist_=c.dataset.src==='hist', k=n[c.dataset.src]++, t=(hist_?H:S)[k], lab=(hist_?'History':'Standings')+' · #'+(k+1), fb=c.querySelector('.fb');
+    if(!t){fb.innerHTML=`<span>${lab}</span><span>Loading…</span>`;return}
+    const f=IMGMAP[t.ab]||String(t.ab||'').toLowerCase();
+    fb.innerHTML=`<span>${lab}</span>`+(/^[a-z]{2,4}$/.test(f)?`<img class="big" src="${IMG}${f}.png" alt="${t.name}" onerror="this.style.display='none'">`:'')+`<b class="tn">${t.name}</b><span>${t.line}</span>`})}
+updateCards();
+
+/* tabs */
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
+  const t=b.dataset.t, open=!b.classList.contains('on');
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',open&&x===b));
+  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',open&&p.id==='p-'+t));
+  if(open&&t==='vid')renderVidSoft();
+  if(open&&t==='hist')renderHist();
+  if(open&&t==='stand')renderStand();
+  if(open&&t==='cards')updateCards();
+});
+
+/* ═════ BREAK ZONE ═════ */
+let upcoming=[], hubSeen=null, hubPer='all';
+function hubStats(list){
+  const real=list.filter(e=>!e.syn), base=real.length?real:list, per=base.length?base[base.length-1].per:1, cur=list.filter(e=>e.per===per), np=cur.filter(e=>!e.syn).length;
+  const n=(side,f)=>cur.filter(e=>e.side===side&&f(e)).length;
+  const rows=[['Shots on goal',e=>e.type==='shot-on-goal'||e.type==='goal'],['Blocked shots',e=>e.type==='blocked-shot'],
+    ['Missed shots',e=>e.type==='missed-shot'],['Hits',e=>e.type==='hit'],['Faceoff wins',e=>e.type==='faceoff'],
+    ['Giveaways',e=>e.type==='giveaway'],['Takeaways',e=>e.type==='takeaway']];
+  return {per,n:np,rows:rows.map(([l,f])=>[l,n('A',f),n('H',f)])};
+}
+function renderHub(){
+  const cur=games.find(g=>g.id==gameSel)||{}, A=cur.a||'AWY', H=cur.h||'HME', st=hubStats(ev);
+  let h=`<div class="card"><h4>${st.per>3?'Overtime':'Period '+st.per} so far · ${st.n} plays loaded · est.</h4><div class="sr top"><b>${logo(A)}${A}</b><span></span><b>${H}${logo(H)}</b></div>`+
+    st.rows.map(([l,a,b])=>`<div class="sr"><b>${a}</b><span>${l}</span><b>${b}</b></div>`).join('')+`</div>`;
+  const goals=ev.filter(e=>e.kind==='g').slice(-3).reverse();
+  if(goals.length)h+=`<div class="card"><h4>Latest goals</h4>`+goals.map(e=>`<div class="row"><span>${e.desc.replace(/\s*(goal\s*)?\(\d+\).*?(?=\s·|$)/i,'').replace(/\s·\s*\d+-\d+$/,'')} <em>${e.team||''}</em></span><em>${e.per>3?'OT':'P'+e.per} ${e.clock}</em></div>`).join('')+`</div>`;
+  const om=oddsModel(oddsFor()); if(om)h+=`<div class="card"><h4>Odds</h4>${oddsHTML(om)}</div>`;
+  const others=games.filter(g=>g.id!=gameSel);
+  h+=`<div class="card"><h4>Around the league</h4>`+(others.length?others.map(g=>`<div class="row"><span>${g.a} <b>${g.as}</b> – <b>${g.hs}</b> ${g.h}</span><em>${g.st}</em></div>`).join(''):'<div class="row"><em>No other games in nhlscores.json</em></div>')+`</div>`;
+  if(upcoming.length)h+=`<div class="card"><h4>Coming up</h4>`+upcoming.map(u=>`<div class="row"><span>${u.title||u.name||''}${u.note?`<br><em>${u.note}</em>`:''}</span><em>${u.date||u.when||''}</em></div>`).join('')+`</div>`;
+
+
+  const pers=[...new Set(ev.map(e=>e.per))].sort((a,b)=>a-b), shown=ev.filter(e=>hubPer==='all'||e.per===+hubPer).slice().reverse();
+  h+=`<div class="card"><h4>Play-by-play · ${shown.length} plays</h4><div class="pf">`+
+    ['all',...pers].map(p=>`<button data-per="${p}" class="${String(hubPer)===String(p)?'on':''}">${p==='all'?'Game':p>3?'OT':'P'+p}</button>`).join('')+`</div>`+
+    (shown.length?shown.map(e=>{
+      let teamToShow = e.team;
+      
+      // Carry over team from previous play for goalie stops
+      if (!teamToShow && /Goalie Stopped|Puck Frozen/i.test(e.desc)) {
+        const prev = ev.find(x => x.i === e.i - 1);
+        if (prev && prev.team) teamToShow = prev.team;
+      }
+
+      // Swap to goalie.png for goalie events
+      let iconHTML = teamToShow ? logo(teamToShow) : '';
+      if (/Goalie Stopped|Puck Frozen/i.test(e.desc)) {
+        iconHTML = `<img class="lg" src="/themes/nhl/goalie.png" alt="" onerror="this.style.display='none'">`;
+      }
+
+      return `<div class="pb ${e.kind}" data-i="${e.i}"><em>${e.per>3?'OT':'P'+e.per} ${e.clock}</em><b title="${teamToShow||''}">${iconHTML}</b><span>${e.desc||e.type}</span></div>`;
+    }).join(''):'<div class="row"><em>Waiting for plays…</em></div>')+`</div>`;
+
+  const bd=$('hubBody'), y=bd.scrollTop; bd.innerHTML=h; bd.scrollTop=y; markPb();
+}
+function markPb(){document.querySelectorAll('#hubBody .pb').forEach(r=>r.classList.toggle('cur',+r.dataset.i===idx))}
+$('hubBody').addEventListener('click',e=>{
+  const c=e.target.closest('[data-per]'); if(c){hubPer=c.dataset.per;renderHub();return}
+  const r=e.target.closest('.pb'); if(!r)return;
+  select(+r.dataset.i); if(matchMedia('(max-width:700px)').matches)hubToggle(false)});
+const hub=$('hub'), hubBtn=$('hubBtn');
+function hubToggle(on){hub.classList.toggle('on',on);hubBtn.classList.toggle('on',on);if(on)renderHub()}
+hubBtn.onclick=()=>hubToggle(!hub.classList.contains('on'));
+$('plBtn').onclick=()=>{plOn=!plOn;$('plBtn').classList.toggle('on',plOn)};
+
+/* ═════ LIVE DATA ═════ */
+const get=f=>fetch(DATA+f+'?t='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null);
+let live=null;
+/* ═════ SCOREBOARD WIDGET ═════ */
+let sbLast='';
+function sbWP(g){
+  if(live&&live.wpA!=null&&live.wpH!=null&&live.a===g.a&&live.h===g.h){const a=Math.round(live.wpA*(live.wpA<=1?100:1));return {a,h:100-a}}
+  if(wpSeries&&wpFits()){const r=wpSeries[wpSeries.length-1],a=Math.round(r.a);return {a,h:100-a}}
+  const m=oddsModel(oddsFor()); if(m&&m.pa!=null)return {a:Math.round(m.pa),h:Math.round(m.ph),odds:true};
+  return null}
+function sbClock(st){st=String(st||'').trim();
+  const per=(st.match(/\b([1-3])(?:st|nd|rd)\b/i)||[])[1], ck=(st.match(/\b\d{1,2}:\d{2}\b/)||[])[0], P=['','1ST','2ND','3RD'];
+  if(/final/i.test(st)){const x=st.match(/\b(OT|SO)\b/i);return {p:'FINAL',c:x?x[1].toUpperCase():''}}
+  if(/end of|inter/i.test(st))return {p:'END',c:per?P[per]:''};
+  if(/shootout|\bSO\b/i.test(st))return {p:'SO',c:''};
+  if(/\bOT\b|overtime/i.test(st))return {p:'OT',c:ck||''};
+  if(per)return {p:P[per],c:ck||''};
+  return {p:st?st.slice(0,9).toUpperCase():'—',c:''}}
+function renderSB(){
+  const box=$('sb'); if(!box)return;
+  const g=games.find(x=>x.id==gameSel); if(!g){box.style.display='none';return}
+  const w=sbWP(g), k=sbClock(g.st), sc=g.as+'-'+g.hs, bump=sbLast&&sbLast.split('|')[0]===g.id+''&&sbLast.split('|')[1]!==sc;
+  sbLast=g.id+'|'+sc;
+  const lead=w?(w.a>w.h?'a':w.h>w.a?'h':''):'';
+  const wc=(side,r)=>`<div class="w r${r} ${lead===side?'lead':''}">${w?w[side]+'%':'–'}${r===0&&w?`<small>${w.odds?'ODDS':'WIN'}</small>`:''}</div>`;
+  box.innerHTML=`<div class="gr"><div class="tm">${k.p}${k.c?`<small>${k.c}</small>`:''}</div>
+    <div class="t a">${logo(g.a)}${g.a}</div><div class="s r1 ${bump?'bump':''}">${g.as}</div>${wc('a',0)}
+    <div class="t h">${logo(g.h)}${g.h}</div><div class="s ${bump?'bump':''}">${g.hs}</div>${wc('h',1)}
+    <div class="bar">${w?`<i style="width:${w.a}%;background:#1d4ed8"></i><i style="width:${w.h}%;background:#0e7490"></i>`:''}</div></div>`;
+  box.style.display='block'}
+function renderWP(){
+  try{renderSB()}catch(e){}
+  const w=$('wp'), m=oddsModel(oddsFor());
+  if(wpFits()&&ev.length){const r=wpAt(ev[idx].t), a=Math.round(r.a), hh=100-a, c=games.find(g=>g.id==gameSel)||{};
+    w.style.display='block';
+    w.innerHTML=`<div style="width:${a}%;background:#1d4ed8">${logo(c.a)}${c.a||'AWY'} ${a}%</div><div style="width:${hh}%;background:#0e7490;text-align:right">${hh}% ${c.h||'HME'}${logo(c.h)}</div>`;
+  }else if(live&&live.wpA!=null&&live.wpH!=null){
+    const a=Math.round(live.wpA*(live.wpA<=1?100:1)), h=100-a; w.style.display='block';
+    w.innerHTML=`<div style="width:${a}%;background:#1d4ed8">${logo(live.a)}${live.a} ${a}%</div><div style="width:${h}%;background:#0e7490;text-align:right">${h}% ${live.h}${logo(live.h)}</div>`;
+  }else if(m){w.style.display='block';
+    w.innerHTML=`<div style="width:${m.pa}%;background:#1d4ed8">${logo(m.A)}${m.A} ${m.pa}% · odds</div><div style="width:${m.ph}%;background:#0e7490;text-align:right">${m.ph}% ${m.H}${logo(m.H)}</div>`;
+  }else w.style.display='none';
+}
+async function pull(){
+  const [sc,lv,pb,od,up,ch]=await Promise.all([get(FILES.scores),get(FILES.live),get(FILES.pbp),get(FILES.odds),get(FILES.upcoming),get(FILES.chart)]);
+  const chRaw=ch||CHART_FALLBACK; wpSeries=normWP(chRaw); wpGid=chRaw&&chRaw.game_id;
+  oddsRaw=od;
+  upcoming=Array.isArray(up)?up:(up&&(up.items||up.events||up.upcoming))||[];
+  live=normLive(lv);
+  games=sc?normScores(sc):[];
+  if(live){
+    const m=games.find(g=>g.a===live.a&&g.h===live.h);
+    if(m){m.as=live.as;m.hs=live.hs;m.st=live.st||m.st;if(live.gid)m.id=live.gid}
+    else games.unshift({id:live.gid||'live',a:live.a,h:live.h,as:live.as,hs:live.hs,st:live.st});
+  }
+  const pbId=pb&&pb.game&&(pb.game.game_id||pb.game.id);
+  if(gameSel==null||!games.some(g=>g.id==gameSel)){
+    const pref=[pbId,live&&live.gid].find(id=>id&&games.some(g=>g.id==id));
+    gameSel=pref||(games[0]?games[0].id:null)}
+  renderStrip(); renderWP();
+  const mine=pb&&(!pbId||String(pbId)==String(gameSel));
+  const list=mine?normPbp(pb):[];
+
+
+
+  // ── messy text box → bubble play-by-play (same style as Break Zone) ──
+  const messyBox = document.getElementById('messyText');
+  if (messyBox && ev.length) {
+    messyBox.innerHTML = ev.map((e, i) => {
+      let teamToShow = e.team;
+      
+      // If it's a goalie stop, grab the team from the previous play
+      if (!teamToShow && /Goalie Stopped|Puck Frozen/i.test(e.desc)) {
+        const prev = ev[i - 1];
+        if (prev && prev.team) teamToShow = prev.team;
+      }
+
+      // If it's a goalie stop, use the goalie.png instead of the team logo
+      let iconHTML = teamToShow ? logo(teamToShow) : '';
+      if (/Goalie Stopped|Puck Frozen/i.test(e.desc)) {
+        iconHTML = `<img class="lg" src="/themes/nhl/goalie.png" alt="" onerror="this.style.display='none'">`;
+      }
+
+      return `
+        <div class="pb ${e.kind}" data-i="${e.i}">
+          <em>${e.per>3?'OT':'P'+e.per} ${e.clock}</em>
+          <b title="${teamToShow || ''}">${iconHTML}</b>
+          <span>${e.desc || e.type}</span>
+        </div>
+      `;
+    }).join('');
+    
+        messyBox.querySelectorAll('.pb').forEach(row => {
+      row.onclick = () => select(+row.dataset.i);
+    });
+    
+    // Auto-scroll to the bottom so we always see the newest play
+    messyBox.scrollTop = messyBox.scrollHeight;
+  }
+
+  if(!list.length)info.textContent=pb&&!mine?'No play-by-play loaded for this game yet.':'Waiting for play-by-play (nhl-playbyplay.json)…';
+  if(JSON.stringify(list.map(e=>e.t+e.type))!==JSON.stringify(ev.map(e=>e.t+e.type)))setEvents(list);
+  renderOdds(); drawChart(); renderWP(); if($('p-vid').classList.contains('on'))renderVidSoft(); renderHistSoft();
+  const c=games.find(g=>g.id==gameSel), brk=c&&/end of|inter|break|timeout/i.test(c.st||'');
+  if(brk&&hubSeen!==c.st){hubSeen=c.st;hubToggle(true)}else if(!brk)hubSeen=null;
+  if(hub.classList.contains('on'))renderHub();
+}
+pull(); setInterval(pull,POLL_MS); loadVideos(); setInterval(loadVideos,60000); loadHistory(); setInterval(loadHistory,600000); loadStand(); setInterval(loadStand,600000);
+
+// ─── CAMERA VIEW CYCLER ───
+let camViews = [
+  { name: 'High Wide',      yaw: 0,          pitch: 0.85, dist: 196 },
+  { name: 'Broadcast',      yaw: 0,          pitch: 0.45, dist: 210 },
+  { name: 'End Zone',       yaw: Math.PI/2,  pitch: 0.35, dist: 180 },
+  { name: 'Goalie Cam',     yaw: 0,          pitch: 0.25, dist: 160 },
+  { name: 'Ceiling / Graph Top', yaw: Math.PI/2,  pitch: 1.85, dist: 280 } // <-- NEW VIEW
+];
+let camIdx = 0;
+
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
+  const t=b.dataset.t;
+  
+  // Open the tab if it's not already open
+  if (!b.classList.contains('on')) {
+    document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on', x===b));
+    document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on', p.id==='p-'+t));
+    if(t==='vid') renderVidSoft();
+    if(t==='hist') renderHist();
+    if(t==='stand') renderStand();
+    if(t==='cards') updateCards();
+  }
+  
+  // Only cycle the camera if they explicitly click the Rink tab
+  if (t === 'rink') {
+    camIdx = (camIdx + 1) % camViews.length;
+    const v = camViews[camIdx];
+    yaw = v.yaw;
+    pitch = v.pitch;
+    dist = v.dist;
+    
+    // Show the camera name in the info bar
+    info.innerHTML = `<b>📷 Camera: ${v.name}</b>`;
+  }
+});
+
+/* ═════ MOMENTUM ALERT NOTIFICATIONS ═════ */
+let lastAlertTime = { A: 0, H: 0 };
+let lastAlertWp = { A: 50, H: 50 };
+
+function checkMomentumAlert(e) {
+  if (!ev.length || !wpFits() || !wpSeries) return;
+
+  // Get the win prob at the current event time
+  const r = wpAt(e.t);
+  const a = r.a, h = 100 - r.a;
+  
+  // Calculate the jump compared to the last checked state
+  const jumpA = a - lastAlertWp.A;
+  const jumpH = h - lastAlertWp.H;
+  
+  // Update the baseline
+  lastAlertWp.A = a;
+  lastAlertWp.H = h;
+
+  const now = Date.now();
+  const g = games.find(x => x.id == gameSel) || {a: 'A', h: 'H'};
+
+  // Trigger logic: +3% jump and 60s cooldown
+  let alertSide = null;
+  if (jumpA >= 3 && now - lastAlertTime.A > 60000) alertSide = 'A';
+  else if (jumpH >= 3 && now - lastAlertTime.H > 60000) alertSide = 'H';
+
+  if (alertSide) {
+    lastAlertTime[alertSide] = now;
+    showMomentumToast(alertSide, alertSide === 'A' ? jumpA : jumpH, g, e);
+  }
+}
+
+function showMomentumToast(side, jump, g, currentEvent) {
+  const box = document.getElementById('toastBox');
+  const team = side === 'A' ? g.a : g.h;
+  const color = side === 'A' ? '#1d4ed8' : '#0e7490';
+  const oppColor = side === 'A' ? '#0e7490' : '#1d4ed8';
+  
+  // Create the toast element
+  const toast = document.createElement('div');
+  toast.className = 'momentum-alert';
+  
+  // Draw the mini graph on a canvas
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 120; // 2:1 aspect ratio for the mini graph
+  const ctx = canvas.getContext('2d');
+
+  // We render a mini version of the win-prob line up to this event
+  const wpSlice = wpSeries.filter(x => x.t <= currentEvent.t);
+  if (wpSlice.length > 0) {
+    const maxT = Math.max(3600, wpSlice[wpSlice.length - 1].t);
+    
+    // Background
+    ctx.fillStyle = '#02050a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Home area (top)
+    ctx.beginPath();
+    ctx.moveTo(0, 60);
+    wpSlice.forEach(x => {
+      const px = (x.t / maxT) * canvas.width;
+      const py = 60 - ((x.h / 100) * 50);
+      ctx.lineTo(px, py);
+    });
+    ctx.lineTo(canvas.width, 60);
+    ctx.fillStyle = g.h === team ? '#0e7490' : '#1d4ed8';
+    ctx.globalAlpha = 0.4;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Away area (bottom)
+    ctx.beginPath();
+    ctx.moveTo(0, 60);
+    wpSlice.forEach(x => {
+      const px = (x.t / maxT) * canvas.width;
+      const py = 60 + ((x.a / 100) * 50);
+      ctx.lineTo(px, py);
+    });
+    ctx.lineTo(canvas.width, 60);
+    ctx.fillStyle = g.h === team ? '#1d4ed8' : '#0e7490';
+    ctx.globalAlpha = 0.4;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Line
+    ctx.beginPath();
+    wpSlice.forEach((x, i) => {
+      const px = (x.t / maxT) * canvas.width;
+      const py = 60 - ((x.h / 100) * 50); // draw home line
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    });
+    ctx.strokeStyle = '#e0f2fe';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    
+    // Highlight the current event point
+    ctx.beginPath();
+    const finalX = (currentEvent.t / maxT) * canvas.width;
+    const finalY = 60 - ((wpAt(currentEvent.t).h / 100) * 50);
+    ctx.arc(finalX, finalY, 5, 0, Math.PI * 2);
+    ctx.fillStyle = '#facc15';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  toast.innerHTML = `
+    <div class="ma-hd">
+      <span>${team} Momentum</span>
+      <span style="color:${color}">+${Math.round(jump)}%</span>
+    </div>
+  `;
+  toast.appendChild(canvas);
+  
+  box.appendChild(toast);
+
+  // Auto-remove after 6 seconds
+  setTimeout(() => {
+    toast.classList.add('out');
+    setTimeout(() => toast.remove(), 300);
+  }, 6000);
+  
+  // Click to jump to this event
+  toast.onclick = () => {
+    select(currentEvent.i);
+    toast.classList.add('out');
+    setTimeout(() => toast.remove(), 300);
+  };
+}
+</script>
+</body>
+</html>
