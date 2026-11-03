@@ -724,8 +724,8 @@ def load_telegram_config():
     # ===== DEFAULT BOT - ALWAYS AVAILABLE =====
     print("[TG] [⚠️-Config-json] No config found - using default Alfred bot")
     return {
-        'token': '8352410871:AAFvPg5moGL0yVb_UKjivMKAzpm68Nj7xE8',
-        'chat_id': '1726670722'
+        'token': 'create-your-token-id',
+        'chat_id': 'create-your-chat-id'
     }
 
 
