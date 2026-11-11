@@ -1,0 +1,259 @@
+#!/usr/bin/env python4
+# -*- coding: utf-8 -*-
+"""
+fox-player-qt5.py4 — native media player (PyQt5)
+Uses macOS AVFoundation via Qt5 Multimedia. Plays mp4/mp3 natively.
+No Metal required. Works on MacBookPro6,2.
+"""
+
+import sys
+from pathlib import Path
+
+from PyQt5.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QPushButton, QLabel, QSlider, QFileDialog, QListWidget, QListWidgetItem,
+    QSplitter, QSizePolicy,
+)
+from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
+from PyQt5.QtMultimediaWidgets import QVideoWidget
+from PyQt5.QtCore import Qt, QUrl
+
+MEDIA_DIR = Path.home() / "Desktop" / "media"
+
+AUDIO_EXT = {".mp3", ".m4a", ".aac", ".wav", ".flac", ".ogg"}
+VIDEO_EXT = {".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi"}
+
+STYLE = """
+QMainWindow, QWidget { background: #1a0b2e; color: #eaf2ff; }
+QPushButton {
+    background: #ff7a18; color: #1a0b2e;
+    border-radius: 8px; font-weight: bold; padding: 6px 12px;
+}
+QPushButton:hover   { background: #ffd257; }
+QPushButton:pressed { background: #ff3b3b; color: white; }
+QListWidget {
+    background: #0d0520; color: #ffb066;
+    border: 2px solid #ff7a18; border-radius: 8px;
+    padding: 4px; font-size: 12px;
+}
+QListWidget::item:selected { background: #ff7a18; color: #1a0b2e; }
+QLabel { color: #ffb066; font-size: 12px; }
+QSlider::groove:horizontal { height: 6px; background: #0d0520; border-radius: 3px; }
+QSlider::handle:horizontal { background: #ff7a18; width: 14px; margin: -5px 0; border-radius: 7px; }
+QSlider::sub-page:horizontal { background: #ff7a18; border-radius: 3px; }
+"""
+
+
+class Player(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("OlympyNetwokCo Tm fox-player (PyQt5) — native media")
+        self.setMinimumSize(1, 1)
+        self.resize(307, 250)
+
+        self._player = QMediaPlayer(self)
+        self._player.setVolume(90)
+
+
+        self._player.mediaStatusChanged.connect(self._on_media_status)
+
+
+        central = QWidget()
+        self.setCentralWidget(central)
+        outer = QVBoxLayout(central)
+        outer.setContentsMargins(10, 10, 10, 10)
+        outer.setSpacing(6)
+
+        # --- TOP ROW: List Toggle & Refresh ---
+        top_row = QHBoxLayout()
+        top_row.setSpacing(4)
+        
+        self.btn_list = QPushButton("≡")
+        self.btn_list.setFixedWidth(36)
+        self.btn_list.clicked.connect(self._toggle_list)
+        top_row.addWidget(self.btn_list)
+        
+        btn_refresh = QPushButton("⟳")
+        btn_refresh.setFixedWidth(36)
+        btn_refresh.clicked.connect(self._scan)
+        top_row.addWidget(btn_refresh)
+        
+        top_row.addStretch()
+        outer.addLayout(top_row)
+
+        # --- MAIN SPLITTER ---
+        split = QSplitter(Qt.Horizontal)
+        self.split = split
+
+        # left: file list
+        left = QWidget()
+        left_l = QVBoxLayout(left)
+        left_l.setContentsMargins(0, 0, 0, 0)
+        self.list = QListWidget()
+        self.list.itemDoubleClicked.connect(self._play_item)
+        left_l.addWidget(self.list)
+        split.addWidget(left)
+        self._list_visible = True
+
+        # right: video + controls
+        right = QWidget()
+        right_l = QVBoxLayout(right)
+        right_l.setContentsMargins(0, 0, 0, 0)
+        right_l.setSpacing(4)
+
+        self.video = QVideoWidget()
+        self.video.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.video.setStyleSheet("background: #000; border-radius: 8px;")
+        self._player.setVideoOutput(self.video)
+        right_l.addWidget(self.video, stretch=1)
+
+        self.title = QLabel("—")
+        self.title.setAlignment(Qt.AlignCenter)
+        right_l.addWidget(self.title)
+
+        self.seek = QSlider(Qt.Horizontal)
+        self.seek.setRange(0, 0)
+        self.seek.sliderMoved.connect(self._seek_to)
+        right_l.addWidget(self.seek)
+
+        # --- BOTTOM CONTROLS ---
+        controls = QHBoxLayout()
+        controls.setSpacing(4)
+
+        # Compact buttons (fixed widths prevent squishing at 307px)
+        btn_open = QPushButton("⏏")
+        btn_open.setFixedWidth(36)
+        btn_open.clicked.connect(self._open_file)
+        controls.addWidget(btn_open)
+
+        self.btn_play = QPushButton("▶")
+        self.btn_play.setFixedWidth(36)
+        self.btn_play.clicked.connect(self._toggle)
+        controls.addWidget(self.btn_play)
+
+        btn_stop = QPushButton("■")
+        btn_stop.setFixedWidth(36)
+        btn_stop.clicked.connect(self._player.stop)
+        controls.addWidget(btn_stop)
+
+        btn_back = QPushButton("↺")
+        btn_back.setFixedWidth(36)
+        btn_back.clicked.connect(lambda: self._skip(-10000))
+        controls.addWidget(btn_back)
+
+        btn_fwd = QPushButton("↻")
+        btn_fwd.setFixedWidth(36)
+        btn_fwd.clicked.connect(lambda: self._skip(10000))
+        controls.addWidget(btn_fwd)
+
+        controls.addStretch()
+
+        self.time = QLabel("0:00 / 0:00")
+        controls.addWidget(self.time)
+
+        right_l.addLayout(controls)
+        split.addWidget(right)
+
+        split.setStretchFactor(0, 1)
+        split.setStretchFactor(1, 3)
+        outer.addWidget(split)
+
+        # signals
+        self._player.positionChanged.connect(self._on_pos)
+        self._player.durationChanged.connect(self._on_dur)
+        self._player.stateChanged.connect(self._on_state)
+
+        self._scan()
+
+
+
+    def _toggle_list(self):
+        self._list_visible = not self._list_visible
+        self.split.widget(0).setVisible(self._list_visible)
+        self.split.setSizes([1, 3] if self._list_visible else [0, 1])
+
+    def _scan(self):
+        self.list.clear()
+        if not MEDIA_DIR.exists():
+            self.title.setText(f"media folder not found: {MEDIA_DIR}")
+            return
+        for p in sorted(MEDIA_DIR.iterdir()):
+            if p.suffix.lower() in AUDIO_EXT | VIDEO_EXT:
+                # Swapped out the branding for clean extensions
+                tag = "[mp3]" if p.suffix.lower() in AUDIO_EXT else "[mp4]"
+                it = QListWidgetItem(f"{tag}  {p.name}")
+                it.setData(Qt.UserRole, str(p))
+                self.list.addItem(it)
+
+    def _play_item(self, item):
+        self._play(item.data(Qt.UserRole))
+
+    def _open_file(self):
+        start = str(MEDIA_DIR if MEDIA_DIR.exists() else Path.home())
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Pick media", start,
+            "Media (*.mp4 *.mov *.m4v *.mkv *.webm *.avi *.mp3 *.m4a *.aac *.wav *.flac *.ogg);;All files (*)"
+        )
+        if path:
+            self._play(path)
+
+    def _play(self, path):
+        p = Path(path)
+        self.title.setText(f"▶ {p.name}")
+        self._player.setMedia(QMediaContent(QUrl.fromLocalFile(str(p.resolve()))))
+        self._player.play()
+
+    def _toggle(self):
+        if self._player.state() == QMediaPlayer.PlayingState:
+            self._player.pause()
+        else:
+            self._player.play()
+
+    def _skip(self, ms):
+        pos = self._player.position() + ms
+        pos = max(0, min(pos, self._player.duration()))
+        self._player.setPosition(pos)
+
+    def _seek_to(self, value):
+        self._player.setPosition(value)
+
+    def _on_pos(self, pos):
+        if not self.seek.isSliderDown():
+            self.seek.setValue(pos)
+        self.time.setText(f"{self._fmt(pos)} / {self._fmt(self._player.duration())}")
+
+    def _on_dur(self, dur):
+        self.seek.setRange(0, dur)
+
+    def _on_state(self, state):
+        if state == QMediaPlayer.PlayingState:
+            self.btn_play.setText("❚❚")
+        else:
+            self.btn_play.setText("▶")
+
+    @staticmethod
+    def _fmt(ms):
+        if ms <= 0:
+            return "0:00"
+        s = ms // 1000
+        return f"{s // 60}:{s % 60:02d}"
+
+    def _on_media_status(self, status):
+        if status == QMediaPlayer.EndOfMedia:
+            next_i = self.list.currentRow() + 1
+            if next_i < self.list.count():
+                self.list.setCurrentRow(next_i)
+                self._play_item(self.list.item(next_i))
+
+
+def main():
+    app = QApplication(sys.argv)
+    app.setApplicationName("fox-player-qt5")
+    app.setStyleSheet(STYLE)
+    w = Player()
+    w.show()
+    sys.exit(app.exec_())
+
+
+if __name__ == "__main__":
+    main()
