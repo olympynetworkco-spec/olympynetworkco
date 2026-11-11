@@ -29,6 +29,7 @@ import subprocess
 import shutil
 import webbrowser
 import urllib.request
+import urllib.parse
 import ssl
 import http.server
 import socketserver
@@ -45,6 +46,10 @@ load_dotenv("/Users/olympynetworkco/Desktop/ollama/env.txt")
 #+--|════════════════════════════════════════════════════════════════════
 #+--| def log_info(msg): error : and warning
 #+--|════════════════════════════════════════════════════════════════════
+
+# Simple logger helpers
+log_info = lambda msg: logging.info(msg)
+log_error = lambda msg: logging.error(msg)
 
 LOG_FILE = "/Users/olympynetworkco/Desktop/data/alfred.log"
 os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
@@ -75,28 +80,63 @@ RED = "\033[91m"
 CYN = "\033[96m"
 MAG = "\033[95m"
 
+# ─── BADGE FORMATTING ───
+BG_GREEN = "\033[42m\033[30m"
+BG_CYAN  = "\033[46m\033[30m"
+BG_RED   = "\033[41m\033[30m"
+GRAY     = "\033[90m"
+
+def alfred_log(badge, module, message, badge_color=BG_GREEN):
+    """Prints a formatted log line matching the Ollama grid style."""
+    now = datetime.now().strftime("%Y/%m/%d - %H:%M:%S")
+    
+    # We pad with spaces inside the color box so they look like uniform blocks
+    padded_badge = f" {badge.ljust(4)} "
+    
+    # Print: [Timestamp] | [Badge] | [Module] | [Message]
+    print(f"[{now}] | {badge_color}{padded_badge}{R} | {GRAY}{module}{R} | {message}")
+
 _start = time.time()
 _tick = 0
 
 
 #+--|════════════════════════════════════════════════════════════════════
 #+--| def get_cpu():
-#+--|════════════════════════════════════════════════════════════════════
-
-def get_cpu():
-    result = subprocess.getoutput("ps -A -o %cpu | awk '{s+=$1} END {print s}'")
-    try:
-        return f"{float(result):.1f}%" if result else "0%"
-    except:
-        return "0%"
-#+--|════════════════════════════════════════════════════════════════════
 #+--| def get_ram():
 #+--|════════════════════════════════════════════════════════════════════
 
+#+--|════════════════════════════════════════════════════════════════════
+#+--| def get_cpu() / get_ram() — cached (5s TTL)
+#+--|════════════════════════════════════════════════════════════════════
+_cpu_cache = "0%"
+_cpu_ts    = 0
+_ram_cache = "unknown"
+_ram_ts    = 0
+_CACHE_TTL = 5.0
+
+def get_cpu():
+    global _cpu_cache, _cpu_ts
+    now = time.time()
+    if now - _cpu_ts > _CACHE_TTL:
+        try:
+            result = subprocess.getoutput("ps -A -o %cpu | awk '{s+=$1} END {print s}'")
+            _cpu_cache = f"{float(result):.1f}%" if result else "0%"
+        except:
+            _cpu_cache = "0%"
+        _cpu_ts = now
+    return _cpu_cache
+
 def get_ram():
-    mem = subprocess.getoutput("vm_stat | grep 'Pages free' | awk '{print $3}'")
-    if mem and mem.isdigit():
-        return f"{float(mem) * 4096 / (1024**3):.1f}GB"
+    global _ram_cache, _ram_ts
+    now = time.time()
+    if now - _ram_ts > _CACHE_TTL:
+        try:
+            mem = subprocess.getoutput("vm_stat | grep 'Pages free' | awk '{print $3}'")
+            _ram_cache = f"{float(mem) * 4096 / (1024**3):.1f}GB" if mem and mem.isdigit() else "unknown"
+        except:
+            _ram_cache = "unknown"
+        _ram_ts = now
+    return _ram_cache
     return "unknown"
 #+--|════════════════════════════════════════════════════════════════════
 #+--| def get_uptime():
@@ -129,19 +169,59 @@ def speak(text, voice=THOMAS_VOICE):
 #+--|  def start_web_server():
 #+--|════════════════════════════════════════════════════════════════════
 
-
 # ─── WEB SERVER ───
-def start_web_server():
-    """Serve HTML from Desktop (where the dashboard lives)"""
-    os.chdir("/Users/macbook/Desktop")
-    handler = http.server.SimpleHTTPRequestHandler
-    try:
-        with socketserver.TCPServer(("", 8080), handler) as httpd:
-            log_info("🌐 Web server running at http://localhost:8080")
-            httpd.serve_forever()
-    except OSError as e:
-        log_error(f"🌐 Web server error: {e}")
+FAVICON_PATH = "/Users/olympynetworkco/Desktop/themes/alfred/favicon.ico"
 
+class AlfredHTTPHandler(http.server.SimpleHTTPRequestHandler):
+    """SimpleHTTPRequestHandler + a guaranteed /favicon.ico from themes/alfred/."""
+
+    def do_GET(self):
+        if self.path.split("?")[0] == "/favicon.ico":
+            try:
+                with open(FAVICON_PATH, "rb") as f:
+                    data = f.read()
+                self.send_response(200)
+                self.send_header("Content-Type", "image/x-icon")
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Cache-Control", "public, max-age=86400")
+                self.end_headers()
+                self.wfile.write(data)
+                return
+            except OSError as e:
+                log_error(f"🌐 favicon read failed: {e}")
+                # fall through → default 404 handling
+        return super().do_GET()
+
+    def log_message(self, format, *args):
+        """Override to colorize the HTTP server logs."""
+        msg = format % args
+        clean_msg = msg.replace('"', '')  # Clean up quotes for the grid
+        
+        # Route the color based on the status code
+        if "200" in msg or "304" in msg:
+            alfred_log("SENT", "127.0.0.1", clean_msg, BG_GREEN)
+        elif "404" in msg:
+            alfred_log("FAIL", "127.0.0.1", clean_msg, BG_RED)
+        else:
+            alfred_log("INFO", "127.0.0.1", clean_msg, BG_CYAN)
+
+
+def start_web_server(port: int = 8080):
+    """Serve the Desktop folder on *port* and open it in the default browser."""
+    handler = AlfredHTTPHandler
+
+    try:
+        httpd = socketserver.TCPServer(("", port), handler)
+        server_thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+        server_thread.start()
+
+        url = f"http://localhost:{port}"
+        alfred_log("SENT", "Network", f"🌐 Web server running at {url} (root: {os.getcwd()})")
+        alfred_log("SENT", "Network", f"🌐 favicon → {FAVICON_PATH}")
+        webbrowser.open_new_tab(url)
+
+    except OSError as e:
+        alfred_log("FAIL", "Network", f"🌐 Web server error: {e}", BG_RED)
 
 #+--|════════════════════════════════════════════════════════════════════
 #+--|  ─── DASHBOARD STATE WRITER ───
@@ -263,9 +343,12 @@ def book_recent(n=5):
 #+--| ALFRED'S # def load_state():
 #+--|════════════════════════════════════════════════════════════════════
 
+
 def load_state():
     defaults = {
         "errors_caught": 0,
+        "errors_warn":   0,
+        "errors_fail":   0,
         "goals_completed": 0,
         "commands_parsed": 0,
         "searches_performed": 0,
@@ -280,6 +363,7 @@ def load_state():
         except:
             return defaults
     return defaults
+
 
 #+--|════════════════════════════════════════════════════════════════════
 #+--| ALFRED'S # def save_state(state):
@@ -734,19 +818,38 @@ def load_telegram_config():
 #+--|════════════════════════════════════════════════════════════════════
 #+--|
 
-def send_telegram(message):
+def send_telegram(message, parse_mode=None):
     cfg = load_telegram_config()
     if not cfg or not cfg['token']:
         return False
     try:
         context = ssl._create_unverified_context()
-        msg = json.dumps({"chat_id": cfg['chat_id'], "text": message}).encode()
-        req = urllib.request.Request(f"https://api.telegram.org/bot{cfg['token']}/sendMessage", data=msg, headers={"Content-Type": "application/json"})
+        payload = {"chat_id": cfg['chat_id'], "text": message}
+        if parse_mode:
+            payload["parse_mode"] = parse_mode
+        msg = json.dumps(payload).encode()
+        req = urllib.request.Request(
+            f"https://api.telegram.org/bot{cfg['token']}/sendMessage",
+            data=msg, headers={"Content-Type": "application/json"}
+        )
         urllib.request.urlopen(req, timeout=3, context=context)
-        print(f"[TG] Sent: {message}")
+        print(f"[TG] Sent: {message[:80]}")
         return True
     except Exception as e:
         print(f"[TG] Send failed: {e}")
+        # fall back to plain text if HTML parsing failed
+        if parse_mode:
+            try:
+                payload = {"chat_id": cfg['chat_id'], "text": message}
+                msg = json.dumps(payload).encode()
+                req = urllib.request.Request(
+                    f"https://api.telegram.org/bot{cfg['token']}/sendMessage",
+                    data=msg, headers={"Content-Type": "application/json"}
+                )
+                urllib.request.urlopen(req, timeout=3, context=context)
+                return True
+            except Exception:
+                pass
         return False
 
 _last_update_id = 0
@@ -824,10 +927,11 @@ def send_notification(title, message, subtitle=""):
 #+--|════════════════════════════════════════════════════════════════════
 
 
+
 def fetch_and_save(url, dest_dir, filename, original_msg=""):
     """
     Save URL as:
-      {filename}.pdf       — rendered PDF (Chrome for Testing)
+      {filename}.pdf       — rendered PDF (Google Chrome headless)
       {filename}.txt       — raw html, named .txt so your editor opens it as source
       {host}:{slug}.webloc — macOS shortcut
       {filename}.html      — raw page (kept)
@@ -847,47 +951,50 @@ def fetch_and_save(url, dest_dir, filename, original_msg=""):
     except UnicodeDecodeError:
         html_text = raw.decode('latin-1', errors='replace')
 
-    # ── 1. PDF (Chrome for Testing + live countdown) ──
+    # ── 1. PDF (Google Chrome headless + live countdown) ──
     pdf_path = dest_dir / f"{filename}.pdf"
-    chrome = "/Applications/python4/chrome-for-testing-main/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"
+    chrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
     PDF_TIMEOUT = 35
 
-    print(f"[ALFRED] 📕 rendering PDF (up to {PDF_TIMEOUT}s)…", flush=True)
-
-    proc = subprocess.Popen([
-        chrome, '--headless=new', '--disable-gpu', '--no-sandbox',
-        f'--print-to-pdf={pdf_path}',
-        '--no-pdf-header-footer',
-        url
-    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-    start = time.time()
-    bar_len = 24
-    while proc.poll() is None:
-        elapsed = time.time() - start
-        if elapsed >= PDF_TIMEOUT:
-            proc.kill()
-            print(f"\r[ALFRED] 📕 PDF timed out after {PDF_TIMEOUT}s" + " " * 35)
-            break
-        pct = min(elapsed / PDF_TIMEOUT, 1.0)
-        filled = int(bar_len * pct)
-        bar = "█" * filled + "░" * (bar_len - filled)
-        secs_left = int(PDF_TIMEOUT - elapsed)
-        sys.stdout.write(f"\r[ALFRED] 📕 [{bar}] {int(elapsed)}s / {PDF_TIMEOUT}s ({secs_left}s left)")
-        sys.stdout.flush()
-        time.sleep(0.5)
-
-    print()
-
-    if pdf_path.exists() and pdf_path.stat().st_size > 500:
-        kb = pdf_path.stat().st_size // 1024
-        print(f"[ALFRED] 📕 {filename}.pdf ({kb} KB)")
+    if not os.path.exists(chrome):
+        print(f"🎩 📕 Chrome not found at {chrome} — skipping PDF")
     else:
-        print(f"[ALFRED] 📕 {filename}.pdf — conversion produced nothing")
+        print(f"🎩 📕 rendering PDF (up to {PDF_TIMEOUT}s)…", flush=True)
+
+        proc = subprocess.Popen([
+            chrome, '--headless=new', '--disable-gpu', '--no-sandbox',
+            f'--print-to-pdf={pdf_path}',
+            '--no-pdf-header-footer',
+            url
+        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        start = time.time()
+        bar_len = 24
+        while proc.poll() is None:
+            elapsed = time.time() - start
+            if elapsed >= PDF_TIMEOUT:
+                proc.kill()
+                print(f"\r🎩 📕 PDF timed out after {PDF_TIMEOUT}s" + " " * 35)
+                break
+            pct = min(elapsed / PDF_TIMEOUT, 1.0)
+            filled = int(bar_len * pct)
+            bar = "█" * filled + "░" * (bar_len - filled)
+            secs_left = int(PDF_TIMEOUT - elapsed)
+            sys.stdout.write(f"\r🎩 📕 [{bar}] {int(elapsed)}s / {PDF_TIMEOUT}s ({secs_left}s left)")
+            sys.stdout.flush()
+            time.sleep(0.5)
+
+        print()
+
+        if pdf_path.exists() and pdf_path.stat().st_size > 500:
+            kb = pdf_path.stat().st_size // 1024
+            print(f"🎩 📕 {filename}.pdf ({kb} KB)")
+        else:
+            print(f"🎩 📕 {filename}.pdf — conversion produced nothing")
 
     # ── 2. TXT (raw html, editable source) ──
     (dest_dir / f"{filename}.txt").write_text(html_text, encoding='utf-8')
-    print(f"[ALFRED] 📝 {filename}.txt ({len(raw)} bytes)")
+    print(f"🎩 📝 {filename}.txt ({len(raw)} bytes)")
 
     # ── 3. WEBLOC ──
     p = urlparse(url)
@@ -906,14 +1013,69 @@ def fetch_and_save(url, dest_dir, filename, original_msg=""):
         '</plist>\n',
         encoding='utf-8'
     )
-    print(f"[ALFRED] 🔗 {webloc.name}")
+    print(f"🎩 🔗 {webloc.name}")
 
     # ── 4. HTML (raw page) ──
     (dest_dir / f"{filename}.html").write_text(html_text, encoding='utf-8')
-    print(f"[ALFRED] 💾 {filename}.html ({len(raw)} bytes)")
+    print(f"🎩 💾 {filename}.html ({len(raw)} bytes)")
 
     send_telegram(f"✓ PKG: {filename}.pdf + .txt + .webloc + .html")
     return str(pdf_path)
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--|#+--| ─── TELEGRAM CHAT LOG (alfred-tg-chat.json) ───
+#+--|════════════════════════════════════════════════════════════════════
+#+--|
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| ─── TELEGRAM CHAT LOG (alfred-tg-chat.json) ───
+#+--|════════════════════════════════════════════════════════════════════
+TG_CHAT_FILE = BASE / "alfred-tg-chat.json"
+_tg_chat_lock = threading.Lock()
+TELEGRAM_DIR = Path("/Users/olympynetworkco/Desktop/ollama/telegram")
+TELEGRAM_DIR.mkdir(parents=True, exist_ok=True)
+
+def log_tg_message(role, text, extra=None):
+    """
+    Append one message to alfred-tg-chat.json.
+      role : "owner" (you) | "alfred" (him) | "system"
+      text : the message body. For role="alfred", pass "" to leave blank.
+      extra: optional metadata dict (e.g. {"url": "..."}).
+    """
+    entry = {
+        "ts": datetime.now().isoformat(timespec="seconds"),
+        "role": role,
+        "text": text,
+    }
+    if extra:
+        entry.update(extra)
+
+    with _tg_chat_lock:
+        data = {"messages": []}
+        if TG_CHAT_FILE.exists():
+            try:
+                data = json.loads(TG_CHAT_FILE.read_text(encoding="utf-8"))
+                if not isinstance(data, dict):
+                    data = {"messages": []}
+            except Exception:
+                data = {"messages": []}
+
+        data.setdefault("messages", []).append(entry)
+        data["messages"] = data["messages"][-5000:]
+
+        TG_CHAT_FILE.write_text(
+            json.dumps(data, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+
+
+def _divider(text):
+    """Send a divider message to Telegram AND log it."""
+    send_telegram(text)
+    log_tg_message("system", text)
+
 
 #+--|════════════════════════════════════════════════════════════════════
 #+--|def telegram_listener():
@@ -927,38 +1089,113 @@ def telegram_listener():
                 time.sleep(2)
                 continue
 
-            # ── PHOTO BRANCH ──
-            if incoming.get("photo"):
-                cfg = load_telegram_config()
-                largest = incoming["photo"][-1]
-                file_id = largest["file_id"]
+            # ── MEDIA BRANCH (photo / video / document / audio / voice / animation / video_note / sticker) ──
+            msg_obj = incoming.get("message", {}) or {}
+            cfg = load_telegram_config()
 
+            file_id = None
+            file_name = None
+            kind = None
+
+            if "photo" in msg_obj:
+                file_id = msg_obj["photo"][-1]["file_id"]
+                file_name = f"photo-{datetime.now().strftime('%Y%m%d-%H%M%S')}.jpg"
+                kind = "photo"
+            elif "video" in msg_obj:
+                v = msg_obj["video"]
+                file_id = v["file_id"]
+                file_name = v.get("file_name") or f"video-{datetime.now().strftime('%Y%m%d-%H%M%S')}.mp4"
+                kind = "video"
+            elif "document" in msg_obj:
+                d = msg_obj["document"]
+                file_id = d["file_id"]
+                file_name = d.get("file_name") or f"document-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+                kind = "document"
+            elif "audio" in msg_obj:
+                a = msg_obj["audio"]
+                file_id = a["file_id"]
+                file_name = a.get("file_name") or f"audio-{datetime.now().strftime('%Y%m%d-%H%M%S')}.mp3"
+                kind = "audio"
+            elif "voice" in msg_obj:
+                file_id = msg_obj["voice"]["file_id"]
+                file_name = f"voice-{datetime.now().strftime('%Y%m%d-%H%M%S')}.ogg"
+                kind = "voice"
+            elif "animation" in msg_obj:
+                an = msg_obj["animation"]
+                file_id = an["file_id"]
+                file_name = an.get("file_name") or f"anim-{datetime.now().strftime('%Y%m%d-%H%M%S')}.mp4"
+                kind = "animation"
+            elif "video_note" in msg_obj:
+                file_id = msg_obj["video_note"]["file_id"]
+                file_name = f"videonote-{datetime.now().strftime('%Y%m%d-%H%M%S')}.mp4"
+                kind = "video_note"
+            elif "sticker" in msg_obj:
+                st = msg_obj["sticker"]
+                file_id = st["file_id"]
+                ext = "webp" if not st.get("is_animated") else "tgs"
+                file_name = f"sticker-{datetime.now().strftime('%Y%m%d-%H%M%S')}.{ext}"
+                kind = "sticker"
+
+            if file_id:
                 ctx = ssl._create_unverified_context()
-                info_url = f"https://api.telegram.org/bot{cfg['token']}/getFile?file_id={file_id}"
-                with urllib.request.urlopen(info_url, timeout=10, context=ctx) as r:
-                    info = json.loads(r.read().decode("utf-8"))
+                try:
+                    info_url = f"https://api.telegram.org/bot{cfg['token']}/getFile?file_id={file_id}"
+                    with urllib.request.urlopen(info_url, timeout=15, context=ctx) as r:
+                        info = json.loads(r.read().decode("utf-8"))
 
-                if info.get("ok"):
-                    file_path = info["result"]["file_path"]
-                    dl_url = f"https://api.telegram.org/file/bot{cfg['token']}/{file_path}"
+                    if not info.get("ok"):
+                        raise RuntimeError(info.get("description", "getFile failed"))
 
-                    data_dir = Path.home() / "Downloads"
-                    data_dir.mkdir(parents=True, exist_ok=True)
-                    save_to = data_dir / f"tg-photo-{datetime.now().strftime('%Y%m%d-%H%M%S')}.jpg"
+                    tg_path = info["result"]["file_path"]
+                    dl_url = f"https://api.telegram.org/file/bot{cfg['token']}/{tg_path}"
 
-                    ctx2 = ssl._create_unverified_context()
-                    with urllib.request.urlopen(dl_url, timeout=90, context=ctx2) as r:
-                        save_to.write_bytes(r.read())
+                    safe = "".join(c for c in file_name if c.isalnum() or c in "._-") or f"tg-{int(time.time())}.bin"
+                    save_to = TELEGRAM_DIR / safe
+                    counter = 1
+                    stem, ext = save_to.stem, save_to.suffix
+                    while save_to.exists():
+                        save_to = TELEGRAM_DIR / f"{stem}-{counter}{ext}"
+                        counter += 1
 
-                    size_kb = save_to.stat().st_size // 1024
-                    print(f"[ALFRED] 📸 Saved: {save_to.name} ({size_kb} KB)")
-                    send_telegram(f"📸 Saved {save_to.name} ({size_kb} KB)")
-                time.sleep(2)
+                    with urllib.request.urlopen(dl_url, timeout=180, context=ctx) as r:
+                        blob = r.read()
+
+                    save_to.write_bytes(blob)
+                    kb = len(blob) // 1024
+                    print(f"🎩 📥 Saved {kind}: {save_to.name} ({kb} KB)")
+                    send_telegram(f"📥 Saved {kind} → {save_to.name} ({kb} KB)")
+                    log_tg_message("alfred", f"[received {kind}: {save_to.name}]")
+
+                except urllib.error.HTTPError as e:
+                    body = ""
+                    try:
+                        body = e.read().decode("utf-8", errors="replace")
+                    except Exception:
+                        pass
+                    print(f"🎩 ❌ {kind} download HTTP {e.code}: {body[:300]}")
+                    if e.code == 400 and "too big" in body.lower():
+                        send_telegram(
+                            f"🎩 Sir, that {kind} is over Telegram's 20 MB bot limit. "
+                            f"Compress it or send a link instead."
+                        )
+                    else:
+                        send_telegram(f"🎩 Couldn't download {kind}, Sir: HTTP {e.code}")
+                    log_tg_message("alfred", f"[{kind} download failed: {e.code}]")
+
+                except Exception as e:
+                    print(f"🎩 ❌ {kind} download error: {e!r}")
+                    send_telegram(f"🎩 Couldn't save {kind}, Sir: {e}")
+                    log_tg_message("alfred", f"[{kind} download failed]")
+
+                time.sleep(1)
                 continue
 
             # ── TEXT BRANCH ──
             msg = incoming.get("text", "")
             print(f"[TG] Received: {msg}")
+
+            # ─── LOG INCOMING MESSAGE ───
+            log_tg_message("owner", msg)
 
             # ── Route to brain when JSON builder is active ──
             if _json_builder is not None or _html_builder is not None:
@@ -972,58 +1209,25 @@ def telegram_listener():
                 send_telegram(alfred_think(msg))
                 continue
 
-            # ===== CHECK FOR URL =====
+            # ===== URL — acknowledged, no PKG =====
             url = extract_url(msg)
             if url:
-                print(f"[TG] 🔗 URL detected: {url}")
-                send_telegram(f"🔗 URL detected. What should I name the PKG?")
-
-                filename = None
-                timeout = 30
-                start_time = time.time()
-
-                while time.time() - start_time < timeout:
-                    time.sleep(2)
-                    reply_packet = listen_telegram()
-                    reply = reply_packet.get("text", "") if reply_packet else ""
-                    if reply and not extract_url(reply):
-                        filename = reply.strip().replace(' ', '_')
-                        if not filename:
-                            filename = "telegram-pkg"
-                        break
-
-                if not filename:
-                    filename = f"telegram-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-                    send_telegram(f"⏰ Timeout - using: {filename}")
-
-                data_dir = Path.home() / "Downloads"
-                data_dir.mkdir(parents=True, exist_ok=True)
-
-                send_telegram(f"💾 Saving: {filename} → ~/Downloads")
-                fetch_and_save(url, data_dir, filename, msg)
-
-                screenshot_file = data_dir / f"{filename}.screenshot.png"
-                try:
-                    subprocess.run(
-                        ['screencapture', '-x', str(screenshot_file)],
-                        capture_output=True, timeout=10
-                    )
-                    print(f"[ALFRED] 📸 Screenshot saved: {screenshot_file}")
-                    send_telegram(f"📸 Screenshot: {screenshot_file.name}")
-                except Exception as e:
-                    print(f"[ALFRED] 📸 Screenshot failed: {e}")
-
-                send_telegram(f"✓ PKG saved: ~/Downloads/{filename}")
+                print(f"[TG] 🔗 URL received (no PKG): {url}")
+                send_telegram(f"🔗 Got the link, Sir. (PKG disabled)")
+                log_tg_message("alfred", "")
                 continue
 
             # ===== HANDLE /goggles =====
             if msg.strip().lower() == '/goggles':
                 send_telegram("🦄 DONATELLO TRIGGERED: Hot load notified!👾")
+                log_tg_message("alfred", "")
                 send_notification("🦄 DONATELLO", "Alert sent to Donatello👾", "URGENT")
                 continue
 
             # ===== DEFAULT RESPONSE =====
+            # ===== DEFAULT RESPONSE =====
             send_telegram(f"📨 Got it: {msg}...")
+            log_tg_message("alfred", "")          # ← empty placeholder
 
             time.sleep(2)
         except Exception as e:
@@ -1108,7 +1312,7 @@ DEFAULT_RESPONSES = [
     "Understood Master Art."
 ]
 #+--|════════════════════════════════════════════════════════════════════
-#+--| THE BRAIN — intents dictionary
+#+--| THE BRAIN — intents dictionary and help dictionary
 #+--|════════════════════════════════════════════════════════════════════
 intents = {
     "alfredscall":   ["call alfred"],
@@ -1116,7 +1320,7 @@ intents = {
     "download": ["download"],
     "/python4": ["/python4"],
     "ask_deepseek": ["ask deepseek"],
-
+    "read": ["read aloud", "speak this", "read this text"],
     "status": ["status", "stats"],
     "help": ["help"],
     "open": ["open"],
@@ -1124,7 +1328,7 @@ intents = {
     "search": ["search"],
     "remember": ["remember"],
     "goal": ["goal"],
-    "error": ["error"],
+    "error": ["log error", "log an error", "error:", "bug:", "report a bug"],
     "tab": ["tab"],
     "moltbook": ["moltbook"],
     "grip": ["grip"],
@@ -1150,16 +1354,21 @@ intents = {
 def parse_intent(text):
     text_lower = text.lower().strip()
 
+    # ─── Exact commands fire only on exact input ───
+    if text_lower in ("read", "read aloud", "read this"):
+        return "read"
+
     if text_lower == "call alfred":
         return "alfredscall"
 
     for intent, keywords in intents.items():
-        if intent == "alfredscall":
-            continue
+        if intent in ("alfredscall", "read"):
+            continue          # ← handled above, skip keyword scan
         for keyword in keywords:
             if re.search(r'\b' + re.escape(keyword) + r'\b', text_lower):
                 return intent
     return "echo"
+
 
 #+--|----------------------------------------------------------------------------------->>>>
 #+--| FOLDER LISTER ─── 1️⃣ Add a list_dir helper (put near json_grip in CHAPTER 5)
@@ -1465,73 +1674,293 @@ def alfred_calculate(formula_id, data):
     lines.append("🦇 '↕ shift sir through time expand the graph with song ↔'")
     return "\n".join(lines)
 
+
 #+--|════════════════════════════════════════════════════════════════════
 #+--| — Error handling
 #+--|════════════════════════════════════════════════════════════════════
 _last_error_time = 0
 _error_cooldown = 10
 
-def handle_error(error_text, context=None):
+def handle_error(error_text, context=None, severity="warn"):
+    """
+    severity:
+      'info' → logged only, does NOT bump any counter
+      'warn' → logged + bumps errors_warn, no Telegram
+      'fail' → logged + bumps errors_fail + Telegram alert (cooldown-limited)
+    """
     global _last_error_time
+
     state = load_state()
-    state["errors_caught"] += 1
-    save_state(state)
-    log_error(f"Error: {error_text[:500]}")
-    add_memory(f"ERROR: {error_text[:500]}")
-    current_time = time.time()
-    if current_time - _last_error_time > _error_cooldown:
-        send_telegram(f"[⚠️-Config-json] Alfred caught: {error_text[:200]}")
-        _last_error_time = current_time
-    return {"handled": True, "error": error_text[:500]}
+
+    if severity == "warn":
+        state["errors_warn"] = state.get("errors_warn", 0) + 1
+    elif severity == "fail":
+        state["errors_fail"] = state.get("errors_fail", 0) + 1
+
+    # keep the old key so anything reading errors_caught still works
+    if severity in ("warn", "fail"):
+        state["errors_caught"] = state.get("errors_caught", 0) + 1
+        save_state(state)
+
+    tag = severity.upper()
+    log_error(f"[{tag}] {error_text[:500]}")
+    add_memory(f"ERROR[{tag}]: {error_text[:500]}")
+
+    if severity == "fail":
+        current_time = time.time()
+        if current_time - _last_error_time > _error_cooldown:
+            send_telegram(f"[⚠️-Config-json] Alfred caught ({tag}): {error_text[:200]}")
+            _last_error_time = current_time
+
+    return {
+        "handled": True,
+        "severity": severity,
+        "error": error_text[:500],
+        "context": context,
+    }
+
+
 
 
 #+--|════════════════════════════════════════════════════════════════════
-#+--| THE WATCH — reads his own quick urls and messages you
+#+--| THE WATCH — reads his own quick urls and messages you watch dog quick url
 #+--|════════════════════════════════════════════════════════════════════
 _last_watch_cycle = 0
 WATCH_INTERVAL = 120        # 2 minutes (120 seconds)
 WATCH_QUIET_HOURS = (0, 0)  # Work always
 
-WATCH_TARGETS = [
-    {"name": "ESPN-NFL", "url": "https://www.espn.com/espn/rss/nfl/news"},
-    {"name": "ESPN-NBA", "url": "https://www.espn.com/espn/rss/nba/news"},
-    {"name": "ESPN-MLB", "url": "https://www.espn.com/espn/rss/mlb/news"},
-    {"name": "ESPN-NHL", "url": "https://www.espn.com/espn/rss/nhl/news"},
-]
+
+SCORES_BADGE_HTML = "/Users/olympynetworkco/Desktop/data/scores-badge.html"
+
+_live_score_last_sig = {}
+_live_score_last_games = {}   # sport → {game_key: score_str}
+
+
+def _esc(s):
+    return (str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+
+
+def _fetch_nhl_games():
+    """Return list of game dicts from ESPN's NHL scoreboard."""
+    url = "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/scoreboard"
+    ctx = ssl._create_unverified_context()
+    req = urllib.request.Request(url, headers={'User-Agent': 'Alfred/1.0'})
+    with urllib.request.urlopen(req, timeout=10, context=ctx) as r:
+        data = json.loads(r.read().decode('utf-8'))
+
+    games = []
+    for ev in data.get("events", []):
+        comps = ev.get("competitions", [])
+        if not comps:
+            continue
+        comp = comps[0]
+        competitors = comp.get("competitors", [])
+        if len(competitors) < 2:
+            continue
+        t1, t2 = competitors[0], competitors[1]
+        status = comp.get("status", {})
+        state  = status.get("type", {}).get("state", "")
+        period = status.get("period", "")
+        detail = status.get("type", {}).get("shortDetail", "")
+        games.append({
+            "away":  t1.get("team", {}).get("abbreviation") or "?",
+            "away_score": t1.get("score", "-"),
+            "home":  t2.get("team", {}).get("abbreviation") or "?",
+            "home_score": t2.get("score", "-"),
+            "state": state,
+            "tag": f"P{period}" if period else (detail or "-"),
+        })
+    return games
+
+
+def _build_badge_html(games, changed_keys=None):
+    """Load scores-badge.html and inject game rows. Rows in changed_keys get a green highlight."""
+    changed_keys = changed_keys or set()
+    template = Path(SCORES_BADGE_HTML).read_text(encoding="utf-8")
+
+    if not games:
+        rows = '<div style="text-align:center;color:#6b6b6b;padding:12px;">No games right now.</div>'
+    else:
+        parts = []
+        for g in games:
+            color = "#ef4444" if g["state"] == "in" else ("#22c55e" if g["state"] == "post" else "#facc15")
+            key = f'{g["away"]}@{g["home"]}'
+            changed = key in changed_keys
+            # Green tint + left bar when the score just changed
+            row_style = (
+                "display:flex;align-items:center;justify-content:space-between;"
+                "padding:8px 8px;border-bottom:1px solid #e7e7e5;"
+            )
+            if changed:
+                row_style += (
+                    "background:#dcfce7;border-left:4px solid #16a34a;"
+                    "padding-left:10px;border-radius:4px;"
+                )
+            parts.append(
+                f'<div style="{row_style}">'
+                f'<span style="font-size:13px;color:#1a1a1a;">'
+                f'<b>{_esc(g["away"])}</b> '
+                f'<span style="color:#6b6b6b;">{_esc(g["away_score"])}</span>'
+                f' <span style="color:#6b6b6b;">—</span> '
+                f'<span style="color:#6b6b6b;">{_esc(g["home_score"])}</span>'
+                f' <b>{_esc(g["home"])}</b>'
+                f'</span>'
+                f'<span style="font-size:11px;font-weight:700;letter-spacing:.5px;'
+                f'color:{color};background:{color}1a;padding:2px 7px;border-radius:6px;">'
+                f'{_esc(g["tag"])}</span>'
+                f'</div>'
+            )
+        rows = "".join(parts)
+
+    stats_block = re.search(
+        r'<!-- Stats strip -->.*?</div>\s*</div>\s*</div>',
+        template,
+        flags=re.DOTALL,
+    )
+    if stats_block:
+        replacement = (
+            '<!-- Stats strip -->\n'
+            '  <div class="px-5 pt-3">\n'
+            f'    {rows}\n'
+            '  </div>\n'
+        )
+        template = template[:stats_block.start()] + replacement + template[stats_block.end():]
+
+    template = template.replace("MCP Certified", "NHL Scores")
+    template = template.replace("Model Context Protocol · Training Module",
+                                datetime.now().strftime('%a %b %d · %I:%M %p').replace(' 0', ' '))
+    template = template.replace("Badge", "Live")
+    template = template.replace("Master Art · OlympyNetworkCo", "OlympyNetworkCo · Watchman")
+    template = template.replace("MCP-7F9·A3B1", "NHL · LIVE")
+    return template
+
+
+def _send_document(file_path, caption=""):
+    """Send an HTML file to Telegram as a document."""
+    cfg = load_telegram_config()
+    if not cfg or not cfg.get("token"):
+        return False
+    try:
+        import uuid
+        boundary = "----A" + uuid.uuid4().hex
+        f = Path(file_path)
+        content = f.read_bytes()
+        body = f"--{boundary}\r\n".encode()
+        body += b'Content-Disposition: form-data; name="chat_id"\r\n\r\n'
+        body += f"{cfg['chat_id']}\r\n".encode()
+        if caption:
+            body += f"--{boundary}\r\n".encode()
+            body += b'Content-Disposition: form-data; name="caption"\r\n\r\n'
+            body += f"{caption}\r\n".encode()
+        body += f"--{boundary}\r\n".encode()
+        body += f'Content-Disposition: form-data; name="document"; filename="{f.name}"\r\n'.encode()
+        body += b"Content-Type: text/html\r\n\r\n"
+        body += content + b"\r\n"
+        body += f"--{boundary}--\r\n".encode()
+        ctx = ssl._create_unverified_context()
+        req = urllib.request.Request(
+            f"https://api.telegram.org/bot{cfg['token']}/sendDocument",
+            data=body,
+            headers={"Content-Type": f"multipart/form-data; boundary={boundary}"}
+        )
+        urllib.request.urlopen(req, timeout=60, context=ctx)
+        print(f"[TG] ✓ HTML sent: {f.name} ({len(content)//1024} KB)")
+        return True
+    except Exception as e:
+        print(f"[TG] Document send failed: {e}")
+        return False
+
+
+def check_live_scores(sport="nhl"):
+    """Fetch ESPN scores → build badge HTML (green-highlight changed games) → send as document."""
+    global _live_score_last_sig, _live_score_last_games
+
+    try:
+        games = _fetch_nhl_games()
+    except Exception as e:
+        log_error(f"[SCORES] fetch failed: {e}")
+        return
+
+    sig = "|".join(f'{g["away"]}{g["away_score"]}{g["home"]}{g["home_score"]}{g["tag"]}' for g in games)
+    if sig == _live_score_last_sig.get(sport):
+        return
+    _live_score_last_sig[sport] = sig
+
+    # Compare current scores to previous snapshot to find changed games
+    prev = _live_score_last_games.get(sport, {})
+    current = {f'{g["away"]}@{g["home"]}': f'{g["away_score"]}-{g["home_score"]}' for g in games}
+    changed = {k for k, v in current.items() if k in prev and prev[k] != v}
+    _live_score_last_games[sport] = current
+
+    html = _build_badge_html(games, changed_keys=changed)
+
+    out = Path("/Users/olympynetworkco/Desktop/data/score-card-latest.html")
+    out.write_text(html, encoding="utf-8")
+
+    caption = f"🏒 NHL · {datetime.now().strftime('%b %d · %I:%M %p').replace(' 0',' ')}"
+    if changed:
+        caption += f" · {len(changed)} score change{'s' if len(changed)!=1 else ''}"
+
+    _send_document(out, caption=caption)
+    log_info(f"[SCORES] {sport} html sent · {len(changed)} changed")
+
+
+
+
+#+--|════════════════════════════════════════════════════════════════════
+
+# ─── HEADLINE VULTURE (unchanged) ──────────────────────────────────────
+def get_watch_targets():
+    """Dynamically builds the scoreboard URLs for yesterday and today."""
+    today = datetime.now()
+    yesterday = today - timedelta(days=1)
+    fmt = "%Y%m%d"
+
+    return [
+        {"name": "ESPN-NHL", "url": f"https://www.espn.com/nhl/scoreboard/_/date/{yesterday.strftime(fmt)}"},
+        {"name": "ESPN-NHL", "url": f"https://www.espn.com/nhl/scoreboard/_/date/{today.strftime(fmt)}"}
+    ]
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| THE WATCH — VULTURE AKA WATCHDOG AKA LEO DON MIKEY AN BIG DOG RAPHAEL
+#+--|════════════════════════════════════════════════════════════════════
 
 def _fetch_feed(url, timeout=15):
-    """Return list of (title, link, snippet) tuples from an RSS feed."""
+    """Return list of (title, link, snippet) tuples from an ESPN Scoreboard."""
     ctx = ssl._create_unverified_context()
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     with urllib.request.urlopen(req, timeout=timeout, context=ctx) as r:
-        raw = r.read().decode("utf-8", errors="replace")
+        html = r.read().decode("utf-8", errors="replace")
 
     items = []
 
-    # Standard RSS format: <item>...</item>
-    for match in re.finditer(r"<item>(.*?)</item>", raw, re.DOTALL):
-        block = match.group(1)
+    teams = re.findall(r'class="ScoreboardScoreCell__TeamName[^"]*"[^>]*>([^<]+)</div>', html)
+    links = re.findall(r'href="([^"]*/game/_/gameId/\d+[^"]*)"', html)
 
-        # Title (handles <![CDATA[...]]> and plain text)
-        t = re.search(r"<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</title>", block, re.DOTALL)
-        # Link
-        l = re.search(r"<link>(.*?)</link>", block, re.DOTALL)
-        # Description
-        d = re.search(r"<description>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</description>", block, re.DOTALL)
+    for i in range(0, len(teams), 2):
+        if i + 1 < len(teams) and len(items) < 5:
+            away = teams[i].strip()
+            home = teams[i+1].strip()
 
-        if t:
-            title = t.group(1).strip()
-            link  = l.group(1).strip() if l else ""
-            desc  = d.group(1).strip()[:300] if d else ""
-            # Strip any stray HTML tags inside the description
-            desc  = re.sub(r"<[^>]+>", "", desc)
-            if title and title not in [x[0] for x in items]:
-                items.append((title, link, desc))
-        if len(items) >= 5:
-            break
+            if not away or not home:
+                continue
+
+            title = f"{away} vs {home}"
+            link = links[len(items)] if len(items) < len(links) else url
+            if link.startswith('/'):
+                link = f"https://www.espn.com{link}"
+
+            items.append((title, link, "Scoreboard update"))
 
     return items
 
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| THE WATCH — VULTURE AKA WATCHDOG AKA LEO DON MIKEY AN BIG DOG RAPHAEL
+#+--| memory boys : freeboards but remember memory vault data
+#+--| def _check_memory_for_title(title):
+#+--|════════════════════════════════════════════════════════════════════
 
 def _check_memory_for_title(title):
     """Check if the title is already in alfred_memory.txt."""
@@ -1541,28 +1970,110 @@ def _check_memory_for_title(title):
             return True
     return False
 
+def _article_first_sentences(url, max_paras=8, timeout=15):
+    """Fetch the article at `url` and return the first sentence of each paragraph,
+    joined with ' '. Ignores empty/short paragraphs. Caps output."""
+    try:
+        ctx = ssl._create_unverified_context()
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Alfred)"})
+        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as r:
+            html = r.read().decode("utf-8", errors="replace")
+    except Exception as e:
+        log_error(f"[WATCH] article fetch failed: {e}")
+        return ""
+
+    html = re.sub(r"<script[^>]*>.*?</script>", " ", html, flags=re.DOTALL | re.IGNORECASE)
+    html = re.sub(r"<style[^>]*>.*?</style>", " ", html, flags=re.DOTALL | re.IGNORECASE)
+
+    paras = re.findall(r"<p[^>]*>(.*?)</p>", html, flags=re.DOTALL | re.IGNORECASE)
+
+    first_sentences = []
+    for p in paras:
+        text = re.sub(r"<[^>]+>", " ", p)
+        text = (text.replace("&amp;", "&")
+                    .replace("&quot;", '"')
+                    .replace("&#39;", "'")
+                    .replace("&nbsp;", " ")
+                    .replace("&apos;", "'")
+                    .replace("&ldquo;", '"')
+                    .replace("&rdquo;", '"')
+                    .replace("&mdash;", "—")
+                    .replace("&ndash;", "–"))
+        text = " ".join(text.split()).strip()
+
+        if len(text) < 30:
+            continue
+
+        m = re.split(r'(?<=[\.\?\!])\s', text, maxsplit=1)
+        sentence = m[0].strip()
+        if sentence and sentence not in first_sentences:
+            first_sentences.append(sentence)
+        if len(first_sentences) >= max_paras:
+            break
+
+    return " ".join(first_sentences)
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| def send_telegram_button(message, reply_markup=None):
+#+--|════════════════════════════════════════════════════════════════════
+
+def send_telegram_button(message, reply_markup=None):
+    """Sends a Telegram message with optional inline buttons."""
+    cfg = load_telegram_config()
+    if not cfg or not cfg['token']:
+        return False
+    try:
+        context = ssl._create_unverified_context()
+        payload = {"chat_id": cfg['chat_id'], "text": message}
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
+
+        msg = json.dumps(payload).encode()
+        req = urllib.request.Request(
+            f"https://api.telegram.org/bot{cfg['token']}/sendMessage",
+            data=msg,
+            headers={"Content-Type": "application/json"}
+        )
+        urllib.request.urlopen(req, timeout=3, context=context)
+        print(f"[TG] Sent Button: {message[:50]}...")
+        return True
+    except Exception as e:
+        print(f"[TG] Send Button failed: {e}")
+        return False
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| def _think_and_speak(source_name, title, link, snippet):
+#+--|════════════════════════════════════════════════════════════════════
+
 def _think_and_speak(source_name, title, link, snippet):
-    """Ask tinydolphin:latest what to say, then send it to Telegram."""
     prompt = (
-        f"You just read this from {source_name}: '{title}'. "
+        f"You just read this from {source_name}. "
+        f"Headline: '{title}'. "
         f"Snippet: {snippet}. "
-        "In one short sentence, tell Master Art why this matters, "
-        "or ask him a question about it. Address him as Sir."
+        "In one short sentence (max 22 words), tell Master Art what the story says "
+        "and why it matters, or ask him a question about it. "
+        "Address him as Sir. No greetings, no repeating the headline."
     )
     try:
-        reply = alfred_mind(prompt)
+        reply = alfred_mind(prompt).strip()
     except Exception:
-        reply = f"Sir, I spotted something on {source_name}: {title}"
+        reply = "Worth a look, Sir."
 
-    msg = (
-        f"🎩 Sir, I just checked {source_name}.\n\n"
-        f"⎙ {title}\n"
-        f"🔗 {link}\n\n"
-        f"{reply}"
-    )
+    reply = " ".join(reply.split())
+    short_title = title if len(title) <= 80 else title[:77] + "…"
+
+    teams = title.replace(" vs ", " ").strip()
+    search_url = f"https://www.youtube.com/results?search_query={urllib.parse.quote('Sportsnet ' + teams + ' highlights')}"
+
+    subprocess.run(["open", "-a", "Firefox", search_url])
+
+    msg = f"🏒 {source_name}\n\n  🗞  {short_title}\n  ➤  {reply}\n\n  📺 *Firefox is open. Click the downloader extension.*"
     send_telegram(msg)
+
     add_memory(f"📖 Feed Read: [{source_name}] {title}")
-    log_info(f"[WATCH] spoke about {source_name}: {title[:80]}")
+    log_info(f"[WATCH] opened Firefox for {source_name}: {title[:80]}")
 
 
 #+--|════════════════════════════════════════════════════════════════════
@@ -1570,14 +2081,21 @@ def _think_and_speak(source_name, title, link, snippet):
 #+--|════════════════════════════════════════════════════════════════════
 
 def watch_cycle():
-    """One pass: pick a source, read it, speak if new."""
+    """One pass: refresh live scores, then check for a new headline."""
     global _last_watch_cycle
 
     hour = datetime.now().hour
     if WATCH_QUIET_HOURS[0] <= hour < WATCH_QUIET_HOURS[1]:
         return
 
-    target = random.choice(WATCH_TARGETS)
+    # Always refresh live scores first — every watch cycle
+    try:
+        check_live_scores("nhl")
+    except Exception as e:
+        log_error(f"[SCORES] watch_cycle check failed: {e}")
+
+    # Then the original headline-vulture pass
+    target = random.choice(get_watch_targets())
     log_info(f"[WATCH] reading {target['name']}...")
 
     try:
@@ -1597,6 +2115,7 @@ def watch_cycle():
 
     log_info(f"[WATCH] {target['name']} all {len(items)} items already seen")
 
+
 #+--|════════════════════════════════════════════════════════════════════
 #+--| def start_watch_loop():
 #+--|════════════════════════════════════════════════════════════════════
@@ -1606,16 +2125,16 @@ def start_watch_loop():
         while True:
             try:
                 watch_cycle()
-                # Exactly 2 minutes now, no random jitter
-                time.sleep(WATCH_INTERVAL) 
+                time.sleep(WATCH_INTERVAL)
             except Exception as e:
                 log_error(f"[WATCH] loop error: {e}")
                 time.sleep(60)
     threading.Thread(target=loop, daemon=True).start()
-    log_info("[WATCH] 👁 watch loop started")
+    log_info("[WATCH] 👁 watch loop started (live scores + headline vulture)")
+
 
 #+--|════════════════════════════════════════════════════════════════════
-#+--| CHAPTER 6: THE vultures — Watchdogs and vultures 4 siblings 
+#+--| CHAPTER 6: THE vultures — Watchdogs and vultures 4 siblings
 #+--|════════════════════════════════════════════════════════════════════
 _watchdog_last_alert = 0
 _watchdog_cooldown = 300
@@ -1629,6 +2148,7 @@ def claw_watchdog():
         send_telegram(f"[⚠️-Config-json] Watchdog: {errors} errors total.")
         _watchdog_last_alert = current_time
     return BASE.exists()
+
 
 #+--|════════════════════════════════════════════════════════════════════
 #+--|  THE MIND — fallback for unrecognized input
@@ -1720,7 +2240,6 @@ OLLAMA_URL = "http://localhost:11434"
 #+--|════════════════════════════════════════════════════════════════════
 OLLAMA_URL = "http://localhost:11434"
 
-
 def alfred_mind(user_input, history=None, model="openai/gpt-oss-120b", image_path=None):
     history = history or []
 
@@ -1739,13 +2258,13 @@ def alfred_mind(user_input, history=None, model="openai/gpt-oss-120b", image_pat
         )},
     ]
 
-    # Loop through the recent history and add it to the messages
     for msg in history[-6:]:
         if isinstance(msg, str) and msg.startswith("Master Art: "):
             text_content = msg[len("Master Art: "):]
             if len(text_content) > 1000:
                 text_content = text_content[:1000] + "...(truncated)"
             messages.append({"role": "user", "content": text_content})
+
         elif isinstance(msg, dict) and "role" in msg:
             role = "user" if msg["role"] == "owner" else "assistant"
             text_content = msg.get("text", "")
@@ -1753,38 +2272,63 @@ def alfred_mind(user_input, history=None, model="openai/gpt-oss-120b", image_pat
                 text_content = text_content[:1000] + "...(truncated)"
             messages.append({"role": role, "content": text_content})
 
-
-    # Add the current user input
     messages.append({"role": "user", "content": user_input})
 
-    # ─── GROQ BACKEND ───
     import urllib.request as _ur
-    key = (os.getenv("GROQ_API_KEY") or "").strip()
 
-    if not key:
-        return "🎩 GROQ_API_KEY missing from env.txt, Sir."
-    try:
-        url = "https://api.groq.com/openai/v1/chat/completions"
-        payload = json.dumps({
-            "model": model,
-            "messages": messages,
-            "max_tokens": 1024,
-        }).encode()
-        req = _ur.Request(
-            url,
-            data=payload,
-            headers={
-                "Authorization": f"Bearer {key}",
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
-            }
-        )
-        with _ur.urlopen(req, timeout=120) as r:
-            resp = json.loads(r.read().decode())
-            return resp["choices"][0]["message"]["content"]
-    except Exception as e:
-        return f"🎩 Groq error, Sir: {e}"
+    # ─── 1. GROQ (primary) ───
+    groq_key = (os.getenv("GROQ_API_KEY") or "").strip()
+    if groq_key:
+        try:
+            payload = json.dumps({
+                "model": model,
+                "messages": messages,
+                "max_tokens": 4096,
+            }).encode()
+            req = _ur.Request(
+                "https://api.groq.com/openai/v1/chat/completions",
+                data=payload,
+                headers={
+                    "Authorization": f"Bearer {groq_key}",
+                    "Content-Type": "application/json",
+                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+                },
+            )
+            with _ur.urlopen(req, timeout=120) as r:
+                resp = json.loads(r.read().decode())
+                return resp["choices"][0]["message"]["content"]
+        except Exception as e:
+            log_error(f"Groq failed, trying NVIDIA: {e}")
 
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| THE MIND —     # ─── 2. NVIDIA NIM (fallback) ─── training model
+#+--|════════════════════════════════════════════════════════════════════
+
+    # ─── 2. NVIDIA NIM (fallback) ───
+    nv_key = (os.getenv("NVIDIA_API") or "").strip()
+    if nv_key:
+        try:
+            payload = json.dumps({
+                "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
+                "messages": messages,
+                "max_tokens": 4096,
+            }).encode()
+            req = _ur.Request(
+                "https://integrate.api.nvidia.com/v1/chat/completions",
+                data=payload,
+                headers={
+                    "Authorization": f"Bearer {nv_key}",
+                    "Content-Type": "application/json",
+                },
+            )
+            with _ur.urlopen(req, timeout=120) as r:
+                resp = json.loads(r.read().decode())
+                return resp["choices"][0]["message"]["content"]
+        except Exception as e:
+            return f"🎩 Groq and NVIDIA both failed, Sir: {e}"
+
+    return "🎩 No AI key available (need GROQ_API_KEY or NVIDIA_API in env.txt), Sir."
 
 #+--|════════════════════════════════════════════════════════════════════
 #+--| def ask_deepseek_browser(question):
@@ -2482,6 +3026,7 @@ _last_json_file = None
 _schedule_builder = None   # None | {"stage": ..., "title": ..., "start": ..., "duration_min": 60}
 _waiting_for_deepseek = False   # add near the other globals
 _waiting_for_python4_editor = False
+_read_builder = None       # None | {"stage": "awaiting_text", "text": ""}
 
 
 #+--|════════════════════════════════════════════════════════════════════
@@ -2578,11 +3123,14 @@ def _json_cancel():
 #+--|════════════════════════════════════════════════════════════════════
 #+--| ddef _json_finish():
 #+--|════════════════════════════════════════════════════════════════════
+
 def _json_finish():
     global _json_builder, _last_json_file
+
     if not _json_builder or not _json_builder["games"]:
         _json_builder = None
         return "🎩 Nothing to write, Sir."
+
 
     # Build games as compact one-liners, blank line between days
     game_lines = []
@@ -2640,7 +3188,7 @@ def _json_show():
 _html_builder = None
 
 def _html_start():
-    global _html_builder
+
     _html_builder = {"stage": "awaiting_text", "text": "", "filename": None}
     return "🎩 Drop the text, Sir."
 
@@ -2662,7 +3210,9 @@ def _html_finish(name):
     path.parent.mkdir(parents=True, exist_ok=True)
 
 #+--|════════════════════════════════════════════════════════════════════
-
+#+--|    raw = _html_builder["text"]
+#+--|════════════════════════════════════════════════════════════════════
+#+--|
     raw = _html_builder["text"]
     
     # If the text is already HTML, just save it as is.
@@ -2839,60 +3389,381 @@ def _html_finish(name):
     n_lines = content.count("\n") + 1
     _last_json_file = path
     _html_builder = None
+
     return f"🎩 Saved {n_lines} lines → ~/Downloads/{name}"
 
 
 #+--|════════════════════════════════════════════════════════════════════
 #+--| chapter 6 :def build python4 scripts
-#+--| def open_python4_skeleton():
+#+--| /python4 — idle | textedit | file edit (replace / delete / add)
 #+--|════════════════════════════════════════════════════════════════════
 
+_py4_builder = None
+
 def open_python4_skeleton(choice=None):
-    """Open skeleton.py4.txt in IDLE or TextEdit, Sir."""
-    global _waiting_for_python4_editor
+    """Entry for /python4. Menu → idle / textedit / file edit."""
+    global _py4_builder, _waiting_for_python4_editor
 
     SKELETON_TXT = Path("/Users/olympynetworkco/Desktop/ollama/python4/skeleton.py4.txt")
     IDLE_APP = "/Users/olympynetworkco/Desktop/ollama/python4/py47tools/IDLE.app"
 
-    if not SKELETON_TXT.exists():
-        return f"🎩 Skeleton not found at {SKELETON_TXT}, Sir."
-
     if choice is None:
-        _waiting_for_python4_editor = True
+        _py4_builder = {"stage": "menu"}
+        _waiting_for_python4_editor = False
         return (
-            "🎩 Sir, which one?\n"
+            "🎩 /python4 — what would you like, Sir?\n"
             "  • idle\n"
-            "  • textedit"
+            "  • textedit\n"
+            "  • file edit\n"
+            "  (or `cancel`)"
         )
 
-    choice = choice.strip().lower()
-    if choice == "idle":
+    low = choice.strip().lower()
+
+    if low == "idle":
+        if not SKELETON_TXT.exists():
+            return f"🎩 Skeleton not found at {SKELETON_TXT}, Sir."
         subprocess.Popen(["open", "-a", IDLE_APP, str(SKELETON_TXT)])
-        _waiting_for_python4_editor = False
         return "🎩 Opening skeleton.py4.txt in IDLE, Sir."
-    elif choice == "textedit":
+
+    if low == "textedit":
+        if not SKELETON_TXT.exists():
+            return f"🎩 Skeleton not found at {SKELETON_TXT}, Sir."
         subprocess.Popen(["open", "-e", str(SKELETON_TXT)])
-        _waiting_for_python4_editor = False
         return "🎩 Opening skeleton.py4.txt in TextEdit, Sir."
+
+    if low in ("file edit", "file", "edit", "fileedit"):
+        _py4_builder = {"stage": "awaiting_file"}
+        return "🎩 Which file, Sir? Drop the .py4 / .py path (or `cancel`)."
+
+    return "🎩 Say `idle`, `textedit`, or `file edit` (or `cancel`)."
+
+
+def _py4_cancel():
+    global _py4_builder
+    _py4_builder = None
+    return "🎩 Edit cancelled, Sir. No changes made."
+
+
+def _py4_capture_file(text):
+    global _py4_builder
+    raw = text.strip().strip('"').strip("'")
+    path = Path(os.path.expanduser(raw))
+
+    if not path.exists():
+        return f"🎩 File not found, Sir: {path}\n  Drop the path again, or `cancel`."
+    if not path.is_file():
+        return f"🎩 That's not a file, Sir: {path}\n  Try again, or `cancel`."
+    if path.suffix not in (".py", ".py4", ".txt", ".json", ".html", ".sh"):
+        _py4_builder = {"stage": "awaiting_file_confirm", "pending": str(path)}
+        return (f"🎩 {path.name} isn't .py/.py4/.txt/.json/.html/.sh, Sir.\n"
+                f"  Say `yes` to edit it anyway, or drop a different path.")
+
+    # ── Lock + print the script with line numbers ──
+    try:
+        content = path.read_text(encoding="utf-8")
+    except Exception as e:
+        return f"🎩 Couldn't read {path.name}, Sir: {e}"
+
+    lines = content.splitlines()
+    total = len(lines)
+
+    # Cap the preview so huge files don't flood the terminal
+    MAX_PREVIEW = 200
+    shown = lines[:MAX_PREVIEW]
+    width = len(str(total))
+
+    numbered = "\n".join(f"{i+1:>{width}} │ {ln}" for i, ln in enumerate(shown))
+    truncated = ""
+    if total > MAX_PREVIEW:
+        truncated = (f"\n  … {total - MAX_PREVIEW} more lines "
+                     f"(say `show all` to dump the rest, or just paste your find-block)")
+
+    _py4_builder = {"stage": "awaiting_action", "file": str(path)}
+
+    return (f"🎩 File locked: {path.name}  ({total} lines)\n"
+            f"{'─' * 60}\n"
+            f"{numbered}{truncated}\n"
+            f"{'─' * 60}\n\n"
+            f"  What would you like?\n"
+            f"    • replace lines\n"
+            f"    • delete lines\n"
+            f"    • add lines\n"
+            f"  (or `cancel`)")
+
+
+def _py4_capture_action(text):
+    global _py4_builder
+    low = text.strip().lower()
+
+    if low in ("replace", "replace lines"):
+        _py4_builder.update({"stage": "awaiting_find", "action": "replace"})
+        return ("🎩 Replace — paste the *finding block* first, Sir, "
+                "so I can locate it.\n  (paste it exactly as it appears)")
+
+    if low in ("delete", "delete lines"):
+        _py4_builder.update({"stage": "awaiting_find", "action": "delete"})
+        return ("🎩 Delete — paste the block to remove, Sir.\n"
+                "  (paste it exactly as it appears)")
+
+    if low in ("add", "add lines"):
+        _py4_builder.update({"stage": "awaiting_new", "action": "add",
+                             "find_block": "", "find_line": 0, "anchor": None})
+        return ("🎩 Add — paste the new block, Sir.\n"
+                "  I'll ask where after.")
+
+    return "🎩 Say `replace`, `delete`, or `add` (or `cancel`)."
+
+
+def _py4_strip_line_numbers(block):
+    """Remove '<n> │ ' / '<n>| ' / '<n> ' prefixes from pasted lines."""
+    out = []
+    for ln in block.splitlines():
+        # match: optional spaces, digits, optional spaces, │ or | or tab, optional space
+        m = re.match(r'^\s*\d+\s*[│|]\s?(.*)$', ln)
+        if m:
+            out.append(m.group(1))
+        else:
+            out.append(ln)
+    return "\n".join(out)
+
+
+def _py4_capture_find(block):
+    global _py4_builder
+    f = Path(_py4_builder["file"])
+    try:
+        content = f.read_text(encoding="utf-8")
+    except Exception as e:
+        return f"🎩 Couldn't read {f.name}, Sir: {e}"
+
+    # Try exact first, then with line-number prefixes stripped
+    idx = content.find(block)
+    used = block
+    if idx == -1:
+        stripped = _py4_strip_line_numbers(block)
+        idx = content.find(stripped)
+        used = stripped
+
+    if idx == -1:
+        return ("🎩 Block not found in the file, Sir.\n"
+                "  Paste it exactly (spaces/quotes/line breaks matter), "
+                "or `cancel`.")
+
+    line_no = content[:idx].count("\n") + 1
+    _py4_builder.update({"find_block": used, "find_line": line_no})
+
+    if _py4_builder["action"] == "replace":
+        _py4_builder["stage"] = "awaiting_new"
+        return (f"🎩 Found line {line_no}, Sir:\n\n{used}\n\n"
+                f"  What would you like to replace it with?\n"
+                f"  (paste replacement, or `delete` to remove it)")
+
+    _py4_builder["stage"] = "awaiting_confirm"
+    return (f"🎩 Found line {line_no}, Sir:\n\n{used}\n\n"
+            f"  Confirm deletion with `done`, or `cancel`.")
+
+
+
+def _py4_capture_new(block):
+    global _py4_builder
+    if _py4_builder["action"] == "add":
+        _py4_builder.update({"stage": "awaiting_anchor",
+                             "replacement": block})
+        return ("🎩 New block captured, Sir. Where?\n"
+                "  • `above`  → I'll ask for the anchor block\n"
+                "  • `below`  → I'll ask for the anchor block\n"
+                "  • `append` → end of file")
+
+    _py4_builder.update({"stage": "awaiting_confirm", "replacement": block})
+    return "🎩 Got it, Sir. Say `done` for the process to render (or `cancel`)."
+
+
+def _py4_capture_anchor_choice(text):
+    global _py4_builder
+    low = text.strip().lower()
+
+    if low == "append":
+        _py4_builder.update({"stage": "awaiting_confirm", "anchor": "append"})
+        return "🎩 Appending to end of file. Say `done` to render (or `cancel`)."
+
+    if low in ("above", "below"):
+        _py4_builder.update({"stage": "awaiting_anchor_block", "anchor": low})
+        return f"🎩 Paste the anchor block, Sir — the one I insert {low}."
+
+    return "🎩 Say `above`, `below`, or `append` (or `cancel`)."
+
+
+def _py4_capture_anchor_block(block):
+    global _py4_builder
+    f = Path(_py4_builder["file"])
+    try:
+        content = f.read_text(encoding="utf-8")
+    except Exception as e:
+        return f"🎩 Couldn't read {f.name}, Sir: {e}"
+
+    idx = content.find(block)
+    used = block
+    if idx == -1:
+        stripped = _py4_strip_line_numbers(block)
+        idx = content.find(stripped)
+        used = stripped
+
+    if idx == -1:
+        return "🎩 Anchor not found, Sir. Paste it again exactly, or `cancel`."
+
+    line_no = content[:idx].count("\n") + 1
+    _py4_builder.update({"stage": "awaiting_confirm",
+                         "find_block": used, "find_line": line_no})
+    return (f"🎩 Anchor at line {line_no}, Sir. Inserting {_py4_builder['anchor']} it.\n"
+            f"  Say `done` to render (or `cancel`).")
+
+
+
+def _py4_render():
+    global _py4_builder
+    b = _py4_builder
+    if not b or b.get("stage") != "awaiting_confirm":
+        return "🎩 Nothing to render, Sir."
+
+    f = Path(b["file"])
+    action = b["action"]
+
+    try:
+        original = f.read_text(encoding="utf-8")
+    except Exception as e:
+        _py4_builder = None
+        return f"🎩 Couldn't re-read {f.name}, Sir: {e}"
+
+    find = b.get("find_block", "")
+    repl = b.get("replacement", "")
+
+    print("🎩 assisting edit…")
+
+    print("🎩 checking…")
+    if action in ("replace", "delete") and find and find not in original:
+        _py4_builder = None
+        return "🎩 Find-block vanished since I checked, Sir. Aborting. No backup written."
+
+    print("🎩 updating replacement…")
+    if action == "replace":
+        new_content = original.replace(find, repl, 1)
+    elif action == "delete":
+        new_content = original.replace(find, "", 1)
+    elif action == "add":
+        anchor = b.get("anchor")
+        if anchor == "append":
+            new_content = original.rstrip() + "\n\n" + repl + "\n"
+        elif anchor == "above":
+            new_content = original.replace(find, repl + "\n" + find, 1)
+        elif anchor == "below":
+            new_content = original.replace(find, find + "\n" + repl, 1)
+        else:
+            _py4_builder = None
+            return "🎩 Add anchor missing, Sir. Aborting."
     else:
-        return "🎩 I didn't catch that, Sir. Say `idle` or `textedit`."
+        _py4_builder = None
+        return f"🎩 Unknown action '{action}', Sir. Aborting."
+
+    print("🎩 finalizing — backup + new clone…")
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    backup = f.with_name(f"{f.name}.bak-{stamp}")
+    try:
+        backup.write_text(original, encoding="utf-8")
+        f.write_text(new_content, encoding="utf-8")
+    except Exception as e:
+        _py4_builder = None
+        return f"🎩 Write failed, Sir: {e}"
+
+    print("🎩 print done — file updated")
+    _py4_builder = None
+    return (f"🎩 Done, Sir. File updated in folder it came from.\n"
+            f"  ⎙ edited : {f}\n"
+            f"  ⎙ backup : {backup.name}\n"
+            f"  ⎙ lines  : {len(original.splitlines())} → {len(new_content.splitlines())}")
+
+
+def _py4_route(user_input):
+    """Single router called from alfred_think() while a /python4 flow is active."""
+    global _py4_builder
+    low = user_input.strip().lower()
+
+    if low in ("cancel", "never mind", "nevermind", "stop", "abort"):
+        return _py4_cancel()
+
+    stage = _py4_builder["stage"]
+
+    if stage == "menu":
+        return open_python4_skeleton(user_input)
+    if stage == "awaiting_file":
+        return _py4_capture_file(user_input)
+    if stage == "awaiting_file_confirm":
+        if low in ("yes", "y", "ok", "sure"):
+            f = _py4_builder["pending"]
+            _py4_builder = {"stage": "awaiting_action", "file": f}
+            return (f"🎩 File locked: {Path(f).name}\n\n"
+                    f"  What would you like?\n"
+                    f"    • replace lines\n"
+                    f"    • delete lines\n"
+                    f"    • add lines\n"
+                    f"  (or `cancel`)")
+        _py4_builder = {"stage": "awaiting_file"}
+        return "🎩 Drop a different path, Sir (or `cancel`)."
+    if stage == "awaiting_action":
+        if low == "show all":
+            f = Path(_py4_builder["file"])
+            try:
+                content = f.read_text(encoding="utf-8")
+            except Exception as e:
+                return f"🎩 Couldn't read it, Sir: {e}"
+            lines = content.splitlines()
+            width = len(str(len(lines)))
+            numbered = "\n".join(f"{i+1:>{width}} │ {ln}" for i, ln in enumerate(lines))
+            return (f"🎩 Full file: {f.name}  ({len(lines)} lines)\n"
+                    f"{'─' * 60}\n{numbered}\n{'─' * 60}\n\n"
+                    f"  What would you like?\n"
+                    f"    • replace lines\n"
+                    f"    • delete lines\n"
+                    f"    • add lines\n"
+                    f"  (or `cancel`)")
+        return _py4_capture_action(user_input)
+    if stage == "awaiting_find":
+        return _py4_capture_find(user_input)
+    if stage == "awaiting_new":
+        return _py4_capture_new(user_input)
+    if stage == "awaiting_anchor":
+        return _py4_capture_anchor_choice(user_input)
+    if stage == "awaiting_anchor_block":
+        return _py4_capture_anchor_block(user_input)
+    if stage == "awaiting_confirm":
+        if low in ("done", "save", "finish", "render"):
+            return _py4_render()
+        return "🎩 Say `done` to render, or `cancel` to abort."
+
+    _py4_builder = None
+    return "🎩 I lost the edit state, Sir. Say `/python4` to start again."
 
 #+--|════════════════════════════════════════════════════════════════════
-#+--| chapter 5 :def alfred_think(user_input):
-#+--| master.penguin global cer. alfred_think(user_input): global sir
+#+--| chapter 5 :PENGUN CER GLOBAL MASTER CER RUBBER SEAL SIR GLOBAL MASTER
+#+--| master.penguin global cer. alfred_think(user_input): GLOBAL MASTER sir
 #+--|════════════════════════════════════════════════════════════════════
 
 def alfred_think(user_input):
     global CHAT_HISTORY
     global _schedule_builder
     global _json_builder, _last_json_file
+
+    global _py4_builder
     global _html_builder
+
+
+
     global _waiting_for_sport, _waiting_for_weather
     global _waiting_for_deepseek
-    global _via_gui          # ← add this
+    global _via_gui
     global _waiting_for_python4_editor
-    state = load_state()
+    global _read_builder
 
+    state = load_state()
 #+--|════════════════════════════════════════════════════════════════════
 #+--| chapter 4 zeta Lola - zebra commander if statements queen for alfred
 #+--|════════════════════════════════════════════════════════════════════
@@ -2915,11 +3786,28 @@ def alfred_think(user_input):
     intent = parse_intent(user_input)
 
 #+--|════════════════════════════════════════════════════════════════════
+#+--|  ramgaurd an files that alfred things to speak its not a speak unless we say read
+#+--|════════════════════════════════════════════════════════════════════
+
+    # ─── File-drop guard: never let a dropped file arm the read/speak builder ───
+    is_file_drop = (
+        user_input.startswith(("/", "~", "file:", "http"))
+        or os.path.exists(os.path.expanduser(user_input.strip()[:500]))
+        or (len(user_input) > 2000 and ("{" in user_input[:200] or "<" in user_input[:200]))
+    )
+    if is_file_drop and _read_builder is not None:
+        _read_builder = None
+        return "🎩 Dropped that file, Sir — not reading it. Say `read` if you want it spoken."
+
+    if is_file_drop and intent == "read":
+        return "🎩 That's a file, Sir. Say `read` alone if you want me to open the read buffer."
+
+#+--|════════════════════════════════════════════════════════════════════
 #+--| json createor
 #+--|════════════════════════════════════════════════════════════════════
 
     # ─── JSON BUILDER — runs before everything else ───
-    global _json_builder, _last_json_file
+
 
     if _json_builder is not None:
         low = user_input.strip().lower()
@@ -2964,16 +3852,32 @@ def alfred_think(user_input):
     if intent == "html":
         return _html_start()
 
+#+--|════════════════════════════════════════════════════════════════════
+#+--| read text createor
+#+--|════════════════════════════════════════════════════════════════════
+    # ─── READ (edge-tts → afplay) ───
+    if _read_builder is not None:
+        low = user_input.strip().lower()
+        if low in ("cancel", "never mind", "nevermind", "stop"):
+            return _read_cancel()
+        if low in ("done", "save", "finish", "speak", "read it"):
+            return _read_finish()
+        _read_builder["text"] += ("\n" if _read_builder["text"] else "") + user_input
+        return "🎩 … got it, Sir. Say `done` to speak, `cancel` to abort."
 
+    if intent == "read":
+        return _read_start()
 
 #+--|════════════════════════════════════════════════════════════════════
 #+--| chat_history
 #+--|════════════════════════════════════════════════════════════════════
     
-    # Add user input to history
-    CHAT_HISTORY.append(f"Master Art: {user_input}")
-    if len(CHAT_HISTORY) > 6: # Keep only the last 6 lines
-        CHAT_HISTORY.pop(0)
+    # Add user input to history — skip status-triggering words
+    low_ui = user_input.strip().lower()
+    if low_ui not in ("status", "stats"):
+        CHAT_HISTORY.append(f"Master Art: {user_input}")
+        if len(CHAT_HISTORY) > 6:
+            CHAT_HISTORY.pop(0)
 
 #+--|════════════════════════════════════════════════════════════════════
 #+--| NOTIFICATIONS Full text
@@ -3078,8 +3982,9 @@ def alfred_think(user_input):
 #+--|
 
     # ─── PYTHON4 SKELETON ───
-    if _waiting_for_python4_editor:
-        return open_python4_skeleton(user_input)
+    global _py4_builder
+    if _py4_builder is not None:
+        return _py4_route(user_input)
 
     if user_input.strip().lower() == "/python4":
         return open_python4_skeleton()
@@ -3094,12 +3999,6 @@ def alfred_think(user_input):
         return alfred_voice_call()
 
 #+--|════════════════════════════════════════════════════════════════════
-    #+--|════════════════════════════════════════════════════════════════════
-    # ─── DOWNLOAD (pkg: html + txt + webloc) ───
-    #+--|════════════════════════════════════════════════════════════════════
-    #+--|════════════════════════════════════════════════════════════════════
-    # ─── DOWNLOAD (pkg: pdf + txt + webloc) ───
-    #+--|════════════════════════════════════════════════════════════════════
     #+--|════════════════════════════════════════════════════════════════════
     # ─── DOWNLOAD (pkg: pdf + txt + webloc) ───
     #+--|════════════════════════════════════════════════════════════════════
@@ -3197,9 +4096,11 @@ def alfred_think(user_input):
   • moltbook clear — clear learnings
   • moltbook share [text] — share wisdom
   • moltbook open — open in browser"""
+
 #+--|════════════════════════════════════════════════════════════════════
-#+--| if intent status open cpu percent status
+#+--|         if intent == "status":
 #+--|════════════════════════════════════════════════════════════════════
+
     # ─── STATUS ───
     if intent == "status":
         return f"""
@@ -3213,14 +4114,12 @@ def alfred_think(user_input):
   Tabs: {state.get('tabs_opened', 0)}"""
 
 #+--|════════════════════════════════════════════════════════════════════
-#+--| if intent help return guidance text print - HELP LIST dictionary
+#+--|     if intent == "help":
 #+--|════════════════════════════════════════════════════════════════════
 
-# ─── HELP ───
     # ─── HELP ───
     if intent == "help":
         if _via_gui:
-            # Edit this list to change the card.
             # Each group: (svg_paths, title, subtitle, [(command, detail), ...])
             _groups = [
                 ('<polyline points="3 12 7 12 10 5 14 19 17 12 21 12"/>',
@@ -3248,7 +4147,7 @@ def alfred_think(user_input):
                 ('<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/>'
                  '<line x1="8.3" y1="7.3" x2="10.7" y2="15.7"/><line x1="15.7" y1="7.3" x2="13.3" y2="15.7"/>'
                  '<line x1="8.5" y1="6" x2="15.5" y2="6"/>',
-                 "Moltbook", "Agent network updates.",
+                 "Moltbook", "🦞Agent network updates.",
                  [("moltbook show", "Agent network updates"),
                   ("moltbook sync", "Pull the latest"),
                   ("moltbook share", "Post to the network")]),
@@ -3274,6 +4173,7 @@ def alfred_think(user_input):
                  "Mac & Calls", "Keyboard and voice.",
                  [("tab", "Press Tab"),
                   ("enter", "Press Enter"),
+                  ("read", "Drop text → Thomas reads it aloud"),
                   ("call alfred", "Start a voice call"),
                   ("send stream", "Stream to the call")]),
             ]
@@ -3289,7 +4189,6 @@ def alfred_think(user_input):
             def _esc(s):
                 return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
-            # Everything is joined with NO newlines between tags.
             out = [
                 '<style>.alf summary::-webkit-details-marker{display:none}'
                 '.alf-chev{transition:transform .15s}'
@@ -3299,7 +4198,6 @@ def alfred_think(user_input):
                 '<div class="alf" style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;'
                 'max-width:560px;color:#1a1a1a;">',
 
-                # HEADER - Clean white instead of black
                 '<div style="background:#ffffff;border:1px solid #e7e7e5;border-bottom:none;border-radius:12px 12px 0 0;padding:14px 16px;'
                 'display:flex;align-items:center;gap:10px;">'
                 '<div style="flex:1;min-width:0;">'
@@ -3308,7 +4206,6 @@ def alfred_think(user_input):
                 '</div>'
                 '</div>',
 
-                # BODY
                 '<div style="background:#ffffff;border:1px solid #e7e7e5;'
                 'border-radius:0 0 12px 12px;padding:10px;display:flex;flex-direction:column;gap:8px;">',
             ]
@@ -3321,9 +4218,7 @@ def alfred_think(user_input):
                     f'<span style="font-size:12px;color:#6b6b6b;line-height:1.35;">{_esc(d)}</span></div>'
                     for c, d in cmds
                 )
-                # Remove the last border from the rows
-                rows = rows.replace('border-bottom:1px solid #f0f0ee;">', '>', 1) if not cmds else rows
-                
+
                 out.append(
                     '<div style="background:#ffffff;border:1px solid #e7e7e5;border-radius:10px;overflow:hidden;">'
                     f'<details{" open" if i == 0 else ""}>'
@@ -3344,18 +4239,14 @@ def alfred_think(user_input):
                     '</details></div>'
                 )
 
-            # FOOTER
             out.append(
                 '<div style="padding:8px 4px 0;font-size:11px;color:#888;text-align:center;">'
-                '🦇 ↕ shift sir through time expand the graph with song ↔</div>'
+                'OlympyNetworkCo Tm + NorthStar Connector</div>'
                 '</div></div>'
             )
 
-            return "".join(out)
-        
-#+--|════════════════════════════════════════════════════════════════════
-#+--| return normal text on terminal
-#+--|════════════════════════════════════════════════════════════════════
+            # ← never return None to the bridge
+            return "".join(out) if out else "🎩 Help unavailable, Sir."
 
         else:
             return """🎩 Yes Master Art, here is my full command list, Sir:
@@ -3365,6 +4256,7 @@ def alfred_think(user_input):
     status                      - shows cpu, ram, uptime, errors, goals, searches, tabs 
     help                        - shows this guideline what Alfred can do
     time                        - tells time / date / and day
+    read                        - reads the text Thomas voice edge play mp.3 Alfred
 
   🕸️ WEB & SEARCH
   ══════════════════════════════════════════════════════════════════
@@ -3378,9 +4270,11 @@ def alfred_think(user_input):
   ══════════════════════════════════════════════════════════════════
     open localhost:900 | google | bing | youtube | github | github-trending | telegram | yahoo-nfl |
     
-    yahoo-nba| yahoo-mlb | yahoo-nhl | espn-nfl | espn-nba | espn-mlb | espn-nhl | deepseek | claude  
+    yahoo-nba| yahoo-mlb | yahoo-nhl | espn-nfl | espn-nba | espn-mlb | espn-nhl | deepseek | 
+
+    claude | bing-nhl | bing-nfl | bing-nba |
     
-    moltbook | gmail | news | pippera | Facebook (marketpalce) | slack |
+    moltbook | gmail | news | pippera | Facebook (marketpalce) | slack | sportsnet-youtube |
 
     ask deepseek                 — Opens deepseek and asks questions in Firefox 
     
@@ -3513,6 +4407,15 @@ def alfred_think(user_input):
             "espn-nhl": "https://www.espn.com/nhl/scoreboard",
             "espn-mlb": "https://www.espn.com/mlb/scoreboard",
 
+            "bing-nhl": "https://www.bing.com/sportsdetails?q=nhl%20score&sport=IceHockey&scenario=League&TimezoneId=Eastern%20Standard%20Time&IANATimezoneId=America/Toronto&ISOTimezoneKey=EST&league=IceHockey_NHL&intent=Score&seasonyear=2026&segment=sports&isl2=true&fromhere=1065494520&form=MOZLBR&",
+
+            "bing-nba": "https://www.bing.com/sportsdetails?q=nba%20score&sport=Basketball&scenario=League&TimezoneId=Eastern%20Standard%20Time&IANATimezoneId=America/Toronto&ISOTimezoneKey=EST&league=Basketball_NBA&intent=Score&seasonyear=2026&segment=sports&isl2=true&fromhere=1065493620&form=QBRE&",
+
+
+            "bing-nfl": "https://www.bing.com/sportsdetails?q=nfl%20score&sport=Football&scenario=League&TimezoneId=Eastern%20Standard%20Time&IANATimezoneId=America/Toronto&ISOTimezoneKey=EST&league=Football_NFL&intent=Score&seasonyear=2026&segment=sports&isl2=true&fromhere=1065492075&form=QBRE&",
+
+
+            "sportsnet-youtube": "https://www.youtube.com/@sportsnet/videos",
 
             "news": "https://www.bing.com/news/search",
 
@@ -3531,7 +4434,7 @@ def alfred_think(user_input):
 
             "deepseek": "https://chat.deepseek.com/a/chat/s/7df9bb6f-1029-4c32-9787-5b6fee551596",
 
-            "claude": "https://claude.ai/chat/ef0ed320-d93e-41c9-bf56-94e67872f674",
+            "claude": "https://claude.ai/chat/54d82870-733b-4524-83c5-025e182655ec",
 
             "moltbook": "https://moltbook.com/",
         }
@@ -3583,14 +4486,168 @@ def alfred_think(user_input):
 #+--|════════════════════════════════════════════════════════════════════
 #+--| if intent search return guidance google.com/search= print
 #+--|════════════════════════════════════════════════════════════════════
-    # ─── SEARCH ───
+
+    # ─── SEARCH (Bing, spaces encoded, short preview) ───
     if intent == "search":
         query = user_input.replace("search", "").replace("find", "").strip()
-        if query:
-            webbrowser.open(f"https://www.google.com/search?q={query.replace(' ', '+')}")
-            state["searches_performed"] = state.get("searches_performed", 0) + 1
-            save_state(state)
-            return f"🎩 Searching: {query}"
+        if not query:
+            return "🎩 What should I search for, Sir?"
+
+        # Use quote to safely encode spaces (e.g. "frontend design" -> "frontend%20design")
+        import urllib.parse
+        url = f"https://www.bing.com/search?q={urllib.parse.quote(query)}"
+
+        # 1. Bring Firefox forward + open NEW WINDOW (Cmd+N), then load URL
+        subprocess.run(["osascript", "-e", 'tell application "Firefox" to activate'])
+        time.sleep(0.5)
+        subprocess.run([
+            "osascript", "-e",
+            'tell application "System Events" to keystroke "n" using command down'
+        ])
+        time.sleep(1.5)
+
+        # ── SIZE THE NEW WINDOW TO 590 × 590 ──
+        subprocess.run([
+            "osascript", "-e",
+            'tell application "Firefox"\n'
+            '  set bounds of front window to {0, 0, 590, 590}\n'
+            'end tell'
+        ])
+        time.sleep(0.3)
+
+        # Load the URL in the fresh window
+        subprocess.run(["open", "-a", "Firefox", url])
+        time.sleep(28)  # keep your existing wait — Bing JS render
+
+
+        # 2. Bring Firefox to front
+        subprocess.run(["osascript", "-e", 'tell application "Firefox" to activate'])
+        time.sleep(2)
+
+        # 3. Click into page body
+        subprocess.run([
+            "osascript", "-e",
+            'tell application "System Events" to click at {500, 400}'
+        ])
+        time.sleep(2)
+
+        # 4. Select all + copy
+        subprocess.run([
+            "osascript", "-e",
+            'tell application "System Events" to keystroke "a" using command down'
+        ])
+        time.sleep(1)
+        subprocess.run([
+            "osascript", "-e",
+            'tell application "System Events" to keystroke "c" using command down'
+        ])
+        time.sleep(3)
+
+        # 5. Grab clipboard + save raw for build html later
+        raw = subprocess.getoutput("pbpaste")
+        raw_path = Path("/Users/olympynetworkco/Desktop/data/bing-last-search.txt")
+        try:
+            raw_path.write_text(raw, encoding="utf-8")
+        except Exception:
+            raw_path = None
+
+        # 6. Extract RESULTS — look for "title / url / snippet" triples
+        lines = [l.strip() for l in raw.splitlines()]
+        results = []
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            if line.startswith("https://") or line.startswith("http://"):
+                url_line = line
+                title = ""
+                snippet = ""
+                j = i + 1
+                while j < len(lines) and not lines[j]:
+                    j += 1
+                if j < len(lines):
+                    title = lines[j]
+                    k = j + 1
+                    while k < len(lines) and not lines[k]:
+                        k += 1
+                    if k < len(lines) and len(lines[k]) > 40:
+                        snippet = lines[k]
+                if title:
+                    results.append((title, url_line, snippet))
+                i = j + 1
+                continue
+            i += 1
+
+        # 7. Return half the results (max 5) — short paste, Sir's rule
+        max_results = 5
+        top = results[:max_results]
+
+        state["searches_performed"] = state.get("searches_performed", 0) + 1
+        save_state(state)
+
+        # ─── GUI MODE: return HTML cards ───
+        if _via_gui:
+            if not top:
+                return (
+                    f'<div style="font-family:-apple-system,sans-serif;color:#1a1a1a;padding:12px;">'
+                    f'<div style="font-weight:600;margin-bottom:8px;">🔍 Bing: {query}</div>'
+                    f'<div style="color:#6b6b6b;font-size:13px;">No results parsed. Raw saved to '
+                    f'<code>{raw_path.name if raw_path else "N/A"}</code>.</div>'
+                    f'</div>'
+                )
+
+            import html as _html
+            def _esc(s):
+                return _html.escape(s)
+
+            parts = [
+                '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;'
+                'max-width:640px;color:#1a1a1a;">',
+                '<div style="font-size:15px;font-weight:700;margin-bottom:12px;'
+                'padding-bottom:8px;border-bottom:1px solid #e7e7e5;">',
+                f'🔍 Bing: <span style="color:#6b21a8;">{_esc(query)}</span>',
+                f'<span style="font-size:12px;color:#6b6b6b;font-weight:400;margin-left:8px;">'
+                f'{len(top)} results</span>',
+                '</div>',
+            ]
+            for title, url_line, snippet in top:
+                parts.append(
+                    '<div style="padding:10px 0;border-bottom:1px solid #f0f0ee;">'
+                    f'<div style="font-size:14px;font-weight:600;color:#1a0dab;'
+                    f'line-height:1.3;margin-bottom:3px;">{_esc(title[:120])}</div>'
+                    f'<div style="font-size:12px;color:#006621;'
+                    f'font-family:ui-monospace,monospace;margin-bottom:4px;'
+                    f'word-break:break-all;">{_esc(url_line[:140])}</div>'
+                )
+                if snippet:
+                    parts.append(
+                        f'<div style="font-size:13px;color:#545454;line-height:1.4;">'
+                        f'{_esc(snippet[:200])}</div>'
+                    )
+                parts.append('</div>')
+
+            parts.append(
+                f'<div style="font-size:11px;color:#888;margin-top:10px;text-align:right;">'
+                f'📄 raw: <code>{raw_path.name if raw_path else "N/A"}</code></div>'
+            )
+            parts.append('</div>')
+            return "".join(parts)
+
+        # ─── TERMINAL / TELEGRAM: text preview ───
+        if not top:
+            preview = "\n  (no results parsed — raw saved for `build html`)"
+        else:
+            preview_lines = []
+            for title, url_line, snippet in top:
+                preview_lines.append(f"\n  ⎙ {title[:80]}")
+                preview_lines.append(f"     {url_line[:100]}")
+                if snippet:
+                    preview_lines.append(f"     {snippet[:120]}")
+            preview = "".join(preview_lines)
+
+        tail = f"\n\n  📄 raw: {raw_path.name}" if raw_path else ""
+        return f"🎩 Searched Bing: {query}\n  🔗 {url}\n  ⎙ top {len(top)} results:{preview}{tail}"
+
+
 #+--|════════════════════════════════════════════════════════════════════
 #+--| if intent remember return post learning data old an current list
 #+--|════════════════════════════════════════════════════════════════════
@@ -3784,7 +4841,7 @@ def alfred_think(user_input):
 
 
 #+--|════════════════════════════════════════════════════════════════════
-#+--| CHAPTER 3b # ─── ECHO ───
+#+--| CHAPTER 3b # ─── ECHO ─── everything goes above echo
 #+--|═══════════════════════════════════════════════════════════════════
 
     # ─── ECHO ───
@@ -3831,10 +4888,112 @@ def alfred_think(user_input):
             brain_reply = alfred_mind(user_input, image_path=latest_image)
             return f"{result}\n\n{brain_reply}"
             
-        return alfred_mind(user_input, history=CHAT_HISTORY, image_path=latest_image)
+        # ─── Sanitize history: never let status-card residue pattern-complete ───
+        clean_history = [
+            h for h in CHAT_HISTORY
+            if not any(marker in h for marker in (
+                "ALFRED STATUS",
+                "CPU:",
+                "RAM:",
+                "Uptime:",
+                "Errors:",
+                "Goals:",
+                "Searches:",
+                "Tabs:",
+            ))
+        ]
+        return alfred_mind(user_input, history=clean_history, image_path=latest_image)
+
     except Exception as e:
         log_error(f"tinydolphin:latest brain failed: {e}")
         return f"🎩 Brain error, Sir: {e}"
+
+
+#+--|════════════════════════════════════════════════════════════════════
+#+--| READ BUILDER — module-level functions (must live OUTSIDE alfred_think)
+#+--|════════════════════════════════════════════════════════════════════
+def _read_start():
+    global _read_builder
+    _read_builder = {"stage": "awaiting_text", "text": ""}
+    return "🎩 Drop the text, Sir. Say `done` on its own line to speak it, or `cancel`."
+
+def _read_cancel():
+    global _read_builder
+    _read_builder = None
+    return "🎩 Read cancelled, Sir."
+
+def _read_finish():
+    global _read_builder
+    if not _read_builder or not _read_builder.get("text", "").strip():
+        _read_builder = None
+        return "🎩 Nothing to read, Sir."
+
+    text = _read_builder["text"].strip()
+    _read_builder = None
+
+    if len(text) > 6000:
+        text = text[:6000] + " ... truncated, Sir."
+
+    out_path = Path("/Users/olympynetworkco/Desktop/data/alfred_read.mp3")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    voices = ["en-GB-ThomasNeural", "en-GB-RyanNeural"]
+    last_err = ""
+
+    # ─── Reading banner + preview of what he'll say ───
+    word_count = len(text.split())
+    char_count = len(text)
+    print(f"\n{'═' * 50}")
+    print(f"🎤︎︎ ALFRED IS READING — {word_count} words · {char_count} chars")
+    print(f"{'═' * 50}")
+
+    preview = text.replace("\n", " ").strip()
+    wrap_width = 60
+    preview_lines = []
+    while preview and len(preview_lines) < 6:
+        cut = preview.rfind(" ", 0, wrap_width)
+        if cut == -1:
+            cut = wrap_width
+        preview_lines.append(preview[:cut].strip())
+        preview = preview[cut:].strip()
+    if preview:
+        preview_lines[-1] = preview_lines[-1].rstrip() + " …"
+
+    for line in preview_lines:
+        print(f"🎤︎︎ ❟ {line}")
+    print(f"{'═' * 50}\n")
+    # ──────────────────────────────────────────────────
+
+    for voice in voices:
+        try:
+            proc = subprocess.run(
+                ["edge-tts", "--voice", voice, "--text", text,
+                 "--write-media", str(out_path)],
+                capture_output=True, text=True, timeout=60
+            )
+            if proc.returncode == 0 and out_path.exists() and out_path.stat().st_size > 500:
+                kb = out_path.stat().st_size // 1024
+                print(f"🎤︎︎ Playing via afplay…  ({kb} KB · {voice})")
+                print(f"🎤︎︎ ▶  speak, sir.\n-\n")
+                subprocess.run(
+                    ["afplay", str(out_path)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
+                )
+                print(f"\n🎤︎︎ ✓ Playback complete, Sir.")
+                print(f"{'═' * 50}\n")
+                return f"🎩 Spoken, Sir. ({kb} KB · voice: {voice})\n  📎 {out_path}"
+            last_err = (proc.stderr or proc.stdout or "empty audio").strip()[:200]
+        except FileNotFoundError:
+            return ("🎩 `edge-tts` is not installed, Sir.\n"
+                    "  Run:  pip install edge-tts")
+        except subprocess.TimeoutExpired:
+            last_err = "edge-tts timed out after 60s"
+        except Exception as e:
+            last_err = str(e)[:200]
+
+    return f"🎩 Edge TTS failed, Sir: {last_err}"
 
 
 #+--|════════════════════════════════════════════════════════════════════
@@ -3845,33 +5004,92 @@ def start_gui_bridge():
     from http.server import BaseHTTPRequestHandler, HTTPServer
     
     class AlfredHandler(BaseHTTPRequestHandler):
+#+--|════════════════════════════════════════════════════════════════════
+
         def do_POST(self):
             if self.path == '/api/generate':
-                length = int(self.headers['Content-Length'])
-                post_data = json.loads(self.rfile.read(length).decode('utf-8'))
-                user_prompt = post_data.get('prompt', '')
-                chat_id = post_data.get('chat_id', f"chat-{int(time.time())}")
-                history = post_data.get('history', [])
+                response_text = None
+                try:
+                    length = int(self.headers['Content-Length'])
+                    post_data = json.loads(self.rfile.read(length).decode('utf-8'))
+                    user_prompt = post_data.get('prompt', '')
+                    chat_id = post_data.get('chat_id', f"chat-{int(time.time())}")
+                    history = post_data.get('history', [])
 
-                # Alfred builds the memory entry himself (owner / watchman / intention / brain_trigger)
-                save_memory_turn(chat_id, "owner", user_prompt, intention="message", context="gui")
+                    log_info(f"[GUI] prompt={user_prompt!r} chat_id={chat_id}")
 
-                # Set the GUI flag so alfred_think() knows to return HTML
-                global _via_gui
-                _via_gui = True
-                response_text = alfred_think(user_prompt)
-                _via_gui = False
+                    save_memory_turn(chat_id, "owner", user_prompt,
+                                     intention="message", context="gui")
 
-                save_memory_turn(chat_id, "watchman", response_text, intention="response", context="gui")
+                    global _via_gui, _read_builder, _json_builder, _html_builder
+                    _via_gui = True
 
-                response_json = json.dumps({"response": response_text}).encode('utf-8')
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/json')
-                self.end_headers()
-                self.wfile.write(response_json)
+                    # ─── File-drop guard: disarm stale builders BEFORE the brain runs ───
+                    stripped = user_prompt.lstrip()
+                    is_file_drop = (
+                        len(user_prompt) > 2000
+                        or stripped.startswith(("{", "<", "[", "file:", "/", "~"))
+                    )
+                    if is_file_drop:
+                        _read_builder = None
+                        _json_builder = None
+                        _html_builder = None
+                        log_info(f"[GUI] file-drop guard triggered — builders disarmed")
+
+                    try:
+                        response_text = alfred_think(user_prompt)
+                        log_info(f"[GUI] alfred_think returned: type={type(response_text).__name__} value={response_text!r:.200}")
+                    except Exception as e:
+                        import traceback
+                        tb = traceback.format_exc()
+                        log_error(f"GUI brain error: {e}\n{tb}")
+                        response_text = f"🎩 Brain error, Sir: {e}"
+                    finally:
+                        _via_gui = False
+
+                    # ─── HARD GUARD: never emit null ───
+                    if response_text is None or response_text == "":
+                        log_error(f"GUI brain returned empty for: {user_prompt!r}")
+                        response_text = (
+                            f"🎩 I processed '{user_prompt[:80]}' but produced no output, Sir. "
+                            f"Check alfred.log for details."
+                        )
+
+                    save_memory_turn(chat_id, "watchman", str(response_text),
+                                     intention="response", context="gui")
+
+                    response_json = json.dumps({"response": str(response_text)}).encode('utf-8')
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.send_header('Content-Length', str(len(response_json)))
+                    self.end_headers()
+                    self.wfile.write(response_json)
+
+                except Exception as e:
+                    import traceback
+                    tb = traceback.format_exc()
+                    log_error(f"GUI bridge crash: {e}\n{tb}")
+                    err_body = json.dumps({
+                        "response": f"🎩 Bridge error, Sir: {e}"
+                    }).encode('utf-8')
+                    try:
+                        self.send_response(500)
+                        self.send_header('Content-Type', 'application/json')
+                        self.send_header('Content-Length', str(len(err_body)))
+                        self.end_headers()
+                        self.wfile.write(err_body)
+                    except Exception:
+                        pass
+
+#+--|════════════════════════════════════════════════════════════════════
+
 
         def log_message(self, format, *args):
             pass  # Keep the terminal quiet
+
+
+#+--|════════════════════════════════════════════════════════════════════
+
 
     try:
         server = HTTPServer(('localhost', 11435), AlfredHandler)
@@ -3879,6 +5097,8 @@ def start_gui_bridge():
     except Exception as e:
         log_error(f"GUI Bridge failed: {e}")
 
+
+#+--|════════════════════════════════════════════════════════════════════
 
 # ─── START THE BRIDGE ───
 
@@ -3888,21 +5108,37 @@ threading.Thread(target=start_gui_bridge, daemon=True).start()
 #+--|════════════════════════════════════════════════════════════════════
 #+--| CHAPTER 2a: EXECUTION LAUNCH
 #+--|════════════════════════════════════════════════════════════════════
-def main():
-    print(f"\n  {BLU}{BOLD}🎩  Alfred watchman initializing...{R}")
-    print(f"  {GRN}✓{R} Ready.\n")
 
-    log_info("Alfred initializing")
-    log_info("Goggles: ⎚-⎚ Active")
-    log_info(f"Memory: {BASE}")
-    log_info(f"Voice: {'Telegram' if load_telegram_config() else 'Local only'}")
-    log_info("Hand: 🦞 Native MacBook Pro (AppleScript)")
-    log_info("Brain: [✎] Command parser active")
-    log_info("Tower: 🌐 Watchdog active")
+#+--|════════════════════════════════════════════════════════════════════
+#+--| CHAPTER 2a: EXECUTION LAUNCH
+#+--|════════════════════════════════════════════════════════════════════
+
+def main():
+    print(f"\n{CYN}================================================================={R}")
+    alfred_log("INFO", "System", f"{BLU}{BOLD}🎩  Alfred watchman initializing...{R}", BG_CYAN)
+    alfred_log("SENT", "System", f"{GRN}✓{R} Ready.", BG_GREEN)
+    print(f"{CYN}=================================================================\n{R}")
+
+    # ─── Anchor everything to the Desktop ───
+    DESKTOP = "/Users/olympynetworkco/Desktop"
+    try:
+        os.chdir(DESKTOP)
+        alfred_log("SENT", "FileSystem", f"CWD set → {os.getcwd()}")
+    except OSError as e:
+        alfred_log("FAIL", "FileSystem", f"Could not chdir to {DESKTOP}: {e}", BG_RED)
+
+    alfred_log("SENT", "System", "🎩 Alfred initializing")
+    alfred_log("SENT", "System", "⎚-⎚ Goggles: Active")
+    alfred_log("SENT", "Memory", f"📁 {BASE}")
+    alfred_log("SENT", "Voice", f"🎤 {'Telegram' if load_telegram_config() else 'Local only'}")
+    alfred_log("SENT", "Hand", "🦞 Native MacBook Pro (AppleScript)")
+    alfred_log("SENT", "Brain", "🧠 [✎] Command parser active")
+    alfred_log("SENT", "Tower", "🌐 Watchdog active")
 
     # Web server
     web_thread = threading.Thread(target=start_web_server, daemon=True)
     web_thread.start()
+    alfred_log("SENT", "Network", "🌐 Web server booted")
 
     claw_watchdog()
     send_telegram("🎩 - ✓ online.")
@@ -3910,12 +5146,14 @@ def main():
     if load_telegram_config():
         listener_thread = threading.Thread(target=telegram_listener, daemon=True)
         listener_thread.start()
-        log_info("Telegram listener active")
+        alfred_log("SENT", "Telegram", "📨 Listener active")
 
     start_moltbook_sync()
-    start_watch_loop()          # ← NEW
+    start_watch_loop()
 
     time.sleep(1)
+
+    print(f"{CYN}=================================================================\n{R}")
 
     while True:
         write_dashboard_state()
@@ -3930,14 +5168,14 @@ def main():
                 continue
 
             if _json_builder is not None or _html_builder is not None:
-                # single-word commands stay single
                 low = user_input.lower()
+
+                # Single-word terminator on its own line — handle immediately
                 if low in ("done", "save", "finish", "cancel", "never mind", "nevermind", "stop"):
                     print(alfred_think(user_input))
                     continue
 
-                # otherwise keep reading until "done" / "cancel" / EOF
-
+                # Otherwise read lines until a terminator (or EOF)
                 blob = [user_input]
                 while True:
                     sys.stdout.write(f"{DIM}   … {R}")
@@ -3947,12 +5185,20 @@ def main():
                     except EOFError:
                         break
                     nxt_s = nxt.strip()
-                    if nxt_s.lower() in ("done", "save", "finish", "cancel", "never mind", "nevermind"):
+                    low_nxt = nxt_s.lower()
+
+                    if low_nxt in ("done", "save", "finish"):
                         print(alfred_think("\n".join(blob)))
                         print(alfred_think(nxt_s))
                         blob = None
                         break
+                    if low_nxt in ("cancel", "never mind", "nevermind", "stop"):
+                        print(alfred_think(nxt_s))
+                        blob = None
+                        break
+
                     blob.append(nxt)
+
                 if blob:
                     print(alfred_think("\n".join(blob)))
 
@@ -3967,6 +5213,12 @@ def main():
             break
         except Exception as e:
             handle_error(str(e))
+#+--|════════════════════════════════════════════════════════════════════
+#+--| CHAPTER 1: turbo main execution
+#+--|════════════════════════════════════════════════════════════════════
+#+--|════════════════════════════════════════════════════════════════════
+#+--| CHAPTER 1: turbo main execution
+#+--|════════════════════════════════════════════════════════════════════
 #+--|════════════════════════════════════════════════════════════════════
 #+--| CHAPTER 1: turbo main execution
 #+--|════════════════════════════════════════════════════════════════════
