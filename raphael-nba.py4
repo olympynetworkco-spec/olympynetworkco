@@ -1,0 +1,1661 @@
+#!/usr/bin/env python4
+# -*- coding: utf-8 -*-
+# sudo approve python4 #1234
+
+"""
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| Agent : /Applications/python4/raphael/raphael.py4 #nbaagent 🏀
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| 🔴  RAPHAEL  —  CH4  Basal Ganglia + 🧠  Imagination + 🏀 NBA NBA NBA
+#+--| 21 VERIFIED VERIFIERS — CREATIVE EXECUTIVE LAYER - 🏀 Sputnik
+#+--| by Artiom Art Taylor Gully Striuc • NorthStar Connector • Canada 🇨🇦 • 2026
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| CHAPTER 7: 𝒊 ι iota — TOWER (main execution)
+#+--| CHAPTER 6: 𝒊 θ theta — SCAVENGER
+#+--| CHAPTER 5: 𝒊 η eta — BRIDGE (URL opener)
+#+--| CHAPTER 4: 𝒊 ζ zeta — VERIFIERS
+#+--| CHAPTER 3: 𝒊 ε epsilon — DEFINITIONS
+#+--| CHAPTER 2: 𝒊 β beta — IMPORTS + PATHS
+#+--| CHAPTER 1: 𝒊 α alpha — LAUNCH SYMBOL - tip off 🏀
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+"""
+
+import os
+import re
+import json
+import signal
+import subprocess
+import sys
+import time
+import threading
+import urllib.request
+from datetime import datetime
+from pathlib import Path
+
+# ─── COLORS ───
+R    = "\033[0m"
+RED2 = "\033[38;5;196m"
+GRN  = "\033[92m"
+RED  = "\033[91m"
+YLW  = "\033[93m"
+BLU  = "\033[94m"
+CYN  = "\033[96m"
+DIM  = "\033[2m"
+
+# ─── PATHS ───
+BASE       = Path("/Users/olympynetworkco/Desktop/")
+GLASSNOTES = Path("/Applications/python4/raphael/raphael-glassnotes.html")
+DATA_DIR   = Path("/Users/olympynetworkco/Desktop/data")
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| CONFIG — only thing you edit
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+GAMECAST_NBA_GAME = "https://www.espn.com/nba/game/_/gameId/401909965"
+PLAY_BY_PLAY_NBA  = "https://www.espn.com/nba/playbyplay/_/gameId/401909965"
+SCORING_SUMMARY   = "https://www.espn.com/nba/boxscore/_/gameId/401909965"
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+# YAHOO WIN PROB CHART ID URL
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+WP = "https://ca.sports.yahoo.com/nba/oklahoma-city-thunder-portland-trail-blazers-2026111022/"
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+ESPN_NBA_SCOREBOARD = "https://www.espn.com/nba/scoreboard"
+ESPN_NBA_ODDS       = "https://www.espn.com/nba/odds"
+
+REFRESH_SECONDS = 25
+
+THOMAS_VOICE = "en-GB-ThomasNeural"
+PREFIX       = "🎩 Neural Thomas : "
+
+DIV = "═" * 70
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| NBA X-FACTOR CLASSES — 26 abilities, 4 categories
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+NBA_XFACTORS = {
+    # 🏀 Offensive
+    "Quick Release":   "Faster jumper release, pressures defender closeouts",
+    "Deadeye":         "Enhanced three-point accuracy and shot timing",
+    "Rim Rocker":      "Improved dunk power, accuracy, and contact finishes",
+    "Acrobat":         "Better layup and circus-shot accuracy at the rim",
+    "Posterizer":      "Poster dunks on contact, reduces block chance",
+    "Limitless":       "Extended range on three-pointers",
+    "Mid-Range Maestro": "Improved mid-range jumper accuracy",
+
+    # 🧠 Playmaking
+    "Ankle Breaker":   "Explosive handles and stumble pressure on crossovers",
+    "Dimer":           "Increased assist accuracy and teammate shot boosts",
+    "Floor General":   "Better offensive flow, teammate awareness, and spacing",
+    "Bullet Passer":   "Faster and more accurate passes in traffic",
+    "Wheels":          "Increased top speed and acceleration",
+    "Unpluckable":     "Resists steals and strip attempts",
+
+    # 🛡️ Defensive
+    "Clamps":          "Punishing perimeter defense, drains opponent stamina",
+    "Pick Pocket":     "Masterful steal accuracy and recovery",
+    "Rim Protector":   "Stronger blocks and contests at the basket",
+    "Rebounder":       "Better box-out and rebound positioning",
+    "Interceptor":     "Improved pass interceptions and defensive range",
+    "Brick Wall":      "Takes less damage from screens and contact",
+    "Enforcer":        "Generates team energy through blocks and steals",
+
+    # 🎯 Intangibles
+    "Clutch":          "Better shooting and decision-making in the 4th quarter",
+    "Ice in Veins":    "Enhanced free-throw accuracy under pressure",
+    "Hot Streak":      "Shooting boost after consecutive makes",
+    "Leader":          "Rallies team with big plays, boosts morale",
+    "Second Wind":     "Instant energy boost when exhausted",
+    "Spark Plug":      "Rallies team with steals and dunks",
+}
+
+NBA_XFACTOR_CATEGORIES = {
+    "OFF": ["Quick Release", "Deadeye", "Rim Rocker", "Acrobat", "Posterizer",
+            "Limitless", "Mid-Range Maestro"],
+    "PLY": ["Ankle Breaker", "Dimer", "Floor General", "Bullet Passer",
+            "Wheels", "Unpluckable"],
+    "DEF": ["Clamps", "Pick Pocket", "Rim Protector", "Rebounder",
+            "Interceptor", "Brick Wall", "Enforcer"],
+    "INT": ["Clutch", "Ice in Veins", "Hot Streak", "Leader",
+            "Second Wind", "Spark Plug"],
+}
+
+
+# ─── NBA TEAMS — 30 teams, nickname → full ───
+NBA_TEAMS = {
+    'Hawks':         'Atlanta Hawks',
+    'Celtics':       'Boston Celtics',
+    'Nets':          'Brooklyn Nets',
+    'Hornets':       'Charlotte Hornets',
+    'Bulls':         'Chicago Bulls',
+    'Cavaliers':     'Cleveland Cavaliers',
+    'Mavericks':     'Dallas Mavericks',
+    'Nuggets':       'Denver Nuggets',
+    'Pistons':       'Detroit Pistons',
+    'Warriors':      'Golden State Warriors',
+    'Rockets':       'Houston Rockets',
+    'Pacers':        'Indiana Pacers',
+    'Clippers':      'LA Clippers',
+    'Lakers':        'Los Angeles Lakers',
+    'Grizzlies':     'Memphis Grizzlies',
+    'Heat':          'Miami Heat',
+    'Bucks':         'Milwaukee Bucks',
+    'Timberwolves':  'Minnesota Timberwolves',
+    'Pelicans':      'New Orleans Pelicans',
+    'Knicks':        'New York Knicks',
+    'Thunder':       'Oklahoma City Thunder',
+    'Magic':         'Orlando Magic',
+    '76ers':         'Philadelphia 76ers',
+    'Suns':          'Phoenix Suns',
+    'Trail Blazers': 'Portland Trail Blazers',
+    'Kings':         'Sacramento Kings',
+    'Spurs':         'San Antonio Spurs',
+    'Raptors':       'Toronto Raptors',
+    'Jazz':          'Utah Jazz',
+    'Wizards':       'Washington Wizards',
+}
+
+NBA_ABBRS = {
+    'ATL': 'Atlanta Hawks', 'BOS': 'Boston Celtics', 'BKN': 'Brooklyn Nets',
+    'CHA': 'Charlotte Hornets', 'CHI': 'Chicago Bulls', 'CLE': 'Cleveland Cavaliers',
+    'DAL': 'Dallas Mavericks', 'DEN': 'Denver Nuggets', 'DET': 'Detroit Pistons',
+    'GSW': 'Golden State Warriors', 'HOU': 'Houston Rockets', 'IND': 'Indiana Pacers',
+    'LAC': 'LA Clippers', 'LAL': 'Los Angeles Lakers', 'MEM': 'Memphis Grizzlies',
+    'MIA': 'Miami Heat', 'MIL': 'Milwaukee Bucks', 'MIN': 'Minnesota Timberwolves',
+    'NOP': 'New Orleans Pelicans', 'NYK': 'New York Knicks', 'OKC': 'Oklahoma City Thunder',
+    'ORL': 'Orlando Magic', 'PHI': 'Philadelphia 76ers', 'PHX': 'Phoenix Suns',
+    'POR': 'Portland Trail Blazers', 'SAC': 'Sacramento Kings', 'SAS': 'San Antonio Spurs',
+    'TOR': 'Toronto Raptors', 'UTA': 'Utah Jazz', 'WAS': 'Washington Wizards',
+}
+
+FULL_TO_ABBR = {v: k for k, v in NBA_ABBRS.items()}
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| CHAPTER 3: 𝒊 ε epsilon — DEFINITIONS
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+def read_glassnotes():
+    try:
+        with open(GLASSNOTES, 'r', encoding='utf-8') as f:
+            content = f.read()
+        print(f"  {RED2}🔴  GlassNotes loaded!{R}")
+        return content
+    except Exception as e:
+        print(f"  {RED}❌  GlassNotes not found: {e}{R}")
+        return None
+
+def strip_html(html):
+    html = re.sub(r'<style[^>]*>.*?</style>', '', html, flags=re.DOTALL)
+    html = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL)
+    html = re.sub(r'<[^>]+>', ' ', html)
+    html = re.sub(r'\s+', ' ', html)
+    return html.strip()
+
+def extract_intel(html):
+    clean = strip_html(html)
+    clean = clean.replace('&nbsp;', ' ')
+    clean = re.sub(r'\s+', ' ', clean)
+    clean = re.sub(r'\.\s+', '.\n  • ', clean)
+    return clean[:5000]
+
+RAPHAEL_BRAIN = read_glassnotes()
+
+def show_glassnotes():
+    if RAPHAEL_BRAIN:
+        intel = extract_intel(RAPHAEL_BRAIN)
+        print(f"\n  {RED2}📋  RAPHAEL'S INTEL{R}")
+        print(f"  {RED2}{'─' * 70}{R}")
+        print(intel)
+        print(f"  {RED2}{'─' * 70}{R}")
+        print(f"  {GRN}[DONE]  Raphael sees the INTEL!{R}\n")
+
+def html_to_tokens(html):
+    text = re.sub(r'<script[^>]*>.*?</script>', ' ', html, flags=re.DOTALL)
+    text = re.sub(r'<style[^>]*>.*?</style>', ' ', text, flags=re.DOTALL)
+    text = re.sub(r'<[^>]+>', '\n', text)
+    import html as _h
+    return [_h.unescape(t).strip() for t in text.split('\n') if t.strip()]
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| SECTION PRINT HELPER
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+def section(title, lines):
+    print(f"  {RED2}{DIV}{R}")
+    print(f"  {RED2}▌ {title}{R}")
+    print(f"  {RED2}{DIV}{R}")
+    for ln in lines:
+        print(f"  {ln}")
+    print(f"  {RED2}{DIV}{R}")
+
+
+def banner(title, subtitle=""):
+    print(f"  {RED2}{DIV}{R}")
+    print(f"  {RED2}🏀  {title}{R}")
+    if subtitle:
+        print(f"  {RED2}{subtitle}{R}")
+    print(f"  {RED2}{DIV}{R}")
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| CHAPTER 6: 𝒊 θ theta — SCAVENGER
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+def pick_live_nba_game():
+    try:
+        req = urllib.request.Request(ESPN_NBA_SCOREBOARD,
+                                     headers={'User-Agent': 'Mozilla/5.0'})
+        html = urllib.request.urlopen(req, timeout=15).read().decode('utf-8', 'replace')
+        m = re.findall(r'/nba/game/_/gameId/(\d+)/([a-z0-9\-]+)', html)
+        if m:
+            gid, slug = m[0]
+            return f"https://www.espn.com/nba/game/_/gameId/{gid}/{slug}"
+    except Exception as e:
+        print(f"  {RED}⚠ auto-pick failed: {e}{R}")
+    return None
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| odds def scout_odds(game_id):
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+def scout_odds(game_id, away_abbr=None, home_abbr=None):
+    if not game_id:
+        return []
+    url = f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event={game_id}"
+    try:
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'Mozilla/5.0',
+            'Accept': 'application/json',
+        })
+        raw  = urllib.request.urlopen(req, timeout=15).read().decode('utf-8', 'replace')
+        data = json.loads(raw)
+    except Exception as e:
+        print(f"  {RED}⚠ odds fetch failed: {e}{R}")
+        return []
+
+    pc = data.get("pickcenter") or data.get("odds") or []
+    rows = []
+    for e in pc:
+        a = e.get("awayTeamOdds") or {}
+        h = e.get("homeTeamOdds") or {}
+        rows.append({
+            "provider":     (e.get("provider") or {}).get("name", "ESPN BET"),
+            "away_abbr":    ((a.get("team") or {}).get("abbreviation") or away_abbr),
+            "home_abbr":    ((h.get("team") or {}).get("abbreviation") or home_abbr),
+            "away_ml":      a.get("moneyLine"),
+            "home_ml":      h.get("moneyLine"),
+            "away_spread":  e.get("spread"),
+            "away_sp_odds": a.get("spreadOdds"),
+            "home_sp_odds": h.get("spreadOdds"),
+            "total":        e.get("overUnder"),
+            "over_odds":    e.get("overOdds"),
+            "under_odds":   e.get("underOdds"),
+            "details":      e.get("details") or "",
+        })
+    return rows
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| def scout_game_leaders(data):
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+def scout_game_leaders(data):
+    """
+    Extract per-team game leaders from ESPN summary `leaders` block.
+    Returns:
+      {
+        "OKC": {
+          "points":   {"name": ..., "short": ..., "jersey": ..., "value": ..., "line": ...},
+          "rebounds": {...},
+          "assists":  {...},
+        },
+        "POR": {...},
+      }
+    """
+    out = {}
+    for team_block in (data.get("leaders") or []):
+        tm = team_block.get("team") or {}
+        ab = (tm.get("abbreviation") or "").upper()
+        if not ab:
+            continue
+        team_out = {}
+        for cat in (team_block.get("leaders") or []):
+            cname = (cat.get("name") or "").lower()
+            if cname not in ("points", "rebounds", "assists"):
+                continue
+            top = (cat.get("leaders") or [{}])[0]
+            ath = top.get("athlete") or {}
+            val = top.get("value")
+            if isinstance(val, dict):
+                val = val.get("value")
+            team_out[cname] = {
+                "name":   ath.get("displayName") or "—",
+                "short":  ath.get("shortName") or ath.get("displayName") or "—",
+                "jersey": ath.get("jersey") or "",
+                "value":  str(val) if val not in (None, "") else "—",
+                "line":   top.get("mainStat") or "",
+            }
+        if team_out:
+            out[ab] = team_out
+    return out
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| saves odds json for alfy
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+def save_odds(rows, game_id=None, source="ESPN_NBA"):
+    data = {
+        "source":     source.upper(),
+        "fetched_at": datetime.now().isoformat(),
+        "game_id":    game_id,
+        "total":      len(rows),
+        "games":      rows,
+    }
+    path = DATA_DIR / "nba-odds.json"
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    print(f"  💾  Odds: {path}  ({len(rows)})")
+    return path
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--|def scout_league_odds(league_games):
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+def scout_league_odds(league_games):
+    if not league_games:
+        return []
+    all_rows = []
+    for g in league_games:
+        gid = g.get("game_id") or g.get("id")
+        if not gid:
+            continue
+        rows = scout_odds(
+            gid,
+            away_abbr=g.get("away_abbr"),
+            home_abbr=g.get("home_abbr"),
+        )
+        if not rows:
+            continue
+        matchup = f"{g.get('away','Away')} @ {g.get('home','Home')}"
+        for r in rows:
+            r["game_id"] = gid
+            r["matchup"] = matchup
+        all_rows.extend(rows)
+    return all_rows
+
+
+def save_league_odds(rows, source="ESPN_NBA"):
+    data = {
+        "source":     source.upper(),
+        "fetched_at": datetime.now().isoformat(),
+        "total":      len(rows),
+        "games":      rows,
+    }
+    path = DATA_DIR / "espn-nba-odds.json"
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    return path
+
+
+def print_league_odds(rows):
+    if not rows:
+        print(f"  {YLW}⚠ no ESPN odds returned{R}")
+        return
+    section("ESPN NBA ODDS — LEAGUE WIDE", [
+        f"{DIM}{'MATCHUP':<26} {'AWAY ML':>8} {'HOME ML':>9} "
+        f"{'SPREAD':>7} {'TOTAL':>6} {'PROVIDER':<12}{R}",
+    ] + [
+        f"{r.get('matchup','?'):<26} "
+        f"{str(r.get('away_ml','—')):>8} "
+        f"{str(r.get('home_ml','—')):>9} "
+        f"{str(r.get('away_spread','—')):>7} "
+        f"{str(r.get('total','—')):>6} "
+        f"{r.get('provider','ESPN BET'):<12}"
+        for r in rows
+    ])
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| def scout_yahoo_winprob(url):
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+def scout_yahoo_winprob(url):
+    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+    try:
+        raw = urllib.request.urlopen(req, timeout=15).read().decode('utf-8', 'replace')
+    except Exception as e:
+        print(f"  {RED}⚠ winprob fetch failed: {e}{R}")
+        return []
+
+    blobs = re.findall(r'self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)', raw)
+    joined = ""
+    for b in blobs:
+        try:
+            joined += json.loads(b)
+        except Exception:
+            continue
+
+    if not joined:
+        joined = raw
+
+    key = '"winProbabilityTimeline":'
+    idx = joined.find(key)
+    if idx == -1:
+        return []
+
+    start_bracket = joined.find('[', idx)
+    if start_bracket == -1:
+        return []
+
+    depth = 0
+    end_bracket = -1
+    for i in range(start_bracket, len(joined)):
+        char = joined[i]
+        if char == '[':
+            depth += 1
+        elif char == ']':
+            depth -= 1
+            if depth == 0:
+                end_bracket = i
+                break
+
+    if end_bracket == -1:
+        return []
+
+    json_str = joined[start_bracket:end_bracket+1]
+
+    try:
+        series = json.loads(json_str)
+    except Exception as e:
+        print(f"  {RED}⚠ winprob parse failed: {e}{R}")
+        return []
+
+    def get_val(obj):
+        if isinstance(obj, dict):
+            return obj.get("value", 0)
+        return obj if obj is not None else 0
+
+    out = []
+    for p in series:
+        clock = p.get("clock") or ""
+        per = None
+        mmss = None
+        
+        mm = re.match(r'^(1st|2nd|3rd|4th|OT)\s+(\d{1,2}:\d{2})$', clock)
+        if mm:
+            per = {"1st": 1, "2nd": 2, "3rd": 3, "4th": 4, "OT": 5}[mm.group(1)]
+            mmss = mm.group(2)
+            
+        out.append({
+            "clock":       clock,
+            "period":      per,
+            "time":        mmss,
+            "home_pct":    get_val(p.get("homeTeamProbability")),
+            "away_pct":    get_val(p.get("awayTeamProbability")),
+            "home_score":  get_val(p.get("homeScore")),
+            "away_score":  get_val(p.get("awayScore")),
+        })
+        
+    return out
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| def scout_league_scoreboard():
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+ESPN_NBA_SCOREBOARD_JSON = (
+    "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
+)
+
+def scout_league_scoreboard():
+    try:
+        req = urllib.request.Request(
+            ESPN_NBA_SCOREBOARD_JSON,
+            headers={
+                'User-Agent': 'Mozilla/5.0',
+                'Accept':     'application/json',
+            },
+        )
+        raw = urllib.request.urlopen(req, timeout=15).read().decode('utf-8', 'replace')
+        data = json.loads(raw)
+    except Exception as e:
+        print(f"  {RED}⚠ league scoreboard JSON fetch failed: {e}{R}")
+        return []
+
+    events = data.get("events", []) or []
+    out = []
+
+    for ev in events:
+        try:
+            comp = (ev.get("competitions") or [{}])[0]
+            teams = comp.get("competitors") or []
+            if len(teams) < 2:
+                continue
+
+            by_side = {t.get("homeAway"): t for t in teams}
+            away = by_side.get("away") or teams[0]
+            home = by_side.get("home") or teams[1]
+
+            away_team = away.get("team") or {}
+            home_team = home.get("team") or {}
+
+            away_full = away_team.get("displayName") or away_team.get("name") or "Away"
+            home_full = home_team.get("displayName") or home_team.get("name") or "Home"
+            away_abbr = (away_team.get("abbreviation") or FULL_TO_ABBR.get(away_full, away_full[:3])).upper()
+            home_abbr = (home_team.get("abbreviation") or FULL_TO_ABBR.get(home_full, home_full[:3])).upper()
+
+            away_score = away.get("score")
+            home_score = home.get("score")
+            away_score = str(away_score) if away_score not in (None, "") else "0"
+            home_score = str(home_score) if home_score not in (None, "") else "0"
+
+            status_obj = (comp.get("status") or ev.get("status") or {})
+            st_type    = status_obj.get("type") or {}
+            st_desc    = st_type.get("description") or st_type.get("detail") or "Scheduled"
+            st_state   = st_type.get("state") or ""
+            st_detail  = status_obj.get("displayClock") or ""
+            st_period  = status_obj.get("period") or 0
+
+            # ── tip-off clock ──
+            start_time_str = None
+            raw_detail = (st_type.get("detail") or "").strip()
+
+            m_short = re.match(r'^(\d{1,2}:\d{2}\s*(?:AM|PM))', raw_detail, re.I)
+            if m_short:
+                start_time_str = m_short.group(1) + " ET"
+
+            if not start_time_str:
+                m_long = re.search(r'(\d{1,2}:\d{2}\s*(?:AM|PM))', raw_detail, re.I)
+                if m_long:
+                    start_time_str = m_long.group(1) + " ET"
+
+            if not start_time_str and st_state == "pre" and ev.get("date"):
+                try:
+                    from datetime import datetime as _dt
+                    utc_dt = _dt.fromisoformat(ev["date"].replace("Z", "+00:00"))
+                    try:
+                        from zoneinfo import ZoneInfo
+                        et_dt = utc_dt.astimezone(ZoneInfo("America/New_York"))
+                        start_time_str = et_dt.strftime("%-I:%M %p ET")
+                    except Exception:
+                        start_time_str = utc_dt.strftime("%-I:%M %p ET")
+                except Exception:
+                    pass
+
+            if st_state == "in":
+                status = st_desc
+                if st_detail and st_detail not in status:
+                    ord_per = {1: "1st", 2: "2nd", 3: "3rd", 4: "4th", 5: "OT", 6: "2OT"}.get(
+                        int(st_period) or 0, ""
+                    )
+                    status = f"{ord_per} {st_detail}".strip()
+            elif st_state == "post":
+                status = st_desc if "Final" in (st_desc or "") else "Final"
+            else:
+                status = start_time_str or st_desc or "Scheduled"
+
+            try:
+                s1, s2 = int(away_score), int(home_score)
+            except Exception:
+                s1, s2 = 0, 0
+            away_winner = away.get("winner") if isinstance(away.get("winner"), bool) else (s1 > s2 and st_state == "post")
+            home_winner = home.get("winner") if isinstance(home.get("winner"), bool) else (s2 > s1 and st_state == "post")
+
+            gid = ev.get("id") or comp.get("id")
+
+            out.append({
+                "id":          gid,
+                "game_id":     gid,
+                "away":        away_full,
+                "home":        home_full,
+                "away_abbr":   away_abbr,
+                "home_abbr":   home_abbr,
+                "away_score":  away_score,
+                "home_score":  home_score,
+                "status":      status,
+                "away_winner": bool(away_winner),
+                "home_winner": bool(home_winner),
+            })
+        except Exception as e:
+            print(f"  {YLW}⚠ league row skipped: {e}{R}")
+            continue
+
+    return out
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| BASKETBALL COURT — half-court box-drawing render
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+def render_court(away_abbr="AWAY", home_abbr="HOME"):
+    L = "│"
+    TL, TR, BL, BR = "╭", "╮", "╰", "╯"
+    TJ, TJB = "┬", "┴"
+    H = "─"
+
+    col = 15
+
+    top = f"  {TL}" + H*col + TJ + H*col + TJ + H*col + TJ + H*col + TR
+    bot = f"  {BL}" + H*col + TJB + H*col + TJB + H*col + TJB + H*col + BR
+
+    def blank():
+        return f"  {L}{' '*col}{L}{' '*col}{L}{' '*col}{L}{' '*col}{L}"
+
+    def key_row():
+        return f"  {L}{' '*col}{L}  ╭───┬───╮  {L}{' '*col}{L}"
+
+    def key_mid():
+        return f"  {L}{' '*col}{L}  │   │   │  {L}{' '*col}{L}"
+
+    def key_bot():
+        return f"  {L}{' '*col}{L}  ╰───┴───╯  {L}{' '*col}{L}"
+
+    def three_arc():
+        return f"  {L}{' '*col}{L} ╭───────╮ {L}{' '*col}{L}"
+
+    def three_arc_bot():
+        return f"  {L}{' '*col}{L} ╰───────╯ {L}{' '*col}{L}"
+
+    lines = [top, blank(), three_arc(), blank(), key_row(), key_mid(), key_bot(), blank(), three_arc_bot(), blank(), bot]
+
+    label_line = (
+        f"  {RED2}{away_abbr:^{col}}{R}"
+        f"{' '*col}"
+        f"{' '*col}"
+        f"{RED2}{home_abbr:^{col}}{R}"
+    )
+    lines.append(label_line)
+
+    return lines
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| def xfactor_for(name) — game leaders from ESPN summary
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+_LEADERS_CACHE = {"gid": None, "data": {}}
+
+def _fetch_game_leaders(gid):
+    """Pull the ESPN summary `leaders` block for a gameId → {TEAM: {cat: {...}}}"""
+    if not gid:
+        return {}
+    if _LEADERS_CACHE["gid"] == gid and _LEADERS_CACHE["data"]:
+        return _LEADERS_CACHE["data"]
+    url = f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event={gid}"
+    try:
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json'})
+        data = json.loads(urllib.request.urlopen(req, timeout=15).read().decode('utf-8', 'replace'))
+    except Exception:
+        return {}
+
+    out = {}
+    for team_block in (data.get("leaders") or []):
+        tm = team_block.get("team") or {}
+        ab = (tm.get("abbreviation") or "").upper()
+        if not ab:
+            continue
+        team_out = {}
+        for cat in (team_block.get("leaders") or []):
+            cname = (cat.get("name") or "").lower()
+            if cname not in ("points", "rebounds", "assists"):
+                continue
+            top = (cat.get("leaders") or [{}])[0]
+            ath = top.get("athlete") or {}
+            val = top.get("value")
+            if isinstance(val, dict):
+                val = val.get("value")
+            team_out[cname] = {
+                "label": cat.get("displayName") or cname.title(),
+                "name":  ath.get("displayName") or "—",
+                "short": ath.get("shortName") or ath.get("displayName") or "—",
+                "value": str(val) if val not in (None, "") else "—",
+                "line":  top.get("mainStat") or "",
+            }
+        if team_out:
+            out[ab] = team_out
+    _LEADERS_CACHE["gid"] = gid
+    _LEADERS_CACHE["data"] = out
+    return out
+
+
+def xfactor_for(name):
+    """Return the categories a player leads in (Points/Rebounds/Assists) from ESPN leaders block."""
+    if not name:
+        return []
+
+    clean = re.sub(r'\([^)]*\)', '', name)
+    clean = re.sub(r'\[[^\]]*\]', '', clean)
+    clean = re.sub(r'#\d+', '', clean)
+    clean = clean.strip()
+    if not clean:
+        return []
+
+    if re.search(
+        r'\b(makes|made|misses|missed|shot|pass|rebound|assist|turnover|'
+        r'foul|free throw|layup|dunk|three|block|steal)\b',
+        clean, re.I
+    ):
+        return []
+
+    m = re.search(r'/gameId/(\d+)', GAMECAST_NBA_GAME or "")
+    gid = m.group(1) if m else None
+    leaders = _fetch_game_leaders(gid)
+    if not leaders:
+        return []
+
+    tokens = clean.split()
+    last = tokens[-1].lower()
+    full = clean.lower()
+
+    hits = []
+    for team_cats in leaders.values():
+        for cat_key, ld in team_cats.items():
+            short = (ld.get("short") or "").lower()
+            display = (ld.get("name") or "").lower()
+            short_last = short.split()[-1] if short else ""
+            display_last = display.split()[-1] if display else ""
+            if last in (short_last, display_last) or full == display or full == short:
+                label = ld.get("label") or cat_key.title()
+                if label not in hits:
+                    hits.append(label)
+    return hits
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| def scout_dump(): scout dump
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+def scout_dump():
+    """Grip ESPN NBA Gamecast via JSON summary API → sectioned terminal dump."""
+
+    url = GAMECAST_NBA_GAME or pick_live_nba_game()
+    if not url:
+        print(f"  {RED}⚠ no NBA game URL{R}")
+        return [], "none", [], [], {}
+
+    m = re.search(r'/gameId/(\d+)', url)
+    gid = m.group(1) if m else None
+    if not gid:
+        print(f"  {RED}⚠ no gameId in URL: {url}{R}")
+        return [], "none", [], [], {}
+
+    api = f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event={gid}"
+    print(f"  {CYN}🏀  summary API:  {api}{R}")
+
+    try:
+        req = urllib.request.Request(api, headers={
+            'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json'})
+        data = json.loads(urllib.request.urlopen(req, timeout=15).read().decode('utf-8', 'replace'))
+    except Exception as e:
+        print(f"  {RED}⚠ summary API fetch failed: {e}{R}")
+        return [], "none", [], [], {}
+
+    (DATA_DIR / "espn-nba-summary.json").write_text(
+        json.dumps(data, indent=2, ensure_ascii=False), encoding='utf-8')
+
+    # ── header ──
+    hdr = (data.get("header") or {})
+    comps = hdr.get("competitions") or []
+    comp = comps[0] if comps else {}
+    teams = comp.get("competitors") or []
+
+    by_side = {t.get("homeAway"): t for t in teams}
+    away = by_side.get("away") or (teams[0] if teams else {})
+    home = by_side.get("home") or (teams[1] if len(teams) > 1 else {})
+
+    away_team = away.get("team") or {}
+    home_team = home.get("team") or {}
+
+    away_full = away_team.get("displayName") or away_team.get("name") or "Away"
+    home_full = home_team.get("displayName") or home_team.get("name") or "Home"
+    away_abbr = (away_team.get("abbreviation") or FULL_TO_ABBR.get(away_full, away_full[:3])).upper()
+    home_abbr = (home_team.get("abbreviation") or FULL_TO_ABBR.get(home_full, home_full[:3])).upper()
+
+    away_score = away.get("score")
+    home_score = home.get("score")
+    away_score = str(away_score) if away_score not in (None, "") else "0"
+    home_score = str(home_score) if home_score not in (None, "") else "0"
+
+    status_obj = comp.get("status") or {}
+    st_type    = status_obj.get("type") or {}
+    st_state   = st_type.get("state") or ""
+    st_desc    = st_type.get("description") or st_type.get("detail") or "Scheduled"
+    st_detail  = status_obj.get("displayClock") or ""
+    st_period  = status_obj.get("period") or 0
+
+    if st_state == "in":
+        ord_per = {1: "1st", 2: "2nd", 3: "3rd", 4: "4th", 5: "OT", 6: "2OT"}.get(int(st_period) or 0, "")
+        period  = ord_per or st_desc
+        clock   = st_detail
+        status  = f"{period} {clock}".strip()
+    elif st_state == "post":
+        period  = st_desc
+        clock   = None
+        status  = "Final" if "Final" not in st_desc else st_desc
+    else:
+        raw_detail = (st_type.get("detail") or "").strip()
+        if re.match(r'^\d{1,2}:\d{2}\s*(AM|PM)', raw_detail, re.I):
+            status = raw_detail
+        elif comp.get("date"):
+            try:
+                from datetime import datetime as _dt
+                utc_dt = _dt.fromisoformat(comp["date"].replace("Z", "+00:00"))
+                try:
+                    from zoneinfo import ZoneInfo
+                    et_dt = utc_dt.astimezone(ZoneInfo("America/New_York"))
+                    status = et_dt.strftime("%-I:%M %p ET")
+                except Exception:
+                    status = utc_dt.strftime("%-I:%M %p ET")
+            except Exception:
+                status = st_desc or "Scheduled"
+        else:
+            status = st_desc or "Scheduled"
+        period = status
+        clock  = None
+
+    matchup = f"{away_full} @ {home_full}"
+
+    # ── box score (quarter by quarter) ──
+    def line_score(side):
+        ls = side.get("linescores") or []
+        per = [int(p.get("value") or 0) for p in ls if p.get("value") not in (None, "")]
+        if not per:
+            tm_id = (side.get("team") or {}).get("id")
+            for bt in ((data.get("boxscore") or {}).get("teams") or []):
+                if str((bt.get("team") or {}).get("id")) == str(tm_id):
+                    per = [int(p.get("value") or 0) for p in (bt.get("linescores") or [])]
+                    break
+        return (per + [0]*4)[:4] + [int(side.get("score") or 0)]
+
+    away_p = line_score(away) if (away.get("linescores") or away.get("score") is not None) else None
+    home_p = line_score(home) if (home.get("linescores") or home.get("score") is not None) else None
+
+    # ── scoring plays ──
+    scoring_plays = []
+    for p in (data.get("plays") or []):
+        try:
+            if not p.get("scoringPlay"):
+                continue
+            pnum = int((p.get("period") or {}).get("number") or 0)
+            pname = {1: "1ST", 2: "2ND", 3: "3RD", 4: "4TH", 5: "OT"}.get(pnum, f"Q{pnum}")
+            clock_s = (p.get("clock") or {}).get("displayValue") or ""
+            text = p.get("text") or ""
+            scorer_name = "—"
+            m_scorer = re.match(r'^([A-Z][A-Za-z\.\-\'\s]+?)\s+(?:makes|drains|hits|scores|converts)\b', text)
+            if m_scorer:
+                scorer_name = m_scorer.group(1).strip()
+            away_r = p.get("awayScore")
+            home_r = p.get("homeScore")
+            scoring_plays.append({
+                "period":  f"{pname} QUARTER",
+                "clock":   clock_s,
+                "scorer":  scorer_name,
+                "text":    text,
+                "score":   f"{away_r}-{home_r}" if away_r is not None else "",
+            })
+        except Exception:
+            continue
+
+    def score_sort_key(s):
+        per_num = {"1ST": 1, "2ND": 2, "3RD": 3, "4TH": 4, "OT": 5}.get(s["period"].split()[0], 1)
+        try:
+            mm, ss = s["clock"].split(":")
+            secs = int(mm) * 60 + int(ss)
+        except Exception:
+            secs = 0
+        return (per_num, -secs)
+    scoring_plays.sort(key=score_sort_key)
+
+    # ── GAME LEADERS (from ESPN `leaders` block) ──
+    leaders = scout_game_leaders(data)
+
+    # ── play-by-play (from plays[]) ──
+    pbp_rows = []
+    for p in (data.get("plays") or []):
+        try:
+            clock_p = (p.get("clock") or {}).get("displayValue") or ""
+            pnum    = int((p.get("period") or {}).get("number") or 0)
+            pname   = {1: "1ST", 2: "2ND", 3: "3RD", 4: "4TH", 5: "OT"}.get(pnum, "")
+            desc    = p.get("text") or p.get("shortText") or ""
+            if not desc:
+                continue
+            score   = ""
+            if p.get("awayScore") is not None and p.get("homeScore") is not None:
+                score = f"{p['awayScore']}-{p['homeScore']}"
+            pbp_rows.append({
+                "period": f"{pname} QUARTER" if pname else "",
+                "clock":  clock_p,
+                "score":  score,
+                "desc":   desc,
+            })
+        except Exception:
+            continue
+
+    pbp_rows.reverse()
+
+    # ═══════════════════════════════════════════════════════════
+    #  PRINT
+    # ═══════════════════════════════════════════════════════════
+
+    print()
+    banner("RAPHAEL  ·  ESPN NBA GAMECAST",
+           f"{matchup}" + (f"  ·  {status}" if status and status != "Scheduled" else ""))
+
+    section("ANCHOR TREE", [
+        f"{RED2}ᛉ  source    = JSON summary API{R}",
+        f"{RED2}ᛉ  game_id   = {gid}{R}",
+        f"{RED2}ᛉ  live: {away_abbr} {away_score} - {home_score} {home_abbr}  ·  {status}{R}",
+        f"{RED2}ᛉ  pbp rows  = {len(pbp_rows)}{R}",
+        f"{RED2}ᛉ  scores    = {len(scoring_plays)}{R}",
+    ])
+
+    if away_p and home_p:
+        section("BOX SCORE", [
+            f"{DIM}         1    2    3    4    T{R}",
+            f"{GRN}{away_abbr:<5}{R}  " + "  ".join(f"{v:>3}" for v in away_p),
+            f"{GRN}{home_abbr:<5}{R}  " + "  ".join(f"{v:>3}" for v in home_p),
+        ])
+
+    section("HALF COURT", render_court(
+        away_abbr=away_abbr or "AWAY",
+        home_abbr=home_abbr or "HOME",
+    ))
+
+    if scoring_plays:
+        lines = []
+        last_p = None
+        for s in scoring_plays:
+            if s["period"] != last_p:
+                lines.append(f"{RED2}{s['period']}{R}")
+                last_p = s["period"]
+            
+            scorer = s['scorer']
+            xf = xfactor_for(scorer)
+            xf_str = f" [{', '.join(xf)}]" if xf else ""
+            
+            lines.append(f"{DIM}{s['clock']:>6}{R}   {YLW}⭐ {scorer}{xf_str}{R}")
+            if s["text"]:
+                lines.append(f"{DIM}        {s['text']}{R}")
+            if s["score"]:
+                lines.append(f"{DIM}        {s['score']}{R}")
+        section("SCORING PLAYS - X factor stars of the game ⭐", lines)
+        print(f"\n  {RED2}{'═' * 70}{R}\n")
+
+    if leaders:
+        lines = []
+        for abbr_ in (away_abbr, home_abbr):
+            team = leaders.get(abbr_)
+            if not team:
+                continue
+            lines.append(f"{RED2}{abbr_}{R}")
+            for cat in ("points", "rebounds", "assists"):
+                ld = team.get(cat)
+                if not ld:
+                    continue
+                jersey = f"#{ld['jersey']}" if ld["jersey"] else ""
+                lines.append(f"  {YLW}{cat.title():<10}{R} {ld['short']}{jersey:<4} {ld['value']:>3}")
+                if ld["line"]:
+                    lines.append(f"  {'':<10} {DIM}{ld['line']}{R}")
+            lines.append("")
+        section("GAME LEADERS", lines)
+        print(f"\n  {RED2}{'═' * 70}{R}\n")
+
+    if pbp_rows:
+        lines = []
+        last_p = None
+        for p in pbp_rows:
+            if p["period"] and p["period"] != last_p:
+                lines.append(f"{RED2}{p['period']}{R}")
+                last_p = p["period"]
+            score = f"({p['score']}) " if p["score"] else ""
+            lines.append(f"{DIM}{p['clock']:>6}{R}  {score}{p['desc']}")
+        section("PLAY-BY-PLAY", lines)
+    else:
+        section("PLAY-BY-PLAY", [f"{DIM}no plays yet — game may not have started{R}"])
+
+    print()
+
+    game = {
+        "team1": away_full,
+        "team2": home_full,
+        "score1": away_score,
+        "score2": home_score,
+        "status": status,
+        "game_id": gid,
+    }
+    return [game], "espn_nba", pbp_rows, scoring_plays, leaders
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| def save_playbyplay_json(
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+def save_playbyplay_json(pbp_rows, scoring_plays, leaders, game=None):
+    payload = {
+        "source": "ESPN_NBA",
+        "fetched_at": datetime.now().isoformat(),
+        "game": game or {},
+        "play_by_play_count": len(pbp_rows),
+        "play_by_play": pbp_rows,
+        "scoring_count": len(scoring_plays),
+        "scoring_plays": scoring_plays,
+        "game_leaders": leaders or {},
+    }
+    path = DATA_DIR / "nba-playbyplay.json"
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(payload, f, indent=2, ensure_ascii=False)
+    print(f"  💾  Play-by-Play JSON: {path}  ({len(pbp_rows)} rows)")
+    return path
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| saves scores for alfred
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+def save_league_scores(games, source="ESPN_NBA"):
+    data = {
+        "source":     source.upper(),
+        "fetched_at": datetime.now().isoformat(),
+        "total":      len(games),
+        "games":      games,
+    }
+    json_path = DATA_DIR / "nbascores.json"
+    with open(json_path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    return json_path
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| JSON SAVE — Alfred shape
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+def save_scores_for_alfred(games, source="ESPN_NBA"):
+    data = {
+        "source": source.upper(),
+        "fetched_at": datetime.now().isoformat(),
+        "total": len(games),
+        "games": []
+    }
+    for game in games:
+        team1 = game.get('team1', 'Unknown')
+        team2 = game.get('team2', 'Unknown')
+        score1 = game.get('score1', '0')
+        score2 = game.get('score2', '0')
+        status = game.get('status', 'Scheduled')
+        try:
+            s1, s2 = int(score1), int(score2)
+        except:
+            s1, s2 = 0, 0
+        data["games"].append({
+            "away": team1,
+            "home": team2,
+            "away_score": str(score1),
+            "home_score": str(score2),
+            "status": status,
+            "away_winner": s1 > s2,
+            "home_winner": s2 > s1,
+        })
+    json_path = DATA_DIR / "nbascores.json"
+    with open(json_path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    print(f"  💾  JSON saved for Alfred: {json_path}")
+    return json_path
+
+
+#+--|----------------------------------------------------------------------------------------------->
+#+--| json Leonardo write better for live nba json
+#+--|----------------------------------------------------------------------------------------------->
+def save_leonardo_compat(games):
+    away = games[0]["team1"] if games else "Away"
+    home = games[0]["team2"] if games else "Home"
+    
+    raw_status = games[0]["status"] if games else "Scheduled"
+    
+    if "0.0" in raw_status and "End" not in raw_status:
+        per = raw_status.split()[0]
+        status = f"End of {per}"
+    else:
+        status = raw_status
+
+    payload = {
+        "timestamp": datetime.now().isoformat(),
+        "source_url": GAMECAST_NBA_GAME,
+        "game_data": {
+            "teams": [
+                {"name": away, "abbr": FULL_TO_ABBR.get(away, away[:3].upper())},
+                {"name": home, "abbr": FULL_TO_ABBR.get(home, home[:3].upper())},
+            ],
+            "away_score": games[0]["score1"] if games else "0",
+            "home_score": games[0]["score2"] if games else "0",
+            "status": status,
+            "recent_plays": [],
+            "win_prob_away": None,
+            "win_prob_home": None,
+        },
+    }
+    path = DATA_DIR / "nba_live.json"
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(payload, f, indent=2, ensure_ascii=False)
+    print(f"  💾  Leonardo-compat: {path}")
+    return path
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| CHAPTER 4: 𝒊 ζ zeta — VERIFIERS
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+previous_scores = {}
+_prev_numeric = {}
+
+def check_score_changes(games):
+    global previous_scores, _prev_numeric
+    changes = []
+    for g in games:
+        team1 = g.get('team1', '')
+        team2 = g.get('team2', '')
+        key = f"{team1}|{team2}"
+        score1 = g.get('score1', '0')
+        score2 = g.get('score2', '0')
+        cur = f"{score1}-{score2}"
+        status = g.get('status', 'Unknown')
+
+        try:
+            s1, s2 = int(score1), int(score2)
+            total_now = s1 + s2
+        except Exception:
+            total_now = None
+
+        prev_total = _prev_numeric.get(key)
+
+        if key in previous_scores and previous_scores[key] != cur:
+            if total_now is None or prev_total is None or total_now > prev_total:
+                changes.append({
+                    'game': f"{team1} @ {team2}",
+                    'old': previous_scores[key],
+                    'new': cur,
+                    'status': status,
+                })
+
+        previous_scores[key] = cur
+        if total_now is not None:
+            _prev_numeric[key] = total_now
+    return changes
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| CHAPTER 4: 𝒊 ζ zeta — PRE-GAME ALERT from zeta — 5 min before tip-off
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+_alerted_pregame = set()
+
+def parse_start_time_et(status):
+    if not status:
+        return None
+
+    s = status.strip()
+
+    m = re.match(r'^(\d{1,2}):(\d{2})\s*(AM|PM)(?:\s*E[DS]T)?$', s, re.I)
+    if not m:
+        m = re.search(r'(\d{1,2}):(\d{2})\s*(AM|PM)(?:\s*E[DS]T)?', s, re.I)
+    if not m:
+        return None
+
+    hour = int(m.group(1)) % 12
+    if m.group(3).upper() == "PM":
+        hour += 12
+    minute = int(m.group(2))
+
+    now = datetime.now()
+    et_naive_today = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+    try:
+        from zoneinfo import ZoneInfo
+        et_tz = ZoneInfo("America/New_York")
+        local_tz = datetime.now().astimezone().tzinfo
+
+        et_aware = et_naive_today.replace(tzinfo=et_tz)
+        local_aware = et_aware.astimezone(local_tz)
+        return local_aware.replace(tzinfo=None)
+    except Exception:
+        return et_naive_today
+
+
+def check_pregame_alerts(games):
+    fired = []
+    now = datetime.now()
+
+    for g in games:
+        status = g.get("status", "")
+        gid    = g.get("game_id") or g.get("id")
+
+        if not re.match(r'^\d{1,2}:\d{2}\s*(AM|PM)', status.strip(), re.I):
+            continue
+        if not gid:
+            continue
+        if gid in _alerted_pregame:
+            continue
+
+        start = parse_start_time_et(status)
+        if not start:
+            continue
+
+        delta_sec = (start - now).total_seconds()
+        if 0 < delta_sec <= 5 * 60:
+            _alerted_pregame.add(gid)
+            fired.append({
+                "game_id":  gid,
+                "away":     g.get("away") or g.get("team1") or "Away",
+                "home":     g.get("home") or g.get("team2") or "Home",
+                "start":    status,
+                "minutes":  max(1, round(delta_sec / 60)),
+            })
+    return fired
+
+
+def send_pregame_notification(alert):
+    title = f"🏀 Tip-off in {alert['minutes']} min!"
+    body  = f"{alert['away']} @ {alert['home']} — {alert['start']}"
+    script = f'''
+    display notification "{body}" with title "{title}" subtitle "Raphael 🔴" sound name "Glass"
+    '''
+    try:
+        subprocess.run(['osascript', '-e', script], capture_output=True, timeout=5)
+        print(f"  {RED2}🔔 PRE-GAME ALERT: {body}{R}")
+    except Exception as e:
+        print(f"  {RED}⚠ pregame notification failed: {e}{R}")
+
+
+def speak_pregame_alert(alert):
+    text = (
+        f"Heads up. Tip-off in {alert['minutes']} minutes. "
+        f"{alert['away']} at {alert['home']}. Get to your seat."
+    )
+    try:
+        mp3 = DATA_DIR / "thomas_pregame.mp3"
+        r = subprocess.run([
+            "edge-tts",
+            "--voice", THOMAS_VOICE,
+            "--text", text,
+            "--write-media", str(mp3)
+        ], capture_output=True, text=True, timeout=20)
+        if r.returncode != 0:
+            print(f"  {YLW}⚠️ pregame TTS skipped{R}")
+            return
+        subprocess.run(['afplay', str(mp3)], check=False)
+        print(f"  {GRN}🎩 Thomas: tip-off in {alert['minutes']} min{R}")
+    except Exception as e:
+        print(f"  {YLW}⚠️ pregame TTS failed: {e}{R}")
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| CHAPTER 4: show_pregame_countdown
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+_pregame_countdown_shown = set()
+
+def show_pregame_countdown(games, window_minutes=5):
+    now = datetime.now()
+    any_shown = False
+
+    for g in games:
+        status = g.get("status", "")
+        gid    = g.get("game_id") or g.get("id")
+        if not gid:
+            continue
+
+        if not re.match(r'^\d{1,2}:\d{2}\s*(AM|PM)', status.strip(), re.I):
+            continue
+
+        if gid in _alerted_pregame:
+            away = g.get("away") or "Away"
+            home = g.get("home") or "Home"
+            print(f"  {GRN}🏀 {away} @ {home} — TIP-OFF!{R}")
+            continue
+
+        start = parse_start_time_et(status)
+        if not start:
+            continue
+
+        delta_sec = (start - now).total_seconds()
+
+        if not (0 < delta_sec <= 60 * 60):
+            continue
+
+        minutes = int(delta_sec // 60)
+        seconds = int(delta_sec % 60)
+
+        alert_in = max(0, delta_sec - window_minutes * 60)
+        am = int(alert_in // 60)
+        asec = int(alert_in % 60)
+
+        away = g.get("away") or "Away"
+        home = g.get("home") or "Home"
+
+        if delta_sec <= window_minutes * 60:
+            color = RED
+            tag   = "🔥 ALERT WINDOW"
+        elif delta_sec <= 15 * 60:
+            color = YLW
+            tag   = "soon"
+        else:
+            color = CYN
+            tag   = "waiting"
+
+        line = (
+            f"  {color}⏳ {away} @ {home}  —  tip-off in "
+            f"{minutes:>2}m {seconds:02d}s  "
+            f"(alert in {am}m {asec:02d}s)  [{tag}]{R}"
+        )
+        print(line.ljust(120))
+        any_shown = True
+
+    if any_shown:
+        print()
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| CHAPTER 4: send_score_notification
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+def send_score_notification(change):
+    try:
+        script = f'''
+        display notification "{change['game']}: {change['old']} → {change['new']}" with title "🏀 SCORE" subtitle "{change['status']}" sound name "Ping"
+        '''
+        subprocess.run(['osascript', '-e', script], capture_output=True, timeout=5)
+        print(f"  {RED2}🔔 Score change!{R}")
+        print(f"  {GRN}  {change['game']}: {change['old']} → {change['new']}{R}")
+    except Exception as e:
+        print(f"  {RED}⚠️ Notification failed: {e}{R}")
+
+
+def speak_score_change(change):
+    text = f"Score. {change['game']}. {change['old']} to {change['new']}."
+    try:
+        mp3 = DATA_DIR / "thomas_nba_voice.mp3"
+        r = subprocess.run([
+            "edge-tts",
+            "--voice", THOMAS_VOICE,
+            "--text", text,
+            "--write-media", str(mp3)
+        ], capture_output=True, text=True, timeout=15)
+        if r.returncode != 0:
+            print(f"  {YLW}⚠️ TTS skipped (edge-tts 403 — Bing token issue){R}")
+            return
+        subprocess.run(['afplay', str(mp3)], check=False)
+        print(f"  {GRN}🎩 Thomas voice dropped{R}")
+    except FileNotFoundError:
+        print(f"  {YLW}⚠️ edge-tts not installed — run: pip install edge-tts{R}")
+    except Exception as e:
+        print(f"  {YLW}⚠️ TTS failed: {e}{R}")
+
+
+def format_odds_box(odds_row):
+    if not odds_row:
+        return [f"  {DIM}Odds: Not available yet{R}"]
+
+    away_abbr = odds_row.get("away_abbr", "AWY")
+    home_abbr = odds_row.get("home_abbr", "HME")
+    provider  = odds_row.get("provider", "ESPN BET")
+    
+    def fmt_odds(val):
+        if val is None or val == "—": return "—"
+        if isinstance(val, float) and val.is_integer(): val = int(val)
+        if isinstance(val, (int, float)) and val > 0: return f"+{val}"
+        return str(val)
+
+    def fmt_spread(val):
+        if val is None or val == "—": return "—"
+        if isinstance(val, float) and val.is_integer(): val = int(val)
+        if isinstance(val, (int, float)) and val > 0: return f"+{val}"
+        return str(val)
+
+    away_ml = fmt_odds(odds_row.get("away_ml"))
+    home_ml = fmt_odds(odds_row.get("home_ml"))
+    
+    raw_spread = odds_row.get("away_spread")
+    
+    if isinstance(raw_spread, (int, float)):
+        away_sp = fmt_spread(-raw_spread)
+        home_sp = fmt_spread(raw_spread)
+    else:
+        away_sp = "—"
+        home_sp = "—"
+
+    total = odds_row.get("total") or "—"
+    over_odds = fmt_odds(odds_row.get("over_odds"))
+    under_odds = fmt_odds(odds_row.get("under_odds"))
+    away_sp_odds = fmt_odds(odds_row.get("away_sp_odds"))
+    home_sp_odds = fmt_odds(odds_row.get("home_sp_odds"))
+    
+    over_str = f"o{total} ({over_odds})" if total != "—" else "—"
+    under_str = f"u{total} ({under_odds})" if total != "—" else "—"
+    
+    away_sp_str = f"{away_sp} ({away_sp_odds})" if away_sp != "—" else "—"
+    home_sp_str = f"{home_sp} ({home_sp_odds})" if home_sp != "—" else "—"
+
+    box = []
+    box.append(f"  {RED2}╭─ Odds by {provider} ──────────────────────────────────────╮{R}")
+    box.append(f"  {RED2}│{R}  TEAM   ML       SPREAD          TOTAL             {RED2}│{R}")
+    box.append(f"  {RED2}│{R}  {away_abbr:<5}  {away_ml:<8} {away_sp_str:<15} {over_str:<17} {RED2}│{R}")
+    box.append(f"  {RED2}│{R}  {home_abbr:<5}  {home_ml:<8} {home_sp_str:<15} {under_str:<17} {RED2}│{R}")
+    box.append(f"  {RED2}╰────────────────────────────────────────────────────────────╯{R}")
+    return box
+
+
+def darwin_format(games, source, current_odds=None):
+    output = []
+    output.append(DIV)
+    output.append(f"🏀  nba SCOREBOARD  —  {time.strftime('%A, %B %d, %Y — %I:%M %p')}  🔴🐢")
+    output.append(DIV)
+    if games:
+        output.append(f"  📡 Source: {source.upper()}")
+        
+        if current_odds:
+            odds_box = format_odds_box(current_odds[0])
+            output.extend(odds_box)
+            
+        output.append(DIV)
+        for i, game in enumerate(games, 1):
+            team1 = game.get('team1', '?')
+            team2 = game.get('team2', '?')
+            score1 = game.get('score1', '0')
+            score2 = game.get('score2', '0')
+            status = game.get('status', 'Scheduled')
+            if 'Final' in status:
+                output.append(f"  {i:2}. {team1:24} {score1} — {score2} {team2:24}  [DONE] Final")
+            elif status == 'Scheduled':
+                output.append(f"  {i:2}. {team1:24} vs {team2:24}  ⏰ Scheduled")
+            else:
+                output.append(f"  {i:2}. {team1:24} {score1} — {score2} {team2:24}  🏀 {status}")
+            output.append(DIV)
+    else:
+        output.append("  ⏳ No game found")
+        output.append(DIV)
+    return "\n".join(output)
+
+
+def mikey_countdown(seconds=25):
+    frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+    idx = 0
+    for remaining in range(seconds, 0, -1):
+        for _ in range(10):
+            print(f"\r  {RED2}{frames[idx % len(frames)]}{R}  {DIM}next grip in {remaining:3}s{R}",
+                  end="", flush=True)
+            idx += 1
+            time.sleep(0.08)
+    print()
+
+
+def exit_handler(sig, frame):
+    print(f"\n  {RED2}🔴  Raphael dropping the ball...{R}")
+    print(f"  {RED2}🔴  Kobe forever. ❤️{R}\n")
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, exit_handler)
+signal.signal(signal.SIGTERM, exit_handler)
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| CHAPTER 2: 𝒊 α beta — orphans import 
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+def main():
+    print("\n" + DIV)
+    print("🔴  RAPHAEL  —  NBA SCOREBOARD SCOUT")
+    print("📅", time.strftime("%A, %B %d, %Y — %I:%M %p"))
+    print(f"📡  GAMECAST: {GAMECAST_NBA_GAME or '(auto-pick live game)'}")
+    print(f"📡  PBP:      {PLAY_BY_PLAY_NBA}")
+    print(f"⏱️  REFRESH: Every {REFRESH_SECONDS} seconds")
+    print(DIV + "\n")
+
+    show_glassnotes()
+
+    last_odds_refresh = 0
+    last_wp_refresh   = 0
+
+    cycle = 0
+    while True:
+        cycle += 1
+
+        try:
+            games, source, pbp_rows, scoring_plays, leaders = scout_dump()
+        except Exception as e:
+            print(f"  {RED}scout error: {e}{R}")
+            mikey_countdown(REFRESH_SECONDS)
+            continue
+
+        league_games = scout_league_scoreboard()
+        if league_games:
+            save_league_scores(league_games, source)
+        else:
+            print(f"  {YLW}⚠ league scoreboard empty — leaving nbascores.json as-is{R}")
+
+        show_pregame_countdown(league_games, window_minutes=5)
+
+        pregame_alerts = check_pregame_alerts(league_games)
+        for alert in pregame_alerts:
+            send_pregame_notification(alert)
+            threading.Thread(target=speak_pregame_alert, args=(alert,), daemon=True).start()
+
+        if games and league_games:
+            gid = games[0].get("game_id")
+            for lg in league_games:
+                if str(lg.get("id")) == str(gid):
+                    games[0]["score1"] = lg.get("away_score")
+                    games[0]["score2"] = lg.get("home_score")
+                    games[0]["status"] = lg.get("status")
+                    break
+
+        if not games:
+            mikey_countdown(REFRESH_SECONDS)
+            continue
+
+        changes = check_score_changes(games)
+        for change in changes:
+            send_score_notification(change)
+            threading.Thread(target=speak_score_change, args=(change,), daemon=True).start()
+
+        current_game_odds = []
+        if time.time() - last_odds_refresh > 60: 
+            g0 = games[0] if games else {}
+            gid = g0.get("game_id")
+            current_game_odds = scout_odds(
+                gid,
+                away_abbr=FULL_TO_ABBR.get(g0.get("team1", ""), (g0.get("team1") or "")[:3].upper()),
+                home_abbr=FULL_TO_ABBR.get(g0.get("team2", ""), (g0.get("team2") or "")[:3].upper()),
+            )
+
+            if current_game_odds:
+                save_odds(current_game_odds, gid)
+            
+            last_odds_refresh = time.time()
+
+            try:
+                league_odds = scout_league_odds(league_games)
+                if league_odds:
+                    save_league_odds(league_odds)
+            except Exception:
+                pass
+
+        if not current_game_odds:
+            try:
+                cache_path = DATA_DIR / "nba-odds.json"
+                if cache_path.exists():
+                    with open(cache_path, 'r', encoding='utf-8') as f:
+                        cached_data = json.load(f)
+                        current_game_odds = cached_data.get("games", [])
+            except Exception:
+                pass
+
+        output = darwin_format(games, source, current_game_odds)
+        print("\n" + output)
+
+        txt_file = DATA_DIR / f"{source}_scoreboard.txt"
+        with open(txt_file, 'w', encoding='utf-8') as f:
+            f.write(output)
+        print(f"  💾  Saved TXT: {txt_file}")
+
+        save_leonardo_compat(games)
+
+        save_playbyplay_json(pbp_rows, scoring_plays, leaders,
+                             game=games[0] if games else None)
+
+        if WP and time.time() - last_wp_refresh > 12:
+            wp = scout_yahoo_winprob(WP)
+            if wp:
+                payload = {
+                    "source":     "YAHOO",
+                    "game_id":    games[0].get("game_id") if games else None,
+                    "fetched_at": datetime.now().isoformat(),
+                    "series":     wp,
+                }
+                path = DATA_DIR / "nba-chart.json"
+                with open(path, 'w', encoding='utf-8') as f:
+                    json.dump(payload, f, indent=2, ensure_ascii=False)
+                print(f"  💾  Win-prob: {path}  ({len(wp)} points)")
+
+                try:
+                    leo = DATA_DIR / "nba_live.json"
+                    if leo.exists():
+                        with open(leo, 'r', encoding='utf-8') as f:
+                            leo_data = json.load(f)
+                        latest = wp[-1]
+                        leo_data["game_data"]["win_prob_away"] = latest.get("away_pct")
+                        leo_data["game_data"]["win_prob_home"] = latest.get("home_pct")
+                        with open(leo, 'w', encoding='utf-8') as f:
+                            json.dump(leo_data, f, indent=2, ensure_ascii=False)
+                except Exception as e:
+                    print(f"  {YLW}⚠ win-prob mirror failed: {e}{R}")
+
+                last_wp_refresh = time.time()
+                
+                latest = wp[-1]
+                leo_path = DATA_DIR / "nba_live.json"
+                if leo_path.exists():
+                    with open(leo_path, 'r') as f:
+                        leo = json.load(f)
+                    leo["game_data"]["win_prob_away"] = latest.get("away_pct")
+                    leo["game_data"]["win_prob_home"] = latest.get("home_pct")
+                    with open(leo_path, 'w') as f:
+                        json.dump(leo, f, indent=2)
+                        
+            last_wp_refresh = time.time()
+
+        print(f"\r  {GRN}[DONE]  Cycle {cycle} · {len(games)} game(s). Waiting {REFRESH_SECONDS}s...{R}")
+        mikey_countdown(REFRESH_SECONDS)
+
+
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+#+--| CHAPTER 1: 𝒊 α alpha — LAUNCH SYMBOL - turbo main execution
+#+--|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>
+
+if __name__ == "__main__":
+    main()
