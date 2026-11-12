@@ -1,43 +1,54 @@
 #!/usr/bin/env python4
 # -*- coding: utf-8 -*-
+# sudo approve python4 #1234
+
+"""
+otter.py4 — Turbo Otter Browser (PySide6) · side-panel edition
+Left icon rail · collapsible side panel · minimal top bar · tabs stay clean
+persistent profile · localhost-trusted · PiP · downloads · incognito
+bookmarks · history · reader · screenshot · adblock · custom UA · zoom
+"""
 
 import sys, os, json, random, math
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote_plus
 
-# PyQt5 uses OpenGL on macOS, bypassing the Metal crash on older MacBooks
 os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = " ".join([
     "--allow-insecure-localhost",
     "--ignore-certificate-errors",
     "--enable-features=AllowInsecureLocalhost",
-    "--disable-gpu",
-    "--disable-gpu-compositing",
-    "--disable-software-rasterizer",
-    "--disable-features=UseSkiaRenderer",
+    "--disable-gpu-driver-bug-workarounds",
+    "--ignore-gpu-blacklist",
     "--enable-smooth-scrolling",
+    "--enable-features=PlatformHEVCDecoderSupport,UseAndroidMediaCodec",
+    "--disable-features=WebRtcHideLocalIpsWithMdns",
 ])
 
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget,
     QLineEdit, QPushButton, QToolButton, QLabel, QSizePolicy, QInputDialog,
     QTabWidget, QMenu, QFileDialog, QMessageBox, QDialog, QListWidget,
     QListWidgetItem, QComboBox, QCheckBox, QPlainTextEdit, QProgressBar,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QStatusBar, QFrame, QScrollArea, QSplitter, QToolBar, QGraphicsDropShadowEffect,
-    QSlider, QStyle, QStyleOptionSlider, QAction, QShortcut
+    QSlider  # <--- ADD THIS LINE
 )
-from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEnginePage, QWebEngineProfile, QWebEngineSettings
-from PyQt5.QtCore import (
+from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtWebEngineCore import (
+    QWebEnginePage, QWebEngineProfile, QWebEngineSettings
+)
+from PySide6.QtCore import (
     Qt, QUrl, QTimer, QSize, QEvent, QPoint, QRectF, QPropertyAnimation,
-    QEasingCurve, pyqtSignal, QObject
+    QEasingCurve, Signal, QObject
 )
-from PyQt5.QtGui import (
-    QKeySequence, QIcon, QPixmap, QPainter, QPen, QColor, QBrush,
-    QPainterPath, QDesktopServices, QFont, QCursor, QPolygonF
+from PySide6.QtGui import (
+    QAction, QKeySequence, QIcon, QPixmap, QPainter, QPen, QColor, QBrush,
+    QPainterPath, QShortcut, QDesktopServices, QFont, QCursor, QPolygonF
 )
-from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
-from PyQt5.QtMultimediaWidgets import QVideoWidget
+from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
+from PySide6.QtMultimediaWidgets import QVideoWidget
+from PySide6.QtWebEngineCore import QWebEngineScript
 
 # ────────────────────────────────────────────────────────────────────────────
 # Paths & constants
@@ -63,10 +74,8 @@ for d in (OTTER_PROFILE_DIR, OTTER_SCREENSHOTS, OTTER_INCOGNITO):
 DOWNLOADS_DIR = Path.home() / "Downloads"
 DOWNLOADS_DIR.mkdir(exist_ok=True)
 
-MEDIA_DIR = Path.home() / "Desktop" / "media"
-MEDIA_DIR.mkdir(exist_ok=True)
-
 HOME_PAGE = "https://duckduckgo.com"
+
 
 REAL_UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
            "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -113,6 +122,12 @@ OTTER_FACTS = [
     "Sea otters wrap themselves in kelp to stay put.",
 ]
 
+MEDIA_DIR = Path.home() / "Desktop" / "media"
+MEDIA_DIR.mkdir(exist_ok=True)
+
+# Path to the standalone media player
+MEDIA_PLAYER = "/Users/olympynetworkco/Desktop/mediaplayer.py4"
+
 # ────────────────────────────────────────────────────────────────────────────
 # Persistence
 # ────────────────────────────────────────────────────────────────────────────
@@ -135,12 +150,14 @@ def log_event(kind, payload):
     try:
         with open(OTTER_LOG, "a", encoding="utf-8") as f:
             f.write(f"{stamp} | {kind} | {payload}\n")
-    except Exception: pass
+    except Exception:
+        pass
     try:
         hist = _load_json(OTTER_HISTORY, [])
         hist.append({"ts": stamp, "kind": kind, "payload": str(payload)})
         _save_json(OTTER_HISTORY, hist[-5000:])
-    except Exception: pass
+    except Exception:
+        pass
 
 class Settings:
     def __init__(self):
@@ -152,6 +169,7 @@ class Settings:
         self.data.setdefault("pip_on_top", True)
         self.data.setdefault("home", HOME_PAGE)
         self.data.setdefault("side_panel_width", 280)
+        self.data.setdefault("default_zoom", 0.8)  # <--- ADD THIS (80%)
     def get(self, k, d=None): return self.data.get(k, d)
     def set(self, k, v):
         self.data[k] = v
@@ -175,20 +193,23 @@ class Bookmarks:
         _save_json(OTTER_BOOKMARKS, self.items)
 BOOKMARKS = Bookmarks()
 
+# ── Gmail multi-account support (metadata only, never passwords) ──
 OTTER_ACCOUNTS     = DATA_DIR / "otter.accounts.json"
 GMAIL_ACCOUNTS_DIR = DATA_DIR / "otter-accounts"
 GMAIL_ACCOUNTS_DIR.mkdir(parents=True, exist_ok=True)
 
 def load_accounts():
+    """log.json equivalent — stores METADATA only, never passwords."""
     default = [
-        {"id": "acct1", "label": "Personal", "email": "@gmail.com", "color": "#7fe7dc"},
-        {"id": "acct2", "label": "Work",     "email": "@gmail.com", "color": "#ffb84d"},
-        {"id": "acct3", "label": "Main",     "email": "@gmail.com", "color": "#ff5a5a"},
+        {"id": "acct1", "label": "Personal", "email": "you1@gmail.com", "color": "#7fe7dc"},
+        {"id": "acct2", "label": "Work",     "email": "you2@gmail.com", "color": "#ffb84d"},
+        {"id": "acct3", "label": "Alt",      "email": "you3@gmail.com", "color": "#ff5a5a"},
     ]
     return _load_json(OTTER_ACCOUNTS, default)
 
 def save_accounts(accounts):
     _save_json(OTTER_ACCOUNTS, accounts)
+
 
 class TrustedHosts:
     def __init__(self):
@@ -215,100 +236,140 @@ def normalize(text: str):
     return SEARCH_ENGINES.get(engine, SEARCH_ENGINES["DuckDuckGo"]).format(quote_plus(text))
 
 # ────────────────────────────────────────────────────────────────────────────
-# Vector icons
+# Vector icons (drawn, no external assets)
 # ────────────────────────────────────────────────────────────────────────────
 def _pen(color, w=1.8):
     p = QPen(QColor(color)); p.setWidthF(w)
-    p.setCapStyle(Qt.RoundCap); p.setJoinStyle(Qt.RoundJoin)
+    p.setCapStyle(Qt.PenCapStyle.RoundCap); p.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
     return p
 
 def draw_icon(name: str, size: int = 22, color: str = "#7fe7dc") -> QPixmap:
-    pm = QPixmap(size, size); pm.fill(Qt.transparent)
-    p = QPainter(pm); p.setRenderHint(QPainter.Antialiasing)
-    p.setPen(_pen(color)); p.setBrush(Qt.NoBrush)
-    s = size; m = s * 0.18
+    pm = QPixmap(size, size); pm.fill(Qt.GlobalColor.transparent)
+    p = QPainter(pm); p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    p.setPen(_pen(color))
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    s = size
+    m = s * 0.18  # margin
 
     if name == "home":
+        p.drawPolyline(QPolygonF([
+            QRectF(0,0,0,0).topLeft().__class__(m, s*0.55),
+        ]))
+        # house
         p.drawLine(int(m), int(s*0.55), int(s/2), int(m))
         p.drawLine(int(s/2), int(m), int(s-m), int(s*0.55))
         p.drawRect(int(m+2), int(s*0.55), int(s-2*m-4), int(s*0.28))
+        # door
         p.drawRect(int(s/2 - s*0.06), int(s*0.68), int(s*0.12), int(s*0.15))
+
     elif name == "plus":
         p.drawLine(int(s/2), int(m), int(s/2), int(s-m))
         p.drawLine(int(m), int(s/2), int(s-m), int(s/2))
+
     elif name == "search":
         r = s*0.28
         p.drawEllipse(QRectF(m, m, r*2, r*2))
         p.drawLine(int(m+r*1.7), int(m+r*1.7), int(s-m), int(s-m))
+
     elif name == "bookmark":
         path = QPainterPath()
-        path.moveTo(m, m); path.lineTo(s-m, m); path.lineTo(s-m, s-m)
-        path.lineTo(s/2, s*0.65); path.lineTo(m, s-m); path.closeSubpath()
+        path.moveTo(m, m)
+        path.lineTo(s-m, m)
+        path.lineTo(s-m, s-m)
+        path.lineTo(s/2, s*0.65)
+        path.lineTo(m, s-m)
+        path.closeSubpath()
         p.drawPath(path)
-    elif name == "music":
-        p.drawLine(int(s*0.4), int(s*0.2), int(s*0.4), int(s*0.7))
-        p.drawLine(int(s*0.4), int(s*0.2), int(s*0.8), int(s*0.2))
-        p.drawLine(int(s*0.8), int(s*0.2), int(s*0.8), int(s*0.6))
-        p.drawEllipse(QRectF(s*0.25, s*0.6, s*0.3, s*0.2))
-        p.drawEllipse(QRectF(s*0.65, s*0.5, s*0.3, s*0.2))
 
     elif name == "clock":
         r = s/2 - m
         p.drawEllipse(QRectF(m, m, r*2, r*2))
         p.drawLine(int(s/2), int(s/2), int(s/2), int(m + r*0.5))
         p.drawLine(int(s/2), int(s/2), int(s/2 + r*0.55), int(s/2))
+
     elif name == "download":
         p.drawLine(int(s/2), int(m), int(s/2), int(s*0.62))
         p.drawPolyline(QPolygonF([
-            QPoint(int(s*0.32), int(s*0.42)),
-            QPoint(int(s/2), int(s*0.66)),
-            QPoint(int(s*0.68), int(s*0.42)),
+            QRectF(0,0,0,0).topLeft().__class__(int(s*0.32), int(s*0.42)),
+            QRectF(0,0,0,0).topLeft().__class__(int(s/2), int(s*0.66)),
+            QRectF(0,0,0,0).topLeft().__class__(int(s*0.68), int(s*0.42)),
         ]))
         p.drawLine(int(m), int(s-m), int(s-m), int(s-m))
+
     elif name == "pip":
         p.drawRect(int(m), int(m), int(s-2*m), int(s-2*m))
         p.drawRect(int(s*0.4), int(s*0.4), int(s*0.42), int(s*0.34))
+
     elif name == "reader":
         for i, y in enumerate([0.3, 0.45, 0.6, 0.75]):
             x2 = s-m if i % 2 == 0 else s*0.75
             p.drawLine(int(m), int(s*y), int(x2), int(s*y))
+
     elif name == "camera":
         p.drawRect(int(m), int(s*0.32), int(s-2*m), int(s*0.5))
         p.drawEllipse(QRectF(s*0.32, s*0.42, s*0.36, s*0.36))
+        p.drawLine(int(m + s*0.15), int(s*0.32), int(m + s*0.2), int(s*0.22))
+        p.drawLine(int(m + s*0.2),  int(s*0.22), int(s*0.6),     int(s*0.22))
+
     elif name == "devtools":
         p.drawLine(int(m), int(s/2), int(s*0.35), int(s*0.2))
         p.drawLine(int(m), int(s/2), int(s*0.35), int(s*0.8))
         p.drawLine(int(s-m), int(s/2), int(s*0.65), int(s*0.2))
         p.drawLine(int(s-m), int(s/2), int(s*0.65), int(s*0.8))
+        p.drawLine(int(s*0.42), int(s*0.7), int(s*0.58), int(s*0.3))
+
     elif name == "settings":
+        # gear
         cx, cy, r = s/2, s/2, s*0.22
         p.drawEllipse(QRectF(cx-r, cy-r, r*2, r*2))
         for i in range(8):
             a = i * math.pi/4
-            x1 = cx + math.cos(a) * (r + 1); y1 = cy + math.sin(a) * (r + 1)
-            x2 = cx + math.cos(a) * (r + 4); y2 = cy + math.sin(a) * (r + 4)
+            x1 = cx + math.cos(a) * (r + 1)
+            y1 = cy + math.sin(a) * (r + 1)
+            x2 = cx + math.cos(a) * (r + 4)
+            y2 = cy + math.sin(a) * (r + 4)
             p.drawLine(int(x1), int(y1), int(x2), int(y2))
+
     elif name == "back":
         p.drawPolyline(QPolygonF([
-            QPoint(int(s*0.6), int(m)), QPoint(int(m), int(s/2)), QPoint(int(s*0.6), int(s-m))
+            QRectF(0,0,0,0).topLeft().__class__(int(s*0.6), int(m)),
+            QRectF(0,0,0,0).topLeft().__class__(int(m),     int(s/2)),
+            QRectF(0,0,0,0).topLeft().__class__(int(s*0.6), int(s-m)),
         ]))
+
     elif name == "forward":
         p.drawPolyline(QPolygonF([
-            QPoint(int(s*0.4), int(m)), QPoint(int(s-m), int(s/2)), QPoint(int(s*0.4), int(s-m))
+            QRectF(0,0,0,0).topLeft().__class__(int(s*0.4), int(m)),
+            QRectF(0,0,0,0).topLeft().__class__(int(s-m),   int(s/2)),
+            QRectF(0,0,0,0).topLeft().__class__(int(s*0.4), int(s-m)),
         ]))
+
     elif name == "reload":
         r = s/2 - m
         p.drawArc(QRectF(m, m, r*2, r*2), 45*16, 270*16)
-        p.drawLine(int(s/2 + r*0.7), int(s/2 - r*0.5), int(s/2 + r*0.9), int(s/2 - r*0.9))
+        p.drawLine(int(s/2 + r*0.7), int(s/2 - r*0.5),
+                   int(s/2 + r*0.9), int(s/2 - r*0.9))
+        p.drawLine(int(s/2 + r*0.7), int(s/2 - r*0.5),
+                   int(s/2 + r*0.3), int(s/2 - r*0.4))
+
     elif name == "close":
         p.drawLine(int(m), int(m), int(s-m), int(s-m))
         p.drawLine(int(s-m), int(m), int(m), int(s-m))
+
     elif name == "menu":
         for y in [0.32, 0.5, 0.68]:
             p.drawLine(int(m), int(s*y), int(s-m), int(s*y))
-    elif name == "sun":
+
+    elif name == "sun":  # incognito-ish mask
         p.drawEllipse(QRectF(m, m, s-2*m, s-2*m))
         p.drawLine(int(m + s*0.15), int(s*0.55), int(s-m-s*0.15), int(s*0.55))
+
+    elif name == "music":
+        p.drawLine(int(s*0.4), int(s*0.2), int(s*0.4), int(s*0.7))
+        p.drawLine(int(s*0.4), int(s*0.2), int(s*0.8), int(s*0.2))
+        p.drawLine(int(s*0.8), int(s*0.2), int(s*0.8), int(s*0.6))
+        p.drawEllipse(QRectF(s*0.25, s*0.6, s*0.3, s*0.2))
+        p.drawEllipse(QRectF(s*0.65, s*0.5, s*0.3, s*0.2))
 
     p.end()
     return pm
@@ -320,7 +381,7 @@ def make_icon_button(name, tooltip, slot=None, size=22, btn_size=38, color="#7fe
     b.setFixedSize(btn_size, btn_size)
     b.setToolTip(tooltip)
     b.setAutoRaise(True)
-    b.setCursor(QCursor(Qt.PointingHandCursor))
+    b.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
     b.setStyleSheet("""
         QToolButton { background: transparent; border: none; border-radius: 8px; }
         QToolButton:hover   { background: rgba(15,155,142,0.28); }
@@ -335,30 +396,51 @@ def make_icon_button(name, tooltip, slot=None, size=22, btn_size=38, color="#7fe
 # ────────────────────────────────────────────────────────────────────────────
 OTTER_STYLE = """
     QMainWindow, QWidget { background-color: #0b1a1f; color: #eaf7f2; }
+
     QLineEdit, QComboBox, QPlainTextEdit, QListWidget, QTableWidget {
         background-color: #041012; color: #ffd28a;
-        border: 1px solid #0f9b8e; border-radius: 8px; padding: 6px 8px; font-size: 13px;
+        border: 1px solid #0f9b8e; border-radius: 8px;
+        padding: 6px 8px; font-size: 13px;
+        selection-background-color: #0f9b8e; selection-color: #ffffff;
     }
     QLineEdit:focus, QComboBox:focus { border: 1px solid #ffb84d; }
+
     QPushButton {
-        background-color: #0f9b8e; color: #04231f; border-radius: 8px; font-weight: bold; font-size: 12px; padding: 6px 10px;
+        background-color: #0f9b8e; color: #ffffff;
+        border-radius: 8px; font-weight: bold; font-size: 12px;
+        padding: 6px 10px; border: 1px solid #0d7a70;
     }
     QPushButton:hover    { background-color: #ffb84d; color: #1a0b00; }
     QPushButton:pressed  { background-color: #ff5a5a; color: white; }
+    QPushButton:disabled { background-color: #1d3a36; color: #6c8c85; }
+
     QTabWidget::pane { border: none; background: #041012; }
+    QTabBar { background: transparent; }
     QTabBar::tab {
-        background: transparent; color: #7fe7dc; padding: 7px 14px; margin-right: 4px;
-        border-top-left-radius: 8px; border-top-right-radius: 8px; border: 1px solid transparent; font-size: 12px;
+        background: transparent; color: #7fe7dc;
+        padding: 7px 14px; margin-right: 4px;
+        border-top-left-radius: 8px; border-top-right-radius: 8px;
+        border: 1px solid transparent;
+        font-size: 12px;
     }
     QTabBar::tab:hover    { background: rgba(15,155,142,0.18); color: #ffd28a; }
-    QTabBar::tab:selected { background: rgba(15,155,142,0.32); color: #ffd28a; border-color: #0f9b8e; }
+    QTabBar::tab:selected { background: rgba(15,155,142,0.32); color: #ffd28a;
+                            border-color: #0f9b8e; }
+
     QMenu { background-color: #0b1a1f; color: #eaf7f2; border: 1px solid #0f9b8e; }
-    QMenu::item:selected { background-color: #0f9b8e; color: #04231f; }
+    QMenu::item { padding: 5px 22px; }
+    QMenu::item:selected { background-color: #0f9b8e; color: #ffffff; }
+
     QStatusBar { background-color: #041012; color: #7fe7dc; }
+    QStatusBar::item { border: none; }
+
     QScrollBar:vertical   { background: #041012; width: 10px; margin: 0; }
     QScrollBar::handle:vertical   { background: #0f9b8e; border-radius: 5px; min-height: 20px; }
+    QScrollBar:horizontal { background: #041012; height: 10px; margin: 0; }
+    QScrollBar::handle:horizontal { background: #0f9b8e; border-radius: 5px; }
     QScrollBar::add-line, QScrollBar::sub-line { height:0; width:0; }
-    QHeaderView::section { background-color: #0f9b8e; color: #04231f; padding: 4px; border: none; }
+
+    QHeaderView::section { background-color: #0f9b8e; color: #ffffff; padding: 4px; border: none; }
     QToolTip { background-color: #0b1a1f; color: #ffd28a; border: 1px solid #0f9b8e; }
 """
 
@@ -375,13 +457,21 @@ class OtterPage(QWebEnginePage):
         s = self.settings()
         for attr in ("JavascriptEnabled","LocalStorageEnabled","PluginsEnabled",
                      "FullScreenSupportEnabled","ScreenCaptureEnabled","WebGLEnabled",
-                     "LocalContentCanAccessRemoteUrls","LocalContentCanAccessFileUrls"):
-            try: s.setAttribute(getattr(QWebEngineSettings, attr), True)
+                     "Accelerated2dCanvasEnabled","LocalContentCanAccessRemoteUrls",
+                     "LocalContentCanAccessFileUrls","ShowScrollBars"):
+            try: s.setAttribute(getattr(QWebEngineSettings.WebAttribute, attr), True)
             except Exception: pass
 
-    def createWindow(self, _type): 
-        # This prevents the segfault when GitHub opens a login popup
-        return self
+    def createWindow(self, _type): return self
+
+
+    def javaScriptConsoleMessage(self, level, message, line, source):
+        # Optional: catch console errors for debugging
+        pass
+
+    def acceptNavigationRequest(self, url, nav_type, is_main_frame):
+        # (Keep your existing adblock code here)
+        return super().acceptNavigationRequest(url, nav_type, is_main_frame)
 
 
     def acceptNavigationRequest(self, url, nav_type, is_main_frame):
@@ -391,92 +481,39 @@ class OtterPage(QWebEnginePage):
                 log_event("adblock", u); return False
         return super().acceptNavigationRequest(url, nav_type, is_main_frame)
 
+    def featurePermissionRequested(self, origin, feature):
+        self.setFeaturePermission(origin, feature,
+            QWebEnginePage.PermissionPolicy.PermissionGrantedByUser)
+
     def certificateError(self, error):
         try: host = error.url().host()
         except Exception: host = ""
         if host in LOCAL_HOSTS or host in TRUSTED:
             error.acceptCertificate(); return True
+        try:
+            r = QMessageBox.question(None, "🦦 Otter — Certificate",
+                f"Accept certificate for {host}?\n\n{error.description()}",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            if r == QMessageBox.StandardButton.Yes:
+                TRUSTED.add(host); error.acceptCertificate(); return True
+        except Exception: pass
         return super().certificateError(error)
 
 # ────────────────────────────────────────────────────────────────────────────
-# Native Video Overlay (MP4s)
-# ────────────────────────────────────────────────────────────────────────────
-class NativeVideoOverlay(QWidget):
-    def __init__(self, video_url, parent=None):
-        super().__init__(parent)
-        self.setAttribute(Qt.WA_StyledBackground, True)
-        self.setStyleSheet("background: #041012;")
-        
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
-
-        self.video_widget = QVideoWidget()
-        self.video_widget.setStyleSheet("background: #000;")
-        layout.addWidget(self.video_widget, 1)
-
-        self.player = QMediaPlayer(self)
-        self.player.setVideoOutput(self.video_widget)
-        
-        controls = QHBoxLayout()
-        self.btn_play = QPushButton("▶")
-        self.btn_play.setFixedSize(32, 32)
-        self.btn_play.clicked.connect(self.toggle_play)
-        
-        self.slider = QSlider(Qt.Horizontal)
-        self.slider.sliderMoved.connect(self.player.setPosition)
-        
-        self.btn_close = QPushButton("✕")
-        self.btn_close.setFixedSize(32, 32)
-        self.btn_close.clicked.connect(self.close)
-
-        controls.addWidget(self.btn_play)
-        controls.addWidget(self.slider, 1)
-        controls.addWidget(self.btn_close)
-        layout.addLayout(controls)
-
-        self.player.setMedia(QMediaContent(QUrl(video_url)))
-        self.player.positionChanged.connect(self.update_slider)
-        self.player.durationChanged.connect(self.update_duration)
-        self.player.mediaStatusChanged.connect(self._on_status)
-        self.player.play()
-
-    def toggle_play(self):
-        if self.player.state() == QMediaPlayer.PlayingState:
-            self.player.pause(); self.btn_play.setText("▶")
-        else:
-            self.player.play(); self.btn_play.setText("⏸")
-
-    def update_slider(self, position):
-        if not self.slider.isSliderDown(): self.slider.setValue(position)
-
-    def update_duration(self, duration):
-        self.slider.setRange(0, duration)
-
-    def _on_status(self, status):
-        if status == QMediaPlayer.EndOfMedia:
-            self.btn_play.setText("▶")
-
-# ────────────────────────────────────────────────────────────────────────────
-# PiP Window
+# PiP window
 # ────────────────────────────────────────────────────────────────────────────
 class PipWindow(QMainWindow):
     def __init__(self, target, profile, parent=None, on_top=True):
         super().__init__(parent)
         self.setWindowTitle(f"📺 {target[:60]}")
-        flags = Qt.Window
-        if on_top: flags |= Qt.WindowStaysOnTopHint
+        flags = Qt.WindowType.Window
+        if on_top: flags |= Qt.WindowType.WindowStaysOnTopHint
         self.setWindowFlags(flags)
         self.resize(520, 320)
         self.setStyleSheet("QMainWindow { background: #041012; }")
 
-        is_video = target.lower().startswith("file://") and target.lower().endswith((".mp4", ".mov", ".mkv", ".avi"))
-
-        if is_video:
-            self.view = NativeVideoOverlay(target, self)
-            self.page = None
-        else:
-            self.page = OtterPage(profile, self)
-            self.view = QWebEngineView(); self.view.setPage(self.page)
+        self.page = OtterPage(profile, self)
+        self.view = QWebEngineView(); self.view.setPage(self.page)
 
         bar = QWidget(); bl = QHBoxLayout(bar)
         bl.setContentsMargins(4,4,4,4); bl.setSpacing(4)
@@ -498,36 +535,29 @@ class PipWindow(QMainWindow):
         v.addWidget(bar); v.addWidget(self.view, stretch=1)
         self.setCentralWidget(central)
 
-        if not is_video:
-            url = QUrl(target)
-            if not target.startswith(("http://","https://","file://","about:")):
-                p = Path(target).expanduser()
-                if p.exists(): url = QUrl.fromLocalFile(str(p.resolve()))
-                else:          url = QUrl("https://" + target)
-            self.view.setUrl(url)
+        url = QUrl(target)
+        if not target.startswith(("http://","https://","file://","about:")):
+            p = Path(target).expanduser()
+            if p.exists(): url = QUrl.fromLocalFile(str(p.resolve()))
+            else:          url = QUrl("https://" + target)
+        self.view.setUrl(url)
 
         n = len(getattr(parent, "_pips", [])) if parent else 0
         self.move(220 + n * 30, 140 + n * 30)
 
     def _toggle_on_top(self, on):
-        self.setWindowFlag(Qt.WindowStaysOnTopHint, on); self.show()
-
+        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, on); self.show()
     def _toggle_mute(self, m):
-        if self.page: self.page.setAudioMuted(m)
-        elif hasattr(self.view, "player"): self.view.player.setMuted(m)
-        self.btn_mute.setText("🔇" if m else "🔊")
-
+        self.page.setAudioMuted(m); self.btn_mute.setText("🔇" if m else "🔊")
     def closeEvent(self, e):
-        if self.page:
-            self.view.setPage(None); self.view.deleteLater(); self.page.deleteLater()
-        elif hasattr(self.view, "player"):
-            self.view.player.stop(); self.view.deleteLater()
+        self.view.setPage(None); self.view.deleteLater(); self.page.deleteLater()
         super().closeEvent(e)
 
 # ────────────────────────────────────────────────────────────────────────────
 # Side panel pages
 # ────────────────────────────────────────────────────────────────────────────
 class PanelPage(QWidget):
+    """Base panel with a header."""
     title = "Panel"
     def __init__(self, browser, parent=None):
         super().__init__(parent)
@@ -546,12 +576,15 @@ class BookmarksPanel(PanelPage):
         self.list = QListWidget()
         self.list.itemActivated.connect(self._open)
         self.list.itemDoubleClicked.connect(self._open)
+        self.list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.list.customContextMenuRequested.connect(self._ctx)
         self.root.addWidget(self.list, 1)
 
         row = QHBoxLayout()
         b_add = QPushButton("☆ Bookmark current")
         b_add.clicked.connect(browser.add_bookmark)
-        row.addWidget(b_add, 1)
+        b_manage = QPushButton("Edit…"); b_manage.clicked.connect(self._edit)
+        row.addWidget(b_add, 1); row.addWidget(b_manage)
         self.root.addLayout(row)
         self.refresh()
 
@@ -559,11 +592,50 @@ class BookmarksPanel(PanelPage):
         self.list.clear()
         for bm in BOOKMARKS.items:
             it = QListWidgetItem(f"{bm['title']}")
-            it.setData(Qt.UserRole, bm["url"])
+            it.setToolTip(bm["url"])
+            it.setData(Qt.ItemDataRole.UserRole, bm["url"])
             self.list.addItem(it)
 
     def _open(self, it):
-        self.browser.open_target(it.data(Qt.UserRole))
+        self.browser.open_target(it.data(Qt.ItemDataRole.UserRole))
+
+    def _ctx(self, pos):
+        it = self.list.itemAt(pos)
+        if not it: return
+        m = QMenu(self)
+        m.addAction("Open",        lambda: self._open(it))
+        m.addAction("Remove",      lambda: (BOOKMARKS.remove(it.data(Qt.ItemDataRole.UserRole)),
+                                            self.refresh()))
+        m.exec(self.list.mapToGlobal(pos))
+
+    def _edit(self):
+        # simple inline editor: rename or delete
+        d = QDialog(self); d.setWindowTitle("Edit bookmarks"); d.resize(460, 400)
+        v = QVBoxLayout(d); lst = QListWidget()
+        for bm in BOOKMARKS.items:
+            it = QListWidgetItem(f"{bm['title']}  —  {bm['url']}")
+            it.setData(Qt.ItemDataRole.UserRole, bm["url"]); lst.addItem(it)
+        v.addWidget(lst)
+        row = QHBoxLayout()
+        def _rename():
+            it = lst.currentItem()
+            if not it: return
+            url = it.data(Qt.ItemDataRole.UserRole)
+            new, ok = QInputDialog.getText(d, "Rename", "New title:",
+                                           text=it.text().split("  —  ")[0])
+            if ok and new.strip():
+                for bm in BOOKMARKS.items:
+                    if bm["url"] == url: bm["title"] = new.strip()
+                _save_json(OTTER_BOOKMARKS, BOOKMARKS.items); self.refresh(); d.accept()
+        def _del():
+            it = lst.currentItem()
+            if not it: return
+            BOOKMARKS.remove(it.data(Qt.ItemDataRole.UserRole)); self.refresh(); d.accept()
+        b_r = QPushButton("Rename"); b_r.clicked.connect(_rename)
+        b_d = QPushButton("Delete"); b_d.clicked.connect(_del)
+        b_c = QPushButton("Close"); b_c.clicked.connect(d.accept)
+        row.addWidget(b_r); row.addWidget(b_d); row.addStretch(); row.addWidget(b_c)
+        v.addLayout(row); d.exec()
 
 class HistoryPanel(PanelPage):
     title = "History"
@@ -571,37 +643,103 @@ class HistoryPanel(PanelPage):
         super().__init__(browser)
         self.list = QListWidget(); self.list.itemActivated.connect(self._open)
         self.root.addWidget(self.list, 1)
+
+        row = QHBoxLayout()
+        b_refresh = QPushButton("Refresh"); b_refresh.clicked.connect(self.refresh)
+        b_clear   = QPushButton("Clear");   b_clear.clicked.connect(self._clear)
+        row.addWidget(b_refresh); row.addWidget(b_clear)
+        self.root.addLayout(row)
         self.refresh()
 
     def refresh(self):
         self.list.clear()
         for h in reversed(_load_json(OTTER_HISTORY, [])[-500:]):
-            txt = f"{h.get('ts','')[:19]}  ·  {h.get('payload','')}"
+            txt = f"{h.get('ts','')[:19]}  ·  {h.get('kind','')}  ·  {h.get('payload','')}"
             it = QListWidgetItem(txt[:120])
-            it.setData(Qt.UserRole, h.get("payload",""))
-            self.list.addItem(it)
+            it.setData(Qt.ItemDataRole.UserRole, h.get("payload",""))
+            it.setToolTip(txt); self.list.addItem(it)
 
     def _open(self, it):
-        u = it.data(Qt.UserRole)
+        u = it.data(Qt.ItemDataRole.UserRole)
         if isinstance(u, str) and u.startswith(("http","file","about")):
             self.browser.open_target(u)
+
+    def _clear(self):
+        if QMessageBox.question(self, "Clear", "Erase all history?") == QMessageBox.StandardButton.Yes:
+            _save_json(OTTER_HISTORY, []); self.refresh()
+
 
 class DownloadsPanel(PanelPage):
     title = "Downloads"
     def __init__(self, browser):
         super().__init__(browser)
-        self.table = QTableWidget(0, 2)
-        self.table.setHorizontalHeaderLabels(["File", "Status"])
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self._rows = {}
+        self._timers = [] # Keep track of timers so they aren't garbage collected
+        
+        self.table = QTableWidget(0, 3)
+        self.table.setHorizontalHeaderLabels(["File", "Progress", "Status"])
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
         self.root.addWidget(self.table, 1)
 
+        row = QHBoxLayout()
+        b_open = QPushButton("Open folder")
+        b_open.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(DOWNLOADS_DIR))))
+        b_clear = QPushButton("Clear done"); b_clear.clicked.connect(self._clear_done)
+        row.addWidget(b_open); row.addWidget(b_clear)
+        self.root.addLayout(row)
+
     def add_download(self, item):
         r = self.table.rowCount(); self.table.insertRow(r)
-        self.table.setItem(r, 0, QTableWidgetItem(item.path().split("/")[-1]))
-        self.table.setItem(r, 1, QTableWidgetItem("⬇"))
-        item.finished.connect(lambda: self.table.setItem(r, 1, QTableWidgetItem("✅")))
+        self.table.setItem(r, 0, QTableWidgetItem(item.downloadFileName()))
+        
+        prog = QProgressBar(); prog.setRange(0, 100); prog.setValue(0)
+        prog.setTextVisible(False); prog.setFixedHeight(14)
+        self.table.setCellWidget(r, 1, prog)
+        self.table.setItem(r, 2, QTableWidgetItem("starting…"))
+        
+        self._rows[item] = (r, prog)
+
+        # PySide6 removed the downloadProgress signal. 
+        # We use a QTimer to poll the receivedBytes instead.
+        timer = QTimer(self)
+        timer.setInterval(200) # Check every 200ms
+        
+        def update_progress():
+            try:
+                if item.isFinished():
+                    prog.setValue(100)
+                    self.table.setItem(r, 2, QTableWidgetItem("✅ done"))
+                    timer.stop()
+                else:
+                    total = item.totalBytes()
+                    received = item.receivedBytes()
+                    if total > 0:
+                        pct = int(received * 100 / total)
+                        prog.setValue(pct)
+                        self.table.setItem(r, 2, QTableWidgetItem(f"⬇ {pct}%"))
+            except Exception:
+                timer.stop()
+
+        timer.timeout.connect(update_progress)
+        timer.start()
+        
+        # Store the timer so it doesn't get garbage collected
+        self._timers.append(timer)
+
+    def _clear_done(self):
+        for item, (r, _) in list(self._rows.items()):
+            try:
+                if item.isFinished():
+                    self.table.removeRow(r); del self._rows[item]
+                    # re-index remaining rows so future removals don't break
+                    for k, (rr, _p) in list(self._rows.items()):
+                        if rr > r: self._rows[k] = (rr - 1, _p)
+            except Exception: pass
+
 
 class SearchPanel(PanelPage):
     title = "Search"
@@ -617,16 +755,19 @@ class SearchPanel(PanelPage):
         self.root.addWidget(self.q)
         b = QPushButton("Search"); b.clicked.connect(self._go)
         self.root.addWidget(b)
+
+        lbl = QLabel("SHORTCUT SITES")
+        lbl.setStyleSheet("color:#7fe7dc; font-weight:bold; letter-spacing:2px; font-size:11px; margin-top:10px;")
+        self.root.addWidget(lbl)
+        for name, url in SHORTCUT_SITES:
+            bb = QPushButton(name); bb.setStyleSheet("text-align:left; padding-left:12px;")
+            bb.clicked.connect(lambda _=False, u=url: browser.open_target(u))
+            self.root.addWidget(bb)
         self.root.addStretch()
 
     def _go(self):
         t = self.q.text().strip()
         if t: self.browser.open_target(normalize(t))
-
-
-# ────────────────────────────────────────────────────────────────────────────
-# class SettingsPanel(PanelPage):
-# ────────────────────────────────────────────────────────────────────────────
 
 class SettingsPanel(PanelPage):
     title = "Settings"
@@ -637,9 +778,63 @@ class SettingsPanel(PanelPage):
             c.toggled.connect(lambda v, k=key: SETTINGS.set(k, v))
             self.root.addWidget(c); return c
         chk("Ad / tracker block",       "adblock",         True)
+        chk("Use Otter UA",             "custom_ua",       False)
         chk("Restore session on launch","restore_session", True)
         chk("PiP always on top",        "pip_on_top",      True)
+
+
+        self.root.addSpacing(10)
+        zoom_lbl = QLabel("Default Zoom Level")
+        zoom_lbl.setStyleSheet("color:#7fe7dc; font-weight:bold; font-size:11px;")
+        self.root.addWidget(zoom_lbl)
+
+        z_row = QHBoxLayout()
+        self.zoom_in_btn = QPushButton("Zoom In +")
+        self.zoom_in_btn.clicked.connect(self._zoom_in)
+        self.zoom_out_btn = QPushButton("Zoom Out -")
+        self.zoom_out_btn.clicked.connect(self._zoom_out)
+        z_row.addWidget(self.zoom_out_btn)
+        z_row.addWidget(self.zoom_in_btn)
+        self.root.addLayout(z_row)
+
+        self.zoom_status = QLabel(f"Current: {int(SETTINGS.get('default_zoom', 0.8) * 100)}%")
+        self.zoom_status.setStyleSheet("color:#ffd28a; font-size:12px;")
+        self.root.addWidget(self.zoom_status)
+
+
+        self.root.addSpacing(12)
+        row = QHBoxLayout()
+        b_cache = QPushButton("Clear cache / cookies"); b_cache.clicked.connect(browser.clear_storage)
+        row.addWidget(b_cache)
+        self.root.addLayout(row)
+
+        self.root.addSpacing(12)
+        b_save = QPushButton("💾 Save session now"); b_save.clicked.connect(browser.save_session)
+        self.root.addWidget(b_save)
+
+        info = QLabel(
+            f"log       : {OTTER_LOG.name}\n"
+            f"profile   : {OTTER_PROFILE_DIR.name}\n"
+            f"downloads : {DOWNLOADS_DIR}\n"
+            f"shots     : {OTTER_SCREENSHOTS.name}"
+        )
+        info.setStyleSheet("color:#7fe7dc; font-size:11px;")
+        self.root.addSpacing(12); self.root.addWidget(info)
         self.root.addStretch()
+
+    def _zoom_in(self):
+        current = float(SETTINGS.get("default_zoom", 0.8))
+        new_zoom = min(2.0, current + 0.1)
+        SETTINGS.set("default_zoom", new_zoom)
+        self.zoom_status.setText(f"Current: {int(new_zoom * 100)}%")
+        self.browser.zoom_reset() # Applies to current page
+        
+    def _zoom_out(self):
+        current = float(SETTINGS.get("default_zoom", 0.8))
+        new_zoom = max(0.3, current - 0.1)
+        SETTINGS.set("default_zoom", new_zoom)
+        self.zoom_status.setText(f"Current: {int(new_zoom * 100)}%")
+        self.browser.zoom_reset() # Applies to current page
 
 # ────────────────────────────────────────────────────────────────────────────
 # class MediaPanel(PanelPage):
@@ -649,42 +844,34 @@ class MediaPanel(PanelPage):
     title = "Media Player"
     def __init__(self, browser):
         super().__init__(browser)
-        
-        # Make layout tighter for the side panel
         self.root.setContentsMargins(8, 10, 8, 10)
         self.root.setSpacing(6)
 
-        # Top row: Scan button
-        top_row = QHBoxLayout()
-        btn_refresh = QPushButton("⟳ Scan Folder")
-        btn_refresh.setFixedHeight(28)
-        btn_refresh.clicked.connect(self._scan)
-        top_row.addWidget(btn_refresh)
-        self.root.addLayout(top_row)
-
         # Video output
         self.video = QVideoWidget()
-        self.video.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.video.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.video.setStyleSheet("background: #000; border-radius: 8px;")
         self.root.addWidget(self.video, stretch=2)
 
         # Media Engine
         self.player = QMediaPlayer(self)
+        self.audio = QAudioOutput(self)
+        self.player.setAudioOutput(self.audio)
         self.player.setVideoOutput(self.video)
         
         # Title
         self.lbl_title = QLabel("—")
-        self.lbl_title.setAlignment(Qt.AlignCenter)
+        self.lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_title.setStyleSheet("color: #ffd28a; font-weight: bold;")
         self.root.addWidget(self.lbl_title)
 
         # Slider
-        self.seek = QSlider(Qt.Horizontal)
+        self.seek = QSlider(Qt.Orientation.Horizontal)
         self.seek.setRange(0, 0)
         self.seek.sliderMoved.connect(self.player.setPosition)
         self.root.addWidget(self.seek)
 
-        # Controls row (Play/Stop/Skip)
+        # Controls row
         controls = QHBoxLayout()
         controls.setSpacing(4)
         
@@ -695,19 +882,9 @@ class MediaPanel(PanelPage):
         btn_stop = QPushButton("■")
         btn_stop.setFixedSize(32, 32)
         btn_stop.clicked.connect(self.player.stop)
-        
-        btn_back = QPushButton("↺")
-        btn_back.setFixedSize(32, 32)
-        btn_back.clicked.connect(lambda: self._skip(-10000))
-        
-        btn_fwd = QPushButton("↻")
-        btn_fwd.setFixedSize(32, 32)
-        btn_fwd.clicked.connect(lambda: self._skip(10000))
 
         controls.addWidget(btn_play)
         controls.addWidget(btn_stop)
-        controls.addWidget(btn_back)
-        controls.addWidget(btn_fwd)
         self.root.addLayout(controls)
 
         # File List
@@ -719,68 +896,50 @@ class MediaPanel(PanelPage):
         # Connections
         self.player.positionChanged.connect(self._on_pos)
         self.player.durationChanged.connect(self._on_dur)
-        self.player.mediaStatusChanged.connect(self._on_media_status)
-        self.player.stateChanged.connect(self._on_state)
 
         self._scan()
 
     def _scan(self):
         self.list.clear()
-        if not MEDIA_DIR.exists():
-            self.lbl_title.setText(f"Media folder not found")
-            return
-        for p in sorted(MEDIA_DIR.iterdir()):
-            if p.suffix.lower() in {".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi", ".mp3", ".m4a", ".aac", ".wav", ".flac", ".ogg"}:
-                tag = "🎬" if p.suffix.lower() in {".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi"} else "🎵"
+        media_dir = Path.home() / "Desktop" / "media"
+        if not media_dir.exists(): return
+        for p in sorted(media_dir.iterdir()):
+            if p.suffix.lower() in {".mp4", ".mov", ".mp3", ".m4a", ".webm"}:
+                tag = "🎬" if p.suffix.lower() in {".mp4", ".mov", ".webm"} else "🎵"
                 it = QListWidgetItem(f"{tag} {p.name}")
-                it.setData(Qt.UserRole, str(p))
+                it.setData(Qt.ItemDataRole.UserRole, str(p))
                 self.list.addItem(it)
 
     def _play_item(self, item):
-        path = item.data(Qt.UserRole)
-        p = Path(path)
-        self.lbl_title.setText(p.name)
-        self.player.setMedia(QMediaContent(QUrl.fromLocalFile(str(p.resolve()))))
+        path = item.data(Qt.ItemDataRole.UserRole)
+        self.lbl_title.setText(Path(path).name)
+        self.player.setSource(QUrl.fromLocalFile(path))
         self.player.play()
 
     def _toggle(self):
-        if self.player.state() == QMediaPlayer.PlayingState:
+        if self.player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
             self.player.pause()
         else:
             self.player.play()
 
-    def _skip(self, ms):
-        pos = self.player.position() + ms
-        pos = max(0, min(pos, self.player.duration()))
-        self.player.setPosition(pos)
-
     def _on_pos(self, pos):
-        if not self.seek.isSliderDown():
-            self.seek.setValue(pos)
+        if not self.seek.isSliderDown(): self.seek.setValue(pos)
 
     def _on_dur(self, dur):
         self.seek.setRange(0, dur)
-
-    def _on_state(self, state):
-        pass # Play button text update if you add a reference to it
-
-    def _on_media_status(self, status):
-        if status == QMediaPlayer.EndOfMedia:
-            next_i = self.list.currentRow() + 1
-            if next_i < self.list.count():
-                self.list.setCurrentRow(next_i)
-                self._play_item(self.list.item(next_i))
 
 # ────────────────────────────────────────────────────────────────────────────
 # Left icon rail
 # ────────────────────────────────────────────────────────────────────────────
 class IconRail(QWidget):
-    iconClicked = pyqtSignal(str)
+    """Vertical rail of icon buttons that drive the side panel."""
+    iconClicked = Signal(str)   # panel key
+
     PANELS = [
         ("home",     "Home"),
         ("plus",     "New tab"),
         ("search",   "Search"),
-        ("media",    "Media Player"),   # <--- CHANGED TO MEDIA
+        ("music",    "Media Player"), # <--- CHANGED BACK TO MUSIC
         ("bookmark", "Bookmarks"),
         ("clock",    "History"),
         ("download", "Downloads"),
@@ -789,125 +948,165 @@ class IconRail(QWidget):
         ("pip",      "Picture-in-Picture"),
         ("devtools", "DevTools"),
     ]
+
     def __init__(self, browser):
         super().__init__(browser)
         self.browser = browser
         self.setFixedWidth(52)
         self.setStyleSheet("background:#041012;")
         v = QVBoxLayout(self); v.setContentsMargins(6, 10, 6, 10); v.setSpacing(4)
+
         self._buttons = {}
         for name, tip in self.PANELS:
-            # Use 'music' icon for 'media' panel
-            icon_name = "music" if name == "media" else name
-            b = make_icon_button(icon_name, tip, btn_size=38, size=22)
+            b = make_icon_button(name, tip, btn_size=38, size=22)
             b.clicked.connect(lambda _=False, n=name: self._on_click(n))
-            v.addWidget(b, 0, Qt.AlignHCenter)
+            v.addWidget(b, 0, Qt.AlignmentFlag.AlignHCenter)
             self._buttons[name] = b
+
         v.addStretch()
+        # bottom pinned settings
         b_set = make_icon_button("settings", "Settings", btn_size=38, size=22)
         b_set.clicked.connect(lambda: self._on_click("settings"))
-        v.addWidget(b_set, 0, Qt.AlignHCenter)
+        v.addWidget(b_set, 0, Qt.AlignmentFlag.AlignHCenter)
         self._buttons["settings"] = b_set
 
+        # bottom incognito toggle (visual only; new tabs go incognito)
+        self.incog = make_icon_button("sun", "New incognito tab", btn_size=38, size=22, color="#ffb84d")
+        self.incog.clicked.connect(lambda: browser.new_tab(incognito=True))
+        v.addWidget(self.incog, 0, Qt.AlignmentFlag.AlignHCenter)
+
     def _on_click(self, name):
+        # immediate actions
         if name == "home":   self.browser.home(); return
         if name == "plus":   self.browser.new_tab(); return
         if name == "reader": self.browser.reader_mode(); return
         if name == "camera": self.browser.screenshot(); return
         if name == "pip":    self.browser.open_pip(); return
         if name == "devtools": self.browser.toggle_devtools(); return
+        
+        # Launch the standalone media player
+        if name == "music":
+            import subprocess
+            subprocess.Popen(["python3", MEDIA_PLAYER])
+            return
+
+        # panel keys
         self.iconClicked.emit(name)
 
     def set_active(self, key):
-        for k, b in self._buttons.items(): b.setChecked(k == key)
+        for k, b in self._buttons.items():
+            b.setChecked(k == key)
 
 # ────────────────────────────────────────────────────────────────────────────
-# Side panel
+# Side panel (collapsible container)
 # ────────────────────────────────────────────────────────────────────────────
 class SidePanel(QWidget):
     def __init__(self, browser):
         super().__init__(browser)
         self.browser = browser
-        self.setMaximumWidth(360); self.setMinimumWidth(0)
+        self._anim = None
+        self.setMaximumWidth(360)
+        self.setMinimumWidth(0)
         self.setStyleSheet("background:#0b1a1f; border-right:1px solid #0f9b8e;")
+
         v = QVBoxLayout(self); v.setContentsMargins(0,0,0,0); v.setSpacing(0)
         self.stack = QStackedWidget()
         v.addWidget(self.stack, 1)
+
         self.pages = {
             "search":    SearchPanel(browser),
             "bookmark":  BookmarksPanel(browser),
             "clock":     HistoryPanel(browser),
             "download":  DownloadsPanel(browser),
-            "media":     MediaPanel(browser),       # <--- ADD THIS LINE
+            "music":     MediaPanel(browser),     # <--- ADD THIS
             "settings":  SettingsPanel(browser),
         }
-        for p in self.pages.values(): self.stack.addWidget(p)
-        self.setVisible(False); self._current = None; self.setFixedWidth(0)
+        for p in self.pages.values():
+            self.stack.addWidget(p)
+
+        self.setVisible(False)  # start collapsed
+        self._current = None
+        self.setFixedWidth(0)
 
     def toggle(self, key):
-        if self._current == key and self.isVisible(): self.collapse(); return
+        if self._current == key and self.isVisible():
+            self.collapse(); return
         self._current = key
         self.stack.setCurrentWidget(self.pages[key])
-        if key == "bookmark": self.pages[key].refresh()
-        if key == "clock": self.pages[key].refresh()
+        # refresh dynamic pages
+        if key == "bookmark" and hasattr(self.pages[key], "refresh"):
+            self.pages[key].refresh()
+        if key == "clock" and hasattr(self.pages[key], "refresh"):
+            self.pages[key].refresh()
         self.expand()
 
     def expand(self):
         target = int(SETTINGS.get("side_panel_width", 280))
-        self.setVisible(True); self._animate_to(target)
+        self.setVisible(True)
+        self._animate_to(target)
 
     def collapse(self):
-        self._current = None; self._animate_to(0)
+        self._current = None
+        self._animate_to(0)
 
     def _animate_to(self, w):
         self._anim = QPropertyAnimation(self, b"maximumWidth", self)
-        self._anim.setDuration(180); self._anim.setStartValue(self.maximumWidth()); self._anim.setEndValue(w)
+        self._anim.setDuration(180)
+        self._anim.setStartValue(self.maximumWidth())
+        self._anim.setEndValue(w)
+        self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        # also animate minimumWidth so the splitter cooperates
         self._anim2 = QPropertyAnimation(self, b"minimumWidth", self)
-        self._anim2.setDuration(180); self._anim2.setStartValue(self.minimumWidth()); self._anim2.setEndValue(w)
+        self._anim2.setDuration(180)
+        self._anim2.setStartValue(self.minimumWidth())
+        self._anim2.setEndValue(w)
+        self._anim2.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._anim.start(); self._anim2.start()
-        if w == 0: self._anim.finished.connect(lambda: self.setVisible(False))
+        if w == 0:
+            self._anim.finished.connect(lambda: self.setVisible(False))
 
 # ────────────────────────────────────────────────────────────────────────────
-# Tab helper
+# Tab helpers
 # ────────────────────────────────────────────────────────────────────────────
 class Tab:
     def __init__(self, browser, profile, url=None):
         self.browser = browser
         self.page = OtterPage(profile, browser)
-        self.view = QWebEngineView()
-        self.view.setPage(self.page)
+        self.view = QWebEngineView(); self.view.setPage(self.page)
+        self.zoom = 1.0
         self.view._otter_tab = self
-        
-        # This tells the tab to open popups in a new tab instead of crashing
-        self.page.createWindow = self._create_window
-        
-        if url: 
-            self.view.setUrl(QUrl(url))
+        if url: self.view.setUrl(QUrl(url))
+    def set_zoom(self, f):
+        self.zoom = max(0.25, min(5.0, f)); self.view.setZoomFactor(self.zoom)
 
-    def _create_window(self, window_type):
-        # Create a new tab for the popup
-        new_tab = self.browser.new_tab("about:blank")
-        return new_tab.page
 # ────────────────────────────────────────────────────────────────────────────
 # Main window
 # ────────────────────────────────────────────────────────────────────────────
 class OtterBrowser(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Otter Browser (PyQt5)")
+        self.setWindowTitle("Otter Browser")
         self.setGeometry(180, 100, 1180, 780)
         self.setMinimumSize(640, 460)
+
         self._pips = []
         self._fact_timer = QTimer(self); self._fact_timer.timeout.connect(self._rotate_fact)
         self._fact_timer.start(9000)
 
+        # ── Profiles ────────────────────────────────────────────────────
         self.profile = self._make_profile("otter-main", OTTER_PROFILE_DIR, True)
         self.local_profile = QWebEngineProfile(self)
         self.local_profile.setHttpUserAgent(REAL_UA)
         self.incognito_profile = self._make_profile("otter-incognito", OTTER_INCOGNITO, False)
+
         for prof in (self.profile, self.local_profile, self.incognito_profile):
             prof.downloadRequested.connect(self._on_download)
 
+        # ── YouTube skipper ────────────────────────────────────────────────────
+        self._inject_ad_skipper()
+
+
+        # ── Root: rail | side panel | main column ───────────────────────
         central = QWidget(); self.setCentralWidget(central)
         root = QHBoxLayout(central); root.setContentsMargins(0,0,0,0); root.setSpacing(0)
 
@@ -918,74 +1117,113 @@ class OtterBrowser(QMainWindow):
         self.side = SidePanel(self)
         root.addWidget(self.side)
 
+        # main column: top bar + tabs
         main = QWidget(); mv = QVBoxLayout(main)
         mv.setContentsMargins(0,0,0,0); mv.setSpacing(0)
         root.addWidget(main, 1)
 
+        # ── Top bar (minimal) ───────────────────────────────────────────
         top = QWidget(); top.setStyleSheet("background:#0b1a1f;")
         tv = QHBoxLayout(top); tv.setContentsMargins(10, 8, 10, 6); tv.setSpacing(6)
 
-        self.btn_back = make_icon_button("back", "Back", self.go_back, size=18, btn_size=32)
-        self.btn_fwd  = make_icon_button("forward", "Forward", self.go_forward, size=18, btn_size=32)
-        self.btn_rl   = make_icon_button("reload", "Reload", self.reload, size=18, btn_size=32)
+        self.btn_back = make_icon_button("back", "Back (Alt+←)", self.go_back, size=18, btn_size=32)
+        self.btn_fwd  = make_icon_button("forward", "Forward (Alt+→)", self.go_forward, size=18, btn_size=32)
+        self.btn_rl   = make_icon_button("reload", "Reload (Ctrl+R)", self.reload, size=18, btn_size=32)
         tv.addWidget(self.btn_back); tv.addWidget(self.btn_fwd); tv.addWidget(self.btn_rl)
 
         self.url = QLineEdit(); self.url.setPlaceholderText("🔍 URL, path, or search…")
-        self.url.returnPressed.connect(self.go); self.url.setMinimumHeight(32)
+        self.url.setClearButtonEnabled(True); self.url.returnPressed.connect(self.go)
+        self.url.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.url.setMinimumHeight(32)
         tv.addWidget(self.url, 1)
 
         self.btn_menu = make_icon_button("menu", "Menu", self.show_menu, size=18, btn_size=32)
         tv.addWidget(self.btn_menu)
+
         mv.addWidget(top)
 
+        # ── Tabs ────────────────────────────────────────────────────────
         self.tabs = QTabWidget()
-        self.tabs.setTabsClosable(True); self.tabs.setMovable(True)
+        self.tabs.setTabsClosable(True)
+        self.tabs.setMovable(True)
+        self.tabs.setDocumentMode(True)
         self.tabs.tabCloseRequested.connect(self.close_tab)
         self.tabs.currentChanged.connect(self._on_tab_changed)
+        self.tabs.tabBar().setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.tabs.tabBar().customContextMenuRequested.connect(self._tab_ctx)
         mv.addWidget(self.tabs, 1)
 
+        # Tab bar "+" button via corner widget
+        plus = make_icon_button("plus", "New tab (Ctrl+T)", lambda: self.new_tab(),
+                                size=16, btn_size=26)
+        self.tabs.setCornerWidget(plus, Qt.Corner.TopRightCorner)
+
+        # ── Status bar ──────────────────────────────────────────────────
         self.setStatusBar(QStatusBar(self))
-        self.status_label = QLabel("ready · engine: QtWebEngine 5")
+        self.status_label = QLabel("ready · engine: QtWebEngine 6")
         self.statusBar().addWidget(self.status_label, 1)
         self.fact_label = QLabel(random.choice(OTTER_FACTS))
+        self.fact_label.setStyleSheet("color:#7fe7dc;")
         self.statusBar().addPermanentWidget(self.fact_label)
 
         self._install_shortcuts()
-        self.new_tab(HOME_PAGE)
 
+        # ── Restore / home ──────────────────────────────────────────────
+        if SETTINGS.get("restore_session", True) and OTTER_SESSION.exists():
+            sess = _load_json(OTTER_SESSION, {})
+            for u in (sess.get("tabs") or [HOME_PAGE]):
+                self.new_tab(u, focus=False)
+            if self.tabs.count() == 0: self.new_tab(HOME_PAGE)
+            idx = sess.get("active", 0)
+            if 0 <= idx < self.tabs.count(): self.tabs.setCurrentIndex(idx)
+        else:
+            self.new_tab(HOME_PAGE)
+
+    # ── profiles ────────────────────────────────────────────────────────
     def _make_profile(self, name, dir_path, persistent):
-        prof_name = "otter-persistent" if persistent else "otter-incognito"
+        # Force a fixed name for the storage so the path doesn't change
+        prof_name = "otter-persistent-profile" if persistent else "otter-incognito-profile"
+        
         prof = QWebEngineProfile(prof_name, self)
+        
         if persistent:
             prof.setPersistentStoragePath(str(dir_path / "storage"))
             prof.setCachePath(str(dir_path / "cache"))
-            prof.setPersistentCookiesPolicy(QWebEngineProfile.ForcePersistentCookies)
-            prof.setHttpCacheType(QWebEngineProfile.DiskHttpCache)
+            # FORCE cookies to save to disk
+            prof.setPersistentCookiesPolicy(QWebEngineProfile.PersistentCookiesPolicy.ForcePersistentCookies)
+            prof.setHttpCacheType(QWebEngineProfile.HttpCacheType.DiskHttpCache)
         else:
-            prof.setPersistentCookiesPolicy(QWebEngineProfile.NoPersistentCookies)
-            prof.setHttpCacheType(QWebEngineProfile.MemoryHttpCache)
+            prof.setPersistentCookiesPolicy(QWebEngineProfile.PersistentCookiesPolicy.NoPersistentCookies)
+            prof.setHttpCacheType(QWebEngineProfile.HttpCacheType.MemoryHttpCache)
+            
+        # Version 2.0: Always use the standard REAL_UA to pass Google's checks
         prof.setHttpUserAgent(REAL_UA)
         return prof
 
+    # ── side panel routing ──────────────────────────────────────────────
     def _on_rail(self, key):
         self.side.toggle(key)
         self.rail.set_active(key if self.side.isVisible() else None)
 
+    # ── tabs ────────────────────────────────────────────────────────────
     def new_tab(self, url=None, focus=True, incognito=False):
         prof = self.incognito_profile if incognito else self.profile
         if url and is_local_url(QUrl(url)): prof = self.local_profile
         tab = Tab(self, prof, url=url or None)
+        
+        # APPLY SAVED ZOOM TO THE NEW TAB
+        try:
+            zoom = float(SETTINGS.get("default_zoom", 0.8))
+            tab.view.setZoomFactor(zoom)
+        except Exception: pass
+
         tab.view.titleChanged.connect(lambda t, tb=tab: self._set_tab_title(tb, t))
         tab.view.urlChanged.connect(lambda u: self._on_url_changed(u))
         idx = self.tabs.addTab(tab.view, "New Tab")
         if not url: tab.view.setUrl(QUrl(HOME_PAGE))
+        self.tabs.setTabToolTip(idx, url or HOME_PAGE)
         if focus: self.tabs.setCurrentIndex(idx); self.url.setFocus()
         return tab
-
-    def createWindow(self, window_type):
-        # When a site requests a popup (like Google Sign-In), open it in a new tab
-        new_tab = self.new_tab()
-        return new_tab.page
 
     def close_tab(self, index):
         if self.tabs.count() == 1: self.home(); return
@@ -1004,44 +1242,28 @@ class OtterBrowser(QMainWindow):
         w = self.tabs.currentWidget()
         return w if isinstance(w, QWebEngineView) else None
 
-    def go(self):
-        url = normalize(self.url.text())
-        if url: self.open_target(url)
-
-    def open_target(self, target):
-        url = normalize(target)
-        if not url: return
-        # INTERCEPT VIDEO FILES
-        if url.startswith("file://") and url.lower().endswith((".mp4", ".mov", ".mkv", ".avi", ".webm")):
-            self.play_native_video(url)
-            return
-        self._swap_page_if_needed(QUrl(url))
-        v = self._active_view()
-        if v: v.setUrl(QUrl(url))
-        log_event("open", url)
-
-    def play_native_video(self, file_url):
-        tab = Tab(self, self.local_profile, url="about:blank")
-        tab.view.setHtml("<body style='background:#0b1a1f;'></body>")
-        idx = self.tabs.addTab(tab.view, "🎬 Video")
-        self.tabs.setCurrentIndex(idx)
-        
-        overlay = NativeVideoOverlay(file_url, parent=tab.view)
-        def resize_overlay(): overlay.setGeometry(0, 0, tab.view.width(), tab.view.height())
-        tab.view.resizeEvent = lambda e: resize_overlay()
-        resize_overlay()
-        overlay.show()
-
+    # ── nav ─────────────────────────────────────────────────────────────
     def _swap_page_if_needed(self, url: QUrl):
         v = self._active_view()
         if not v: return
         want_local = is_local_url(url); has_local = is_local_url(v.url())
         if want_local and not has_local:
             v.setPage(OtterPage(self.local_profile, self))
+            v.page().urlChanged.connect(self._on_url_changed)
         elif not want_local and has_local:
             v.setPage(OtterPage(self.profile, self))
+            v.page().urlChanged.connect(self._on_url_changed)
 
-    def home(self): self.url.setText(SETTINGS.get("home", HOME_PAGE)); self.go()
+    def go(self):
+        url = normalize(self.url.text())
+        if not url: return
+        self._swap_page_if_needed(QUrl(url))
+        v = self._active_view()
+        if v: v.setUrl(QUrl(url))
+        log_event("visit", url)
+
+    def home(self):
+        self.url.setText(SETTINGS.get("home", HOME_PAGE)); self.go()
     def reload(self):
         v = self._active_view()
         if v: v.reload()
@@ -1052,23 +1274,51 @@ class OtterBrowser(QMainWindow):
         v = self._active_view()
         if v: v.forward()
 
+    def open_target(self, target):
+        url = normalize(target)
+        if not url: return
+        self._swap_page_if_needed(QUrl(url))
+        v = self._active_view()
+        if v: v.setUrl(QUrl(url))
+        log_event("open", url)
+
     def _on_url_changed(self, qurl):
         s = qurl.toString()
         self.url.setText(s[7:] if s.startswith("file://") else s)
+        marker = "🔒 local" if is_local_url(qurl) else "🌐"
+        self.statusBar().showMessage(f"{marker} {s}", 4000)
 
     def _on_tab_changed(self, idx):
         v = self.tabs.widget(idx)
-        if isinstance(v, QWebEngineView): self._on_url_changed(v.url())
+        if isinstance(v, QWebEngineView):
+            self._on_url_changed(v.url())
 
+    # ── actions ─────────────────────────────────────────────────────────
     def add_bookmark(self):
         v = self._active_view()
         if not v: return
         BOOKMARKS.add(v.title(), v.url().toString())
         if "bookmark" in self.side.pages: self.side.pages["bookmark"].refresh()
+        self.statusBar().showMessage("★ bookmarked", 2500)
 
     def reader_mode(self):
         v = self._active_view()
-        if v: v.page().runJavaScript("document.body.style.fontFamily='Georgia, serif'; document.body.style.maxWidth='800px'; document.body.style.margin='0 auto';")
+        if not v: return
+        js = r"""
+        (function(){
+            var a = document.querySelector('article') || document.querySelector('main') || document.body;
+            if (!a) return document.title;
+            var html = '<html><head><meta charset="utf-8"><style>'
+                     + 'body{max-width:720px;margin:40px auto;padding:0 20px;'
+                     + 'font-family:Georgia,serif;line-height:1.6;color:#222;background:#fdfdf7;}'
+                     + 'img{max-width:100%;height:auto;}'
+                     + '</style></head><body><h1>' + document.title + '</h1>'
+                     + a.innerHTML + '</body></html>';
+            document.open(); document.write(html); document.close();
+            return document.title;
+        })();"""
+        v.page().runJavaScript(js)
+        self.statusBar().showMessage("📄 reader mode applied", 3000)
 
     def screenshot(self):
         v = self._active_view()
@@ -1077,55 +1327,165 @@ class OtterBrowser(QMainWindow):
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         path = OTTER_SCREENSHOTS / f"otter-{stamp}.png"
         pix.save(str(path), "PNG")
+        self.statusBar().showMessage(f"📸 saved → {path}", 5000)
+        log_event("screenshot", str(path))
 
     def toggle_devtools(self):
         v = self._active_view()
-        if v:
+        if not v: return
+        try:
             d = QWebEngineView(); d.setPage(v.page())
             d.setWindowTitle("🦦 DevTools"); d.resize(900, 600); d.show()
+        except Exception as e:
+            self.statusBar().showMessage(f"DevTools: {e}", 4000)
 
     def open_pip(self):
         v = self._active_view()
         current = v.url().toString() if v else HOME_PAGE
-        text, ok = QInputDialog.getText(self, "📺 PiP", "URL or File Path:", text=current)
+        if current == "about:blank": current = HOME_PAGE
+        text, ok = QInputDialog.getText(self, "📺 Alfred", "Paste a URL for the PiP:", text=current)
         if not ok or not text.strip(): return
         u = normalize(text.strip()) or HOME_PAGE
         prof = self.local_profile if is_local_url(QUrl(u)) else self.profile
         pip = PipWindow(u, prof, parent=self, on_top=SETTINGS.get("pip_on_top", True))
+        pip.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        pip.destroyed.connect(self._on_pip_closed)
         pip.show(); self._pips.append(pip)
+        self.statusBar().showMessage(f"📺 {len(self._pips)} PiP open", 3000)
 
     def _on_pip_closed(self, *_):
         self._pips = [p for p in self._pips if p is not None and p.isVisible()]
 
+    def clear_storage(self):
+        if QMessageBox.question(self, "Clear", "Clear cache, cookies and site data?") \
+                != QMessageBox.StandardButton.Yes: return
+        try:
+            self.profile.clearHttpCache()
+            self.profile.clearAllVisitedLinks()
+            self.profile.cookieStore().deleteAllCookies()
+            self.statusBar().showMessage("🧹 storage cleared", 4000)
+        except Exception as e:
+            self.statusBar().showMessage(f"clear failed: {e}", 4000)
+
+    def save_session(self):
+        tabs = [self.tabs.widget(i).url().toString()
+                for i in range(self.tabs.count())
+                if isinstance(self.tabs.widget(i), QWebEngineView)]
+        _save_json(OTTER_SESSION, {"tabs": tabs, "active": self.tabs.currentIndex()})
+        self.statusBar().showMessage("💾 session saved", 3000)
+
+    # ── downloads ───────────────────────────────────────────────────────
     def _on_download(self, item):
+        suggested = item.downloadFileName() or "download"
+        target = DOWNLOADS_DIR / suggested
+        stem, suffix = target.stem, target.suffix; n = 1
+        while target.exists():
+            target = DOWNLOADS_DIR / f"{stem} ({n}){suffix}"; n += 1
+        item.setDownloadDirectory(str(DOWNLOADS_DIR))
+        item.setDownloadFileName(target.name)
         dlp = self.side.pages.get("download")
         if dlp: dlp.add_download(item)
         self.side.toggle("download")
         self.rail.set_active("download")
+        self.statusBar().showMessage(f"⬇ {target.name}", 4000)
 
+    # ── menu (⋯) ────────────────────────────────────────────────────────
     def show_menu(self):
         m = QMenu(self)
-        m.addAction("＋ New Tab", lambda: self.new_tab())
-        m.addAction("🕶 Incognito", lambda: self.new_tab(incognito=True))
+        m.addAction("＋ New Tab",           "Ctrl+T", lambda: self.new_tab())
+        m.addAction("🕶 New Incognito Tab",  lambda: self.new_tab(incognito=True))
         m.addSeparator()
-        m.addAction("📄 Reader mode", self.reader_mode)
-        m.addAction("📸 Screenshot", self.screenshot)
-        m.addAction("📺 PiP", self.open_pip)
+        m.addAction("🔍 Search panel",      lambda: self._on_rail("search"))
+        m.addAction("📚 Bookmarks panel",   lambda: self._on_rail("bookmark"))
+        m.addAction("🕘 History panel",     lambda: self._on_rail("clock"))
+        m.addAction("⬇ Downloads panel",    lambda: self._on_rail("download"))
+        m.addAction("⚙ Settings panel",     lambda: self._on_rail("settings"))
         m.addSeparator()
-        m.addAction("✕ Quit", self.close)
-        m.exec_(self.btn_menu.mapToGlobal(QPoint(0, self.btn_menu.height())))
+        m.addAction("📄 Reader mode",       self.reader_mode)
+        m.addAction("📸 Screenshot",        self.screenshot)
+        m.addAction("📺 Picture-in-Picture",self.open_pip)
+        m.addAction("🛠 DevTools",          self.toggle_devtools)
+        m.addSeparator()
+        zoom = m.addMenu("🔎 Zoom")
+        zoom.addAction("Zoom In",  self.zoom_in)
+        zoom.addAction("Zoom Out", self.zoom_out)
+        zoom.addAction("Reset",    self.zoom_reset)
+        m.addSeparator()
+        m.addAction("💾 Save session now", self.save_session)
+        m.addAction("✕ Quit",              self.close)
+        m.exec(self.btn_menu.mapToGlobal(QPoint(0, self.btn_menu.height())))
 
+    def zoom_in(self):
+        v = self._active_view()
+        if v: v.setZoomFactor(min(5.0, v.zoomFactor() + 0.1))
+    def zoom_out(self):
+        v = self._active_view()
+        if v: v.setZoomFactor(max(0.25, v.zoomFactor() - 0.1))
+
+    def zoom_reset(self):
+        v = self._active_view()
+        if v: 
+            try:
+                saved_zoom = float(SETTINGS.get("default_zoom", 0.8))
+                v.setZoomFactor(saved_zoom)
+            except Exception:
+                v.setZoomFactor(1.0)
+
+    # ── shortcuts ───────────────────────────────────────────────────────
     def _install_shortcuts(self):
-        QShortcut(QKeySequence("Ctrl+T"), self, self.new_tab)
-        QShortcut(QKeySequence("Ctrl+W"), self, lambda: self.close_tab(self.tabs.currentIndex()))
-        QShortcut(QKeySequence("Ctrl+L"), self, lambda: self.url.setFocus())
-        QShortcut(QKeySequence("Ctrl+R"), self, self.reload)
-        QShortcut(QKeySequence("F5"), self, self.reload)
+        S = QShortcut
+        S(QKeySequence("Ctrl+T"), self, activated=lambda: self.new_tab())
+        S(QKeySequence("Ctrl+W"), self, activated=lambda: self.close_tab(self.tabs.currentIndex()))
+        S(QKeySequence("Ctrl+L"), self, activated=lambda: (self.url.setFocus(), self.url.selectAll()))
+        S(QKeySequence("Ctrl+R"), self, activated=self.reload)
+        S(QKeySequence("F5"),     self, activated=self.reload)
+        S(QKeySequence("F11"),    self, activated=self._toggle_fullscreen)
+        S(QKeySequence("F12"),    self, activated=self.toggle_devtools)
+        S(QKeySequence("Ctrl+D"), self, activated=self.add_bookmark)
+        S(QKeySequence("Ctrl+B"), self, activated=lambda: self._on_rail("bookmark"))
+        S(QKeySequence("Ctrl+H"), self, activated=lambda: self._on_rail("clock"))
+        S(QKeySequence("Ctrl+J"), self, activated=lambda: self._on_rail("download"))
+        S(QKeySequence("Ctrl+,"), self, activated=lambda: self._on_rail("settings"))
+        S(QKeySequence("Ctrl+K"), self, activated=lambda: self._on_rail("search"))
+        S(QKeySequence("Ctrl++"), self, activated=self.zoom_in)
+        S(QKeySequence("Ctrl+="), self, activated=self.zoom_in)
+        S(QKeySequence("Ctrl+-"), self, activated=self.zoom_out)
+        S(QKeySequence("Ctrl+0"), self, activated=self.zoom_reset)
+        S(QKeySequence("Ctrl+Shift+P"), self, activated=self.open_pip)
+        S(QKeySequence("Ctrl+Shift+S"), self, activated=self.screenshot)
+        S(QKeySequence("Ctrl+Shift+R"), self, activated=self.reader_mode)
+        S(QKeySequence("Alt+Left"),  self, activated=self.go_back)
+        S(QKeySequence("Alt+Right"), self, activated=self.go_forward)
+        S(QKeySequence("Ctrl+Shift+W"), self, activated=self._close_other_tabs)
 
+    def _close_other_tabs(self):
+        cur = self.tabs.currentIndex()
+        for i in reversed(range(self.tabs.count())):
+            if i != cur: self.close_tab(i)
+
+    def _toggle_fullscreen(self):
+        if self.isFullScreen(): self.showNormal()
+        else: self.showFullScreen()
+
+    # ── fact ticker ─────────────────────────────────────────────────────
     def _rotate_fact(self):
         self.fact_label.setText(random.choice(OTTER_FACTS))
 
+    # ── tab context menu ────────────────────────────────────────────────
+    def _tab_ctx(self, pos):
+        idx = self.tabs.tabBar().tabAt(pos)
+        if idx < 0: return
+        m = QMenu(self)
+        m.addAction("Reload",       lambda: self.tabs.widget(idx).reload())
+        m.addAction("Duplicate",    lambda: self.new_tab(self.tabs.widget(idx).url().toString()))
+        m.addAction("Close",        lambda: self.close_tab(idx))
+        m.addAction("Close others", self._close_other_tabs)
+        m.exec(self.tabs.tabBar().mapToGlobal(pos))
+
+    # ── close ───────────────────────────────────────────────────────────
     def closeEvent(self, event):
+        try: self.save_session()
+        except Exception: pass
         for p in list(self._pips):
             try: p.close()
             except Exception: pass
@@ -1137,15 +1497,52 @@ class OtterBrowser(QMainWindow):
         super().closeEvent(event)
 
 
+    # ── YouTube init skip ───────────────────────────────────────────────────────────
+
+    def _inject_ad_skipper(self):
+        script_code = """
+        (function() {
+            setInterval(function() {
+                var skipBtn = document.querySelector('.ytp-ad-skip-button');
+                if (skipBtn) skipBtn.click();
+                var overlayAd = document.querySelector('.ytp-ad-overlay-close-button');
+                if (overlayAd) overlayAd.click();
+            }, 1000);
+        })();
+        """
+        script = QWebEngineScript()
+        script.setSourceCode(script_code)
+        script.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentReady)
+        script.setWorldId(QWebEngineScript.ScriptWorldId.MainWorld)
+        script.setRunsOnSubFrames(True)
+        self.profile.scripts().insert(script)
+        self.local_profile.scripts().insert(script)
+
+# ────────────────────────────────────────────────────────────────────────────
+# Banner / main
+# ────────────────────────────────────────────────────────────────────────────
+def banner():
+    print("\n" + "=" * 68)
+    print("  🦦  otter.py4 — Turbo Otter Browser · side-panel edition")
+    print("  layout  : left icon rail · collapsible side panel · clean tabs")
+    print("  features: bookmarks · history · downloads · search · settings")
+    print("            reader · screenshot · PiP · devtools · incognito")
+    print("=" * 68)
+    print(f"  log       : {OTTER_LOG}")
+    print(f"  profile   : {OTTER_PROFILE_DIR}")
+    print(f"  downloads : {DOWNLOADS_DIR}")
+    print(f"  shots     : {OTTER_SCREENSHOTS}")
+    print("=" * 68 + "\n")
+
 def main():
-    print("\n" + "="*60)
-    print("  🦦 otter.py4 (PyQt5 Native Video Edition)")
-    print("="*60 + "\n")
+    banner()
     app = QApplication(sys.argv)
+    app.setApplicationName("otter.py4")
     apply_otter_theme(app)
     win = OtterBrowser()
     win.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
 
 if __name__ == "__main__":
     main()
+#+--|!/usr/bin/env python4
