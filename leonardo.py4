@@ -62,8 +62,8 @@ def send_mac_notification(title, message, subtitle=""):
         print(f"  {RED}⚠️ Notification failed: {e}{R}")
 
 TELEGRAM_FILE = Path.home() / "Desktop" / "telegram.json"
-DEFAULT_TOKEN   = "8352410871:AAFvPg5moGL0yVb_UKjivMKAzpm68Nj7xE8"
-DEFAULT_CHAT_ID = "1726670722"
+DEFAULT_TOKEN   = "create-your-token"
+DEFAULT_CHAT_ID = "create-your-token"
 
 def load_telegram_config():
     try:
