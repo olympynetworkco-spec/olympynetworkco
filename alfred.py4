@@ -36,8 +36,11 @@ import socketserver
 import asyncio
 import math
 
+
 from datetime import datetime, timedelta
 from pathlib import Path
+
+
 #+--|════════════════════════════════════════════════════════════════════
 
 from dotenv import load_dotenv
@@ -98,12 +101,6 @@ def alfred_log(badge, module, message, badge_color=BG_GREEN):
 
 _start = time.time()
 _tick = 0
-
-
-#+--|════════════════════════════════════════════════════════════════════
-#+--| def get_cpu():
-#+--| def get_ram():
-#+--|════════════════════════════════════════════════════════════════════
 
 #+--|════════════════════════════════════════════════════════════════════
 #+--| def get_cpu() / get_ram() — cached (5s TTL)
@@ -922,27 +919,116 @@ def send_notification(title, message, subtitle=""):
     except Exception as e:
         log_error(f"notify failed: {e}")
 
+
 #+--|════════════════════════════════════════════════════════════════════
-#+--| ─── FETCH + SAVE ───
+#+--| ─── MICHAEL ANGELOA HOT-SWAP (replaces old fetch_and_save PKG) ───
 #+--|════════════════════════════════════════════════════════════════════
 
+MICHAELANGELO_PATH = "/Users/olympynetworkco/Desktop/michealangelo-nhl-agent.py4"
+
+
+def _extract_game_id(url):
+    """Pull the numeric NHL gameId out of any ESPN NHL URL."""
+    if not url:
+        return None
+    m = re.search(r'/gameId/(\d+)', url) or re.search(r'gameId[=/](\d+)', url)
+    return m.group(1) if m else None
+
+
+def _swap_constant(text, var, new_val):
+    """Replace the first `VAR = "…"` assignment in `text`. No type hints, no reformatting."""
+    pat = re.compile(rf'^(\s*{var}\s*=\s*)"[^"\n]*"', re.MULTILINE)
+    new_text, n = pat.subn(rf'\1"{new_val}"', text, count=1)
+    if n == 0:
+        raise RuntimeError(f"anchor not found: {var}")
+    return new_text
+
+
+def update_michaelangelo(espn_url, yahoo_url):
+    """
+    Rewrite the four config constants in michealangelo.py4:
+      GAMECAST_NHL_GAME  ← https://www.espn.com/nhl/game/_/gameId/<gid>
+      PLAY_BY_PLAY_NHL   ← https://www.espn.com/nhl/playbyplay/_/gameId/<gid>
+      SCORING_SUMMARY    ← https://www.espn.com/nhl/boxscore/_/gameId/<gid>
+      WP                 ← yahoo_url (as given)
+    Backs the file up, then launches him detached. Returns a status string.
+    """
+    p = Path(MICHAELANGELO_PATH)
+    if not p.exists():
+        return f"🎩 Michael Angeloa not found at {p}, Sir."
+
+    gid = _extract_game_id(espn_url)
+    if not gid:
+        return "🎩 Couldn't find a gameId in that ESPN link, Sir."
+
+    gamecast = f"https://www.espn.com/nhl/game/_/gameId/{gid}"
+    pbp      = f"https://www.espn.com/nhl/playbyplay/_/gameId/{gid}"
+    box      = f"https://www.espn.com/nhl/boxscore/_/gameId/{gid}"
+
+    src = p.read_text(encoding="utf-8")
+
+    # ── backup once per update ──
+    stamp  = datetime.now().strftime("%Y%m%d-%H%M%S")
+    backup = p.with_name(f"{p.name}.bak-{stamp}")
+    backup.write_text(src, encoding="utf-8")
+
+    # ── swap the four constants ──
+    try:
+        src = _swap_constant(src, "GAMECAST_NHL_GAME", gamecast)
+        src = _swap_constant(src, "PLAY_BY_PLAY_NHL",  pbp)
+        src = _swap_constant(src, "SCORING_SUMMARY",   box)
+        src = _swap_constant(src, "WP",                yahoo_url)
+    except RuntimeError as e:
+        return f"🎩 Config swap failed, Sir: {e}"
+
+    p.write_text(src, encoding="utf-8")
+
+    # ── launch detached so Alfred's loop keeps running ──
+    try:
+        subprocess.Popen(
+            ["/usr/bin/env", "python4", str(p)],
+            cwd=str(p.parent),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception as e:
+        return f"🎩 Michael updated but launch failed, Sir: {e}"
+
+    return (
+        f"🎩 Michael Angeloa reloaded, Sir.\n"
+        f"   🏒 ESPN gameId : {gid}\n"
+        f"   📊 Yahoo       : {yahoo_url}\n"
+        f"   ⎙ backup       : {backup.name}\n"
+        f"   🚀 launched."
+    )
 
 
 def fetch_and_save(url, dest_dir, filename, original_msg=""):
     """
-    Save URL as:
-      {filename}.pdf       — rendered PDF (Google Chrome headless)
-      {filename}.txt       — raw html, named .txt so your editor opens it as source
-      {host}:{slug}.webloc — macOS shortcut
-      {filename}.html      — raw page (kept)
+    Kept under the same name/signature so nothing else in alfred.py4 breaks.
+
+    If `url` (or `original_msg`) contains both an ESPN-NHL and a Yahoo-NHL link,
+    we hand off to update_michaelangelo() and return its status string.
+    Otherwise we fall back to a minimal fetch-and-save: .txt + .html + .webloc
+    (no PDF, no Telegram spam — PKG is disabled).
     """
     from urllib.parse import urlparse
 
-    # ── 0. Fetch raw ──
+    # ── NHL reload path: scan both the url arg and the original message ──
+    blob  = f"{original_msg or ''} {url or ''}"
+    urls  = re.findall(r'https?://\S+', blob)
+    espn  = next((u for u in urls if "espn.com" in u and "nhl" in u), None)
+    yahoo = next((u for u in urls if "yahoo.com" in u and "nhl" in u), None)
+
+    if espn and yahoo:
+        return update_michaelangelo(espn, yahoo)
+
+    # ── fallback: quiet fetch, three files, no PDF, no TG ──
+    dest_dir = Path(dest_dir)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
     context = ssl._create_unverified_context()
-    req = urllib.request.Request(
-        url, headers={'User-Agent': 'ALFRED-Watchman/1.0'}
-    )
+    req = urllib.request.Request(url, headers={'User-Agent': 'ALFRED-Watchman/1.0'})
     with urllib.request.urlopen(req, timeout=35, context=context) as r:
         raw = r.read()
 
@@ -951,53 +1037,10 @@ def fetch_and_save(url, dest_dir, filename, original_msg=""):
     except UnicodeDecodeError:
         html_text = raw.decode('latin-1', errors='replace')
 
-    # ── 1. PDF (Google Chrome headless + live countdown) ──
-    pdf_path = dest_dir / f"{filename}.pdf"
-    chrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-    PDF_TIMEOUT = 35
-
-    if not os.path.exists(chrome):
-        print(f"🎩 📕 Chrome not found at {chrome} — skipping PDF")
-    else:
-        print(f"🎩 📕 rendering PDF (up to {PDF_TIMEOUT}s)…", flush=True)
-
-        proc = subprocess.Popen([
-            chrome, '--headless=new', '--disable-gpu', '--no-sandbox',
-            f'--print-to-pdf={pdf_path}',
-            '--no-pdf-header-footer',
-            url
-        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-        start = time.time()
-        bar_len = 24
-        while proc.poll() is None:
-            elapsed = time.time() - start
-            if elapsed >= PDF_TIMEOUT:
-                proc.kill()
-                print(f"\r🎩 📕 PDF timed out after {PDF_TIMEOUT}s" + " " * 35)
-                break
-            pct = min(elapsed / PDF_TIMEOUT, 1.0)
-            filled = int(bar_len * pct)
-            bar = "█" * filled + "░" * (bar_len - filled)
-            secs_left = int(PDF_TIMEOUT - elapsed)
-            sys.stdout.write(f"\r🎩 📕 [{bar}] {int(elapsed)}s / {PDF_TIMEOUT}s ({secs_left}s left)")
-            sys.stdout.flush()
-            time.sleep(0.5)
-
-        print()
-
-        if pdf_path.exists() and pdf_path.stat().st_size > 500:
-            kb = pdf_path.stat().st_size // 1024
-            print(f"🎩 📕 {filename}.pdf ({kb} KB)")
-        else:
-            print(f"🎩 📕 {filename}.pdf — conversion produced nothing")
-
-    # ── 2. TXT (raw html, editable source) ──
     (dest_dir / f"{filename}.txt").write_text(html_text, encoding='utf-8')
-    print(f"🎩 📝 {filename}.txt ({len(raw)} bytes)")
+    (dest_dir / f"{filename}.html").write_text(html_text, encoding='utf-8')
 
-    # ── 3. WEBLOC ──
-    p = urlparse(url)
+    p    = urlparse(url)
     host = p.netloc or "unknown"
     slug = (p.path.strip("/") or "root").split("/")[0].split("?")[0] or "index"
     webloc = dest_dir / f"{host}:{slug}.webloc"
@@ -1013,15 +1056,9 @@ def fetch_and_save(url, dest_dir, filename, original_msg=""):
         '</plist>\n',
         encoding='utf-8'
     )
-    print(f"🎩 🔗 {webloc.name}")
 
-    # ── 4. HTML (raw page) ──
-    (dest_dir / f"{filename}.html").write_text(html_text, encoding='utf-8')
-    print(f"🎩 💾 {filename}.html ({len(raw)} bytes)")
-
-    send_telegram(f"✓ PKG: {filename}.pdf + .txt + .webloc + .html")
-    return str(pdf_path)
-
+    print(f"🎩 📝 {filename}.txt · 💾 {filename}.html · 🔗 {webloc.name}")
+    return str(dest_dir / f"{filename}.html")
 
 #+--|════════════════════════════════════════════════════════════════════
 #+--|#+--| ─── TELEGRAM CHAT LOG (alfred-tg-chat.json) ───
@@ -1209,6 +1246,18 @@ def telegram_listener():
                 send_telegram(alfred_think(msg))
                 continue
 
+            # ── NHL reload: ESPN + Yahoo link in the same message ──
+            # MUST run before extract_url's `continue` below, or it never fires.
+            urls  = re.findall(r'https?://\S+', msg)
+            espn  = next((u for u in urls if "espn.com" in u and "nhl" in u), None)
+            yahoo = next((u for u in urls if "yahoo.com" in u and "nhl" in u), None)
+
+            if espn and yahoo:
+                print(f"[TG] 🏒 NHL reload: espn={espn} yahoo={yahoo}")
+                send_telegram(update_michaelangelo(espn, yahoo))
+                log_tg_message("alfred", "Michael Angeloa reloaded")
+                continue
+
             # ===== URL — acknowledged, no PKG =====
             url = extract_url(msg)
             if url:
@@ -1225,7 +1274,6 @@ def telegram_listener():
                 continue
 
             # ===== DEFAULT RESPONSE =====
-            # ===== DEFAULT RESPONSE =====
             send_telegram(f"📨 Got it: {msg}...")
             log_tg_message("alfred", "")          # ← empty placeholder
 
@@ -1233,6 +1281,7 @@ def telegram_listener():
         except Exception as e:
             print(f"[TG] Listener error: {e}")
             time.sleep(5)
+
 
 #+--|════════════════════════════════════════════════════════════════════
 # ===== START TELEGRAM =====
@@ -1773,10 +1822,29 @@ def _fetch_nhl_games():
     return games
 
 
+
+import base64
+
 def _build_badge_html(games, changed_keys=None):
-    """Load scores-badge.html and inject game rows. Rows in changed_keys get a green highlight."""
+    """Load scores-badge.html and inject game rows with Base64 embedded logos."""
     changed_keys = changed_keys or set()
     template = Path(SCORES_BADGE_HTML).read_text(encoding="utf-8")
+
+    # ── Helper to read the PNG and convert it to a Base64 string ──
+    def get_base64_logo(abbr):
+        if abbr == "NJ": file_abbr = "njd"
+        elif abbr == "TB": file_abbr = "tbl"
+        elif abbr == "LA": file_abbr = "lak"
+        else: file_abbr = abbr.lower()
+        
+        img_path = Path(f"/Users/olympynetworkco/Desktop/themes/nhl/{file_abbr}.png")
+        if img_path.exists():
+            try:
+                b64_data = base64.b64encode(img_path.read_bytes()).decode('utf-8')
+                return f"data:image/png;base64,{b64_data}"
+            except Exception:
+                pass
+        return "" # fallback if file is missing
 
     if not games:
         rows = '<div style="text-align:center;color:#6b6b6b;padding:12px;">No games right now.</div>'
@@ -1786,7 +1854,7 @@ def _build_badge_html(games, changed_keys=None):
             color = "#ef4444" if g["state"] == "in" else ("#22c55e" if g["state"] == "post" else "#facc15")
             key = f'{g["away"]}@{g["home"]}'
             changed = key in changed_keys
-            # Green tint + left bar when the score just changed
+            
             row_style = (
                 "display:flex;align-items:center;justify-content:space-between;"
                 "padding:8px 8px;border-bottom:1px solid #e7e7e5;"
@@ -1796,14 +1864,27 @@ def _build_badge_html(games, changed_keys=None):
                     "background:#dcfce7;border-left:4px solid #16a34a;"
                     "padding-left:10px;border-radius:4px;"
                 )
+                
+            # ── Get the Base64 image strings ──
+            away_b64 = get_base64_logo(g["away"].upper())
+            home_b64 = get_base64_logo(g["home"].upper())
+            
+            logo_style = "width:20px;height:20px;object-fit:contain;vertical-align:middle;margin-right:6px;border-radius:3px;"
+            
+            # Only build the <img> tag if the Base64 data exists
+            away_img = f'<img src="{away_b64}" style="{logo_style}">' if away_b64 else ""
+            home_img = f'<img src="{home_b64}" style="{logo_style}margin-left:8px;margin-right:6px;">' if home_b64 else ""
+
             parts.append(
                 f'<div style="{row_style}">'
-                f'<span style="font-size:13px;color:#1a1a1a;">'
-                f'<b>{_esc(g["away"])}</b> '
+                f'<span style="font-size:13px;color:#1a1a1a;display:flex;align-items:center;">'
+                f'{away_img}'
+                f'<b style="margin-right:8px;">{_esc(g["away"])}</b> '
                 f'<span style="color:#6b6b6b;">{_esc(g["away_score"])}</span>'
                 f' <span style="color:#6b6b6b;">—</span> '
                 f'<span style="color:#6b6b6b;">{_esc(g["home_score"])}</span>'
-                f' <b>{_esc(g["home"])}</b>'
+                f'{home_img}'
+                f'<b>{_esc(g["home"])}</b>'
                 f'</span>'
                 f'<span style="font-size:11px;font-weight:700;letter-spacing:.5px;'
                 f'color:{color};background:{color}1a;padding:2px 7px;border-radius:6px;">'
@@ -1832,6 +1913,12 @@ def _build_badge_html(games, changed_keys=None):
     template = template.replace("Badge", "Live")
     template = template.replace("Master Art · OlympyNetworkCo", "OlympyNetworkCo · Watchman")
     template = template.replace("MCP-7F9·A3B1", "NHL · LIVE")
+    
+    template = template.replace(
+        "Verifies completion of the MCP program and unlocks gated resources.",
+        "Live NHL scoreboard · refreshed every 2 min by the Watchman."
+    )
+    
     return template
 
 
@@ -1900,6 +1987,10 @@ def check_live_scores(sport="nhl"):
     caption = f"🏒 NHL · {datetime.now().strftime('%b %d · %I:%M %p').replace(' 0',' ')}"
     if changed:
         caption += f" · {len(changed)} score change{'s' if len(changed)!=1 else ''}"
+
+
+    # ── ADD THIS: Append the clickable link to the caption ──
+    caption += "\n\n📱 Tap to view live: http://10.0.0.58:8080/data/score-card-latest.html"
 
     _send_document(out, caption=caption)
     log_info(f"[SCORES] {sport} html sent · {len(changed)} changed")
