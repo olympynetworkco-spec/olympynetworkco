@@ -2055,7 +2055,7 @@ class MediaPanel(PanelPage):
         print(f"▶ Playing external stream: {url}")
 
 # ────────────────────────────────────────────────────────────────────────────
-# Left icon rail : sidebar rail
+# Left icon rail : sidebar rail iconRail.__init__
 # ────────────────────────────────────────────────────────────────────────────
 class IconRail(QWidget):
     """Vertical rail of icon buttons that drive the side panel."""
@@ -2086,7 +2086,7 @@ class IconRail(QWidget):
         super().__init__(browser)
         self.browser = browser
         self.setFixedWidth(52)
-        self.setStyleSheet("background:#041012;")
+        # self.setStyleSheet("background:#041012;") # <-- silence this if you want theme light/dark to work
         
         # 1. Create a scroll area
         scroll = QScrollArea()
@@ -2095,16 +2095,18 @@ class IconRail(QWidget):
         
         # Hide the horizontal scrollbar, style the vertical one to be thin
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
         scroll.setStyleSheet("""
             QScrollArea { background: transparent; border: none; }
-            QScrollBar:vertical { background: #041012; width: 4px; }
+            QScrollBar:vertical { background: transparent; width: 4px; }
             QScrollBar::handle:vertical { background: #0f9b8e; border-radius: 2px; }
             QScrollBar::add-line, QScrollBar::sub-line { height: 0; }
         """)
 
         # 2. The inner container that actually holds the buttons
         container = QWidget()
-        container.setStyleSheet("background: #041012;")
+        container.setStyleSheet("background: transparent;")
+
         v = QVBoxLayout(container)
         v.setContentsMargins(6, 10, 6, 10)
         v.setSpacing(4)
