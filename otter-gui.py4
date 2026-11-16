@@ -1041,10 +1041,13 @@ class OtterPage(QWebEnginePage):
             try:
                 payload = message.split("__OTTER_FACTS__:", 1)[1]
                 items = json.loads(payload)
-                view = self.view()
-                tab = getattr(view, "_otter_tab", None) if view else None
-                if tab:
-                    tab.browser._apply_scraped_facts(items)
+                
+                # Fix: Get the browser window from the page's parent
+                parent = self.parent()
+                browser = parent.window() if parent else None
+                
+                if browser and hasattr(browser, "_apply_scraped_facts"):
+                    browser._apply_scraped_facts(items)
             except Exception as e:
                 print(f"[otter] facts parse: {e}")
 
@@ -1112,7 +1115,35 @@ class OtterPage(QWebEnginePage):
 
         # ── Everything below is dead code, preserved for future ──
         js = r"""
-        ...
+        (function() {
+            try {
+                var out = [];
+                var seen = {};
+                
+                // Grab ALL links on the page
+                document.querySelectorAll('a').forEach(function(a) {
+                    // Get the text from inside the link, or fall back to aria-label
+                    var t = (a.innerText || a.getAttribute('aria-label') || '').trim();
+                    
+                    // Filter out short/long garbage, and strip out extra whitespace/newlines
+                    t = t.replace(/\s+/g, ' ');
+                    if (t.length < 15 || t.length > 160) return;
+                    
+                    // Ignore generic UI links
+                    if (t.toLowerCase() === 'read more' || t.toLowerCase() === 'see all' || t.toLowerCase().includes('sign in')) return;
+                    
+                    if (seen[t]) return;
+                    seen[t] = 1;
+                    out.push(t);
+                });
+                
+                // Take the first 25 valid headlines we found
+                out = out.slice(0, 25);
+                console.log('__OTTER_FACTS__:' + JSON.stringify(out));
+            } catch(e) {
+                console.log('__OTTER_FACTS__:' + JSON.stringify([]));
+            }
+        })();
         """
         self.runJavaScript(js)
         self._voice_shim_installed = True
@@ -3045,8 +3076,12 @@ class OtterBrowser(QMainWindow):
 
     # ── fact ticker ─────────────────────────────────────────────────────
     def _rotate_fact(self):
-        pool = self._scraped_facts if len(self._scraped_facts) >= 3 else OTTER_FACTS
-        self.fact_label.setText(random.choice(pool))
+        # Use scraped facts if they exist. If not, show a waiting message.
+        if self._scraped_facts:
+            self.fact_label.setText(random.choice(self._scraped_facts))
+        else:
+            self.fact_label.setText("🐦 Waiting for headlines... click the burger menu to scrape a page.")
+
 
     # ── tab context menu ────────────────────────────────────────────────
     def _tab_ctx(self, pos):
@@ -3139,15 +3174,44 @@ class OtterBrowser(QMainWindow):
             try {
                 var out = [];
                 var seen = {};
-                document.querySelectorAll('h3 a[aria-label]').forEach(function(a) {
-                    var t = (a.getAttribute('aria-label') || '').trim();
+                
+                // 1. Try Yahoo's specific data tags and standard headlines
+                var elements = document.querySelectorAll('a[data-ylk], h2, h3, h4, .headline');
+                
+                elements.forEach(function(el) {
+                    var t = '';
+                    
+                    // 2. Look for aria-label first (Yahoo uses this on images)
+                    // 3. Fall back to innerText/textContent
+                    var aria = el.getAttribute('aria-label');
+                    if (aria && aria.length > 15) {
+                        t = aria.trim();
+                    } else {
+                        t = (el.innerText || el.textContent || '').trim().replace(/\s+/g, ' ');
+                    }
+
+                    // Filter: Must be between 15 and 160 chars
                     if (t.length < 15 || t.length > 160) return;
+                    
+                    // Filter: Skip obvious UI junk
+                    var lower = t.toLowerCase();
+                    if (lower.includes('sign in') || lower.includes('privacy') || 
+                        lower.includes('cookie') || lower.includes('advertisement') ||
+                        lower === 'read more' || lower === 'see all' || lower === 'help') return;
+                    
+                    // Filter: Must contain at least one letter
+                    if (!/[a-zA-Z]/.test(t)) return;
+                    
                     if (seen[t]) return;
                     seen[t] = 1;
                     out.push(t);
                 });
-                console.log('__OTTER_FACTS__:' + JSON.stringify(out));
+                
+                // Debug logging
+                console.log('__OTTER_DEBUG__: Found ' + out.length + ' headlines');
+                console.log('__OTTER_FACTS__:' + JSON.stringify(out.slice(0, 25)));
             } catch(e) {
+                console.log('__OTTER_DEBUG__: Error: ' + e.message);
                 console.log('__OTTER_FACTS__:' + JSON.stringify([]));
             }
         })();
@@ -3184,9 +3248,7 @@ class OtterBrowser(QMainWindow):
             pass
         self.statusBar().showMessage("🦦 facts reset to otters", 3000)
 
-
     # ── notes init ───────────────────────────────────────────────────────────
-
 
     def open_notes(self):
         """Open (or raise) the floating notes window."""
