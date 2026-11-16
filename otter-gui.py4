@@ -57,7 +57,8 @@ from PySide6.QtWidgets import (
     QListWidgetItem, QComboBox, QCheckBox, QPlainTextEdit, QProgressBar,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QStatusBar, QFrame, QScrollArea, QSplitter, QToolBar, QGraphicsDropShadowEffect,
-    QSlider  # <--- ADD THIS LINE
+    QSlider, QSpinBox  # <--- add QSpinBox here
+
 )
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore import (
@@ -278,6 +279,11 @@ class Settings:
         self.data.setdefault("home", HOME_PAGE)
         self.data.setdefault("side_panel_width", 280)
         self.data.setdefault("default_zoom", 0.8)  # <--- ADD THIS (80%)
+
+        self.data.setdefault("refresh_enabled", False)   # OFF by default
+        self.data.setdefault("refresh_interval", 60)     # 60 seconds
+        self.data.setdefault("refresh_idle_only", True)  # idle-only by default
+
     def get(self, k, d=None): return self.data.get(k, d)
     def set(self, k, v):
         self.data[k] = v
@@ -478,6 +484,16 @@ def draw_icon(name: str, size: int = 22, color: str = "#7fe7dc") -> QPixmap:
         p.drawLine(int(s*0.8), int(s*0.2), int(s*0.8), int(s*0.6))
         p.drawEllipse(QRectF(s*0.25, s*0.6, s*0.3, s*0.2))
         p.drawEllipse(QRectF(s*0.65, s*0.5, s*0.3, s*0.2))
+
+
+    elif name == "globe":
+        cx, cy = s/2, s/2
+        r = s*0.32
+        p.drawEllipse(QRectF(cx-r, cy-r, r*2, r*2))
+        p.drawLine(int(cx-r), int(cy), int(cx+r), int(cy))
+        p.drawLine(int(cx), int(cy-r), int(cx), int(cy+r))
+        p.drawArc(QRectF(cx-r*0.55, cy-r, r*1.1, r*2), 90*16, 180*16)
+        p.drawArc(QRectF(cx-r*0.55, cy-r, r*1.1, r*2), -90*16, 180*16)
 
     elif name == "mic":
         # Mic capsule
@@ -772,6 +788,14 @@ class OtterPage(QWebEnginePage):
             if tab and tab.bridge._running:
                 tab.bridge.stop_listening()
                 tab.browser.statusBar().showMessage("🎤 stopped", 2000)
+
+        if isinstance(message, str) and message.startswith("__OTTER_ACTIVE__"):
+            view = self.view()
+            if view:
+                tab = getattr(view, "_otter_tab", None)
+                if tab:
+                    import time
+                    tab.browser._last_activity[id(view)] = time.time()
         # everything else stays silent
 
     def acceptNavigationRequest(self, url, nav_type, is_main_frame):
@@ -809,55 +833,26 @@ class OtterPage(QWebEnginePage):
     # ── JS voice shim ───────────────────────────────────────────────────
 
     def _install_voice_shim(self):
-        # Native Chromium speech recognition is better than a Python bridge.
-        # Do nothing here — the browser engine handles the mic natively.
+        # Activity pings — must run BEFORE the return so it actually fires
+        activity_js = r"""
+        (function(){
+            if (window.__otterActivityHooked) return;
+            window.__otterActivityHooked = true;
+            ['keydown', 'mousedown', 'scroll', 'input'].forEach(function(evt) {
+                document.addEventListener(evt, function() {
+                    console.log('__OTTER_ACTIVE__');
+                }, { passive: true });
+            });
+        })();
+        """
+        self.runJavaScript(activity_js)
+
+        # Voice shim intentionally disabled
         return
 
-        # 2. Otherwise, inject the shim for external websites
+        # ── Everything below is dead code, preserved for future ──
         js = r"""
-        (function(){
-            if (window.__otterVoiceInstalled) return;
-            window.__otterVoiceInstalled = true;
-            window.__otterVoiceRequested = false;
-
-            function makeRecog(){
-                var rec = {
-                    continuous: false, interimResults: false, lang: "en-US",
-                    onresult: null, onerror: null, onend: null, onstart: null,
-                    _started: false,
-                    addEventListener: function(){}, removeEventListener: function(){},
-                    abort: function(){ this._started = false; },
-                    stop: function(){ this._started = false; if (this.onend) this.onend({}); },
-                    start: function(){
-                        var self = this;
-                        if (self.onstart) self.onstart();
-                        self._started = true;
-                        window.__otterVoiceRequested = true;
-                        var poll = setInterval(function(){
-                            if (typeof window.__otterVoiceResult === 'string'){
-                                clearInterval(poll);
-                                var txt = window.__otterVoiceResult;
-                                window.__otterVoiceResult = null;
-                                window.__otterVoiceRequested = false;
-                                if (txt === '__OTTER_FAIL__') {
-                                    if (self.onerror) self.onerror({ error: 'no-speech' });
-                                    if (self.onend) self.onend({});
-                                    return;
-                                }
-                                if (self.onresult){
-                                    self.onresult({ results: [[ { transcript: txt, confidence: 1.0 } ]], resultIndex: 0 });
-                                }
-                                if (self.onend) self.onend({});
-                            }
-                        }, 200);
-                    }
-                };
-                return rec;
-            }
-            window.SpeechRecognition = window.SpeechRecognition || makeRecog;
-            window.webkitSpeechRecognition = window.webkitSpeechRecognition || makeRecog;
-            console.log("[otter] voice shim installed");
-        })();
+        ...
         """
         self.runJavaScript(js)
         self._voice_shim_installed = True
@@ -1388,6 +1383,15 @@ class SearchPanel(PanelPage):
             bb = QPushButton(name); bb.setStyleSheet("text-align:left; padding-left:12px;")
             bb.clicked.connect(lambda _=False, u=url: browser.open_target(u))
             self.root.addWidget(bb)
+
+
+
+
+
+
+
+
+
         self.root.addStretch()
 
     def _go(self):
@@ -1446,8 +1450,44 @@ class SettingsPanel(PanelPage):
         )
         info.setStyleSheet("color:#0b1a1f; font-size:11px;")
 
+
         self.root.addSpacing(12); self.root.addWidget(info)
+
+        # ── Auto-Refresh Watchdog ──
+        self.root.addSpacing(12)
+        ar_lbl = QLabel("Auto-Refresh Watchdog")
+        ar_lbl.setStyleSheet("color:#7fe7dc; font-weight:bold; font-size:11px;")
+        self.root.addWidget(ar_lbl)
+
+        c_en = QCheckBox("Enable auto-refresh")
+        c_en.setChecked(SETTINGS.get("refresh_enabled", False))
+        c_en.toggled.connect(lambda v: (
+            SETTINGS.set("refresh_enabled", v),
+            browser.update_refresh_timer()
+        ))
+        self.root.addWidget(c_en)
+
+        c_idle = QCheckBox("Only when idle (skip if typing)")
+        c_idle.setChecked(SETTINGS.get("refresh_idle_only", True))
+        c_idle.toggled.connect(lambda v: SETTINGS.set("refresh_idle_only", v))
+        self.root.addWidget(c_idle)
+
+        i_row = QHBoxLayout()
+        i_row.addWidget(QLabel("Interval (seconds):"))
+        self.refresh_spin = QSpinBox()
+        self.refresh_spin.setRange(10, 3600)
+        self.refresh_spin.setSingleStep(10)
+        self.refresh_spin.setValue(int(SETTINGS.get("refresh_interval", 60)))
+        self.refresh_spin.valueChanged.connect(lambda v: (
+            SETTINGS.set("refresh_interval", v),
+            browser.update_refresh_timer()
+        ))
+        i_row.addWidget(self.refresh_spin)
+        i_row.addStretch()
+        self.root.addLayout(i_row)
+
         self.root.addStretch()
+
 
     def _zoom_in(self):
         current = float(SETTINGS.get("default_zoom", 0.8))
@@ -1462,6 +1502,8 @@ class SettingsPanel(PanelPage):
         SETTINGS.set("default_zoom", new_zoom)
         self.zoom_status.setText(f"Current: {int(new_zoom * 100)}%")
         self.browser.zoom_reset() # Applies to current page
+
+
 
 # ────────────────────────────────────────────────────────────────────────────
 # class MediaPanel(PanelPage):
@@ -1748,6 +1790,11 @@ class Tab:
         self.browser = browser
         self.page = OtterPage(profile, browser)
         self.view = QWebEngineView(); self.view.setPage(self.page)
+
+        self.view.loadFinished.connect(
+            lambda ok: self.browser._restore_soft_state(self.view) if ok else None
+        )
+
         self.zoom = 1.0
         self.view._otter_tab = self
 
@@ -1797,6 +1844,11 @@ class OtterBrowser(QMainWindow):
         self._fact_timer.start(9000)
 
 
+        # ── Auto-refresh watchdog ──
+        self._last_activity = {}
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.timeout.connect(self._watchdog_tick)
+        self.update_refresh_timer()
 
 
 
@@ -1834,10 +1886,15 @@ class OtterBrowser(QMainWindow):
         top.setStyleSheet("background:#0b1a1f;")
         tv = QHBoxLayout(top); tv.setContentsMargins(10, 8, 10, 6); tv.setSpacing(6)
 
+
+
         self.btn_back = make_icon_button("back", "Back (Alt+←)", self.go_back, size=18, btn_size=32)
         self.btn_fwd  = make_icon_button("forward", "Forward (Alt+→)", self.go_forward, size=18, btn_size=32)
         self.btn_rl   = make_icon_button("reload", "Reload (Ctrl+R)", self.reload, size=18, btn_size=32)
         tv.addWidget(self.btn_back); tv.addWidget(self.btn_fwd); tv.addWidget(self.btn_rl)
+
+
+
 
         self.url = QLineEdit(); self.url.setPlaceholderText("🔍 URL, path, or search…")
         self.url.setClearButtonEnabled(True); self.url.returnPressed.connect(self.go)
@@ -1845,7 +1902,9 @@ class OtterBrowser(QMainWindow):
         self.url.setMinimumHeight(32)
         tv.addWidget(self.url, 1)
 
-
+        # 👇 ADD THIS GLOBE BUTTON
+        self.btn_globe = make_icon_button("globe", "Restore current URL", self.restore_url, size=16, btn_size=30)
+        tv.addWidget(self.btn_globe)
 
         mv.addWidget(top)
 
@@ -2175,6 +2234,17 @@ class OtterBrowser(QMainWindow):
         v = self._active_view()
         if v: v.forward()
 
+    def restore_url(self):
+        """Pull the real URL from the active webview and put it back in the bar."""
+        v = self._active_view()
+        if not v:
+            return
+        real_url = v.url().toString()
+        if real_url:
+            self.url.setText(real_url)
+            self.url.selectAll()
+
+
     def open_target(self, target):
         url = normalize(target)
         if not url: return
@@ -2462,6 +2532,80 @@ class OtterBrowser(QMainWindow):
     def _toggle_fullscreen(self):
         if self.isFullScreen(): self.showNormal()
         else: self.showFullScreen()
+
+    # ── auto-refresh watchdog ───────────────────────────────────────────
+    def update_refresh_timer(self):
+        if not hasattr(self, "_refresh_timer"):
+            return
+        if not SETTINGS.get("refresh_enabled", False):
+            self._refresh_timer.stop()
+            self.statusBar().showMessage("🔄 auto-refresh off", 2000)
+            return
+        secs = int(SETTINGS.get("refresh_interval", 60))
+        self._refresh_timer.setInterval(secs * 1000)
+        self._refresh_timer.start()
+        self.statusBar().showMessage(f"🔄 auto-refresh every {secs}s", 3000)
+
+    def _watchdog_tick(self):
+        v = self._active_view()
+        if not v:
+            return
+        if SETTINGS.get("refresh_idle_only", True):
+            import time
+            last = self._last_activity.get(id(v), 0)
+            interval = int(SETTINGS.get("refresh_interval", 60))
+            if (time.time() - last) < interval:
+                return
+        self._soft_refresh(v)
+
+    def _soft_refresh(self, view):
+        capture_js = r"""
+        (function() {
+            var state = {
+                scrollY: window.scrollY,
+                scrollX: window.scrollX,
+                focusId: document.activeElement ? (document.activeElement.id || document.activeElement.name || null) : null,
+                inputs: {}
+            };
+            document.querySelectorAll('input, textarea, [contenteditable="true"]').forEach(function(el, i) {
+                var key = el.id || el.name || ('__anon_' + i);
+                if (el.value !== undefined && el.value !== null && el.value !== '') {
+                    state.inputs[key] = el.value;
+                } else if (el.isContentEditable && el.innerText) {
+                    state.inputs[key] = el.innerText;
+                }
+            });
+            sessionStorage.setItem('__otter_refresh_state', JSON.stringify(state));
+            return true;
+        })();
+        """
+        view.page().runJavaScript(capture_js, lambda _r: view.reload())
+
+    def _restore_soft_state(self, view):
+        restore_js = r"""
+        (function() {
+            var raw = sessionStorage.getItem('__otter_refresh_state');
+            if (!raw) return;
+            sessionStorage.removeItem('__otter_refresh_state');
+            try {
+                var state = JSON.parse(raw);
+                window.scrollTo(state.scrollX || 0, state.scrollY || 0);
+                document.querySelectorAll('input, textarea, [contenteditable="true"]').forEach(function(el, i) {
+                    var key = el.id || el.name || ('__anon_' + i);
+                    if (state.inputs[key] !== undefined) {
+                        if (el.isContentEditable) el.innerText = state.inputs[key];
+                        else el.value = state.inputs[key];
+                    }
+                });
+                if (state.focusId) {
+                    var el = document.getElementById(state.focusId) || document.querySelector('[name="' + state.focusId + '"]');
+                    if (el) el.focus();
+                }
+            } catch(e) {}
+        })();
+        """
+        view.page().runJavaScript(restore_js)
+
 
     # ── fact ticker ─────────────────────────────────────────────────────
     def _rotate_fact(self):
