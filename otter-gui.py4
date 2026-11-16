@@ -118,9 +118,9 @@ OTTER_FACTS_URL   = DATA_DIR / "otter-facts.json"
 
 OTTER_SEARCHES = DATA_DIR / "otter-searches.json"
 
-
 for d in (OTTER_PROFILE_DIR, OTTER_SCREENSHOTS, OTTER_INCOGNITO):
     d.mkdir(parents=True, exist_ok=True)
+
 (OTTER_PROFILE_DIR / "storage").mkdir(exist_ok=True)
 (OTTER_PROFILE_DIR / "cache").mkdir(exist_ok=True)
 
@@ -216,6 +216,10 @@ def _save_json(path, data):
         path.write_text(json.dumps(data, indent=2), encoding="utf-8")
     except Exception as e:
         print(f"[otter] save {path.name}: {e}")
+
+# ── Seed search history on first launch ──
+if not OTTER_SEARCHES.exists():
+    _save_json(OTTER_SEARCHES, [])
 
 def log_event(kind, payload):
     stamp = datetime.now().isoformat()
@@ -2856,17 +2860,20 @@ class OtterBrowser(QMainWindow):
         except Exception:
             pass
 
+
+
     def _show_search_menu(self):
         history = _load_json(OTTER_SEARCHES, [])
         if not isinstance(history, list) or not history:
             self.statusBar().showMessage("no recent searches yet", 2000)
             return
+            
         menu = QMenu(self)
         menu.setWindowFlags(menu.windowFlags()
                             | Qt.WindowType.FramelessWindowHint
                             | Qt.WindowType.NoDropShadowWindowHint)
 
-        menu.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)  # lets border-radius show
+        menu.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         menu.setStyleSheet("""
             QMenu { 
                 background-color: #0b1a1f; 
@@ -2886,22 +2893,70 @@ class OtterBrowser(QMainWindow):
             }
             QMenu::separator {
                 height: 1px;
-                background: #0f9b8e;
-                margin: 6px 8px;
+                background: rgba(15, 155, 142, 0.3);
+                margin: 4px 8px;
             }
         """)
         
-        # Add the search history items
-        for q in history[:8]:
+        # 1. Show the top 5 recent searches
+        for q in history[:5]:
             menu.addAction(f"🔍  {q}", lambda _=False, q=q: self._run_from_url(q))
             
-        # Add the separator and clear button
+        # 2. If there are more, add a scrollable "Show all" submenu
+        if len(history) > 5:
+            menu.addSeparator()
+            submenu = QMenu("📜  Show all history", menu)
+            submenu.setStyleSheet(menu.styleSheet()) # Reuse the dark theme style
+            
+            # Create a scrollable area for the submenu
+            from PySide6.QtWidgets import QWidgetAction, QListWidget, QListWidgetItem
+            from PySide6.QtCore import QSize
+            
+            scroll_list = QListWidget()
+            scroll_list.setFixedHeight(200) # Max height before scrolling
+            scroll_list.setMinimumWidth(200)
+            scroll_list.setStyleSheet("""
+                QListWidget {
+                    background: transparent;
+                    border: none;
+                    outline: none;
+                }
+                QListWidget::item {
+                    padding: 8px 16px;
+                    border-radius: 6px;
+                    color: #eaf7f2;
+                }
+                QListWidget::item:hover, QListWidget::item:selected {
+                    background-color: #0f9b8e;
+                    color: #ffffff;
+                }
+            """)
+            
+            # Add the rest of the history to the scroll list
+            for q in history[5:]:
+                item = QListWidgetItem(f"🔍  {q}")
+                item.setData(Qt.ItemDataRole.UserRole, q)
+                scroll_list.addItem(item)
+            
+            # When a user clicks an item in the scroll list, run it and close the menu
+            def run_from_list(item):
+                self._run_from_url(item.data(Qt.ItemDataRole.UserRole))
+                menu.close()
+            scroll_list.itemClicked.connect(run_from_list)
+            
+            # Embed the list inside the submenu
+            action = QWidgetAction(submenu)
+            action.setDefaultWidget(scroll_list)
+            submenu.addAction(action)
+            menu.addMenu(submenu)
+
+        # 3. Clear history button
         menu.addSeparator()
         clear_action = menu.addAction("🗑️  Clear recent searches")
         clear_action.triggered.connect(self._clear_search_history)
         
-        # Show the menu
         menu.exec(self.url.mapToGlobal(QPoint(0, self.url.height() + 2)))
+
     def eventFilter(self, obj, event):
         if obj is self.url and event.type() == QEvent.Type.MouseButtonPress:
             if not self.url.isModified() or not self.url.text().strip():
@@ -3141,6 +3196,7 @@ class OtterBrowser(QMainWindow):
 
     # ── downloads ───────────────────────────────────────────────────────
     def _on_download(self, item):
+
         suggested = item.downloadFileName() or "download"
         target = DOWNLOADS_DIR / suggested
         stem, suffix = target.stem, target.suffix; n = 1
