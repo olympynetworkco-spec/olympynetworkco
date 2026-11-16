@@ -2865,23 +2865,56 @@ class OtterBrowser(QMainWindow):
         menu.setWindowFlags(menu.windowFlags()
                             | Qt.WindowType.FramelessWindowHint
                             | Qt.WindowType.NoDropShadowWindowHint)
+
         menu.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)  # lets border-radius show
         menu.setStyleSheet("""
-            QMenu { background-color:#ffffff; border:1px solid #e0e0e0;
-                    border-radius:12px; padding:8px; }
-            QMenu::item { padding:8px 16px; border-radius:6px; color:#333; font-size:14px; }
-            QMenu::item:selected { background-color:#f0f0f0; }
+            QMenu { 
+                background-color: #0b1a1f; 
+                border: 1px solid #0f9b8e;
+                border-radius: 12px; 
+                padding: 8px; 
+            }
+            QMenu::item { 
+                padding: 8px 16px; 
+                border-radius: 6px; 
+                color: #eaf7f2; 
+                font-size: 14px; 
+            }
+            QMenu::item:selected { 
+                background-color: #0f9b8e; 
+                color: #ffffff; 
+            }
+            QMenu::separator {
+                height: 1px;
+                background: #0f9b8e;
+                margin: 6px 8px;
+            }
         """)
+        
+        # Add the search history items
         for q in history[:8]:
             menu.addAction(f"🔍  {q}", lambda _=False, q=q: self._run_from_url(q))
+            
+        # Add the separator and clear button
+        menu.addSeparator()
+        clear_action = menu.addAction("🗑️  Clear recent searches")
+        clear_action.triggered.connect(self._clear_search_history)
+        
+        # Show the menu
         menu.exec(self.url.mapToGlobal(QPoint(0, self.url.height() + 2)))
-
-
     def eventFilter(self, obj, event):
         if obj is self.url and event.type() == QEvent.Type.MouseButtonPress:
             if not self.url.isModified() or not self.url.text().strip():
                 QTimer.singleShot(0, self._show_search_menu)
         return super().eventFilter(obj, event)
+
+    def _clear_search_history(self):
+        _save_json(OTTER_SEARCHES, [])
+        self.statusBar().showMessage("🧹 Search history cleared", 2000)
+        
+        # If the Search side-panel is open, refresh it to remove the chips immediately
+        if "search" in self.side.pages:
+            self.side.pages["search"]._load_history()
 
     def _run_from_url(self, query):
         self.url.setText(query)
