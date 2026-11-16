@@ -14,6 +14,20 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote_plus
 
+# ── Google OAuth (system-browser flow) ─────────────────────────────────
+import threading, webbrowser, secrets, time
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import parse_qs
+
+from google_auth_oauthlib.flow import Flow
+
+# ── Load secrets from Ollama's env.txt ────────────────────────────────
+try:
+    from dotenv import load_dotenv
+    load_dotenv("/Users/olympynetworkco/Desktop/ollama/env.txt")
+except Exception as e:
+    print(f"[otter] could not load env.txt: {e}")
+
 import os, sys
 
 if os.environ.get("_OTTER_QUIET") != "1":
@@ -97,6 +111,10 @@ OTTER_PROFILE_DIR = DATA_DIR / "otter-profile"
 OTTER_SCREENSHOTS = DATA_DIR / "screenshots"
 OTTER_INCOGNITO   = DATA_DIR / "otter-incognito"
 
+OTTER_NOTES       = DATA_DIR / "otter-notes.txt"
+OTTER_NOTES_JSON  = DATA_DIR / "otter-notes.json"
+
+OTTER_FACTS_URL   = DATA_DIR / "otter-facts.json"
 
 for d in (OTTER_PROFILE_DIR, OTTER_SCREENSHOTS, OTTER_INCOGNITO):
     d.mkdir(parents=True, exist_ok=True)
@@ -130,7 +148,7 @@ HOME_PAGE = "https://duck.ai/chat?ia=chat&duckai=1&home=1"
 
 REAL_UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
            "AppleWebKit/537.36 (KHTML, like Gecko) "
-           "Chrome/141.0.0.0 Safari/537.36")
+           "Otter/1.0 Chrome/141.0.0.0 Safari/537.36")
 
 OTTER_UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -312,12 +330,205 @@ OTTER_ACCOUNTS     = DATA_DIR / "otter.accounts.json"
 GMAIL_ACCOUNTS_DIR = DATA_DIR / "otter-accounts"
 GMAIL_ACCOUNTS_DIR.mkdir(parents=True, exist_ok=True)
 
+
+# ── Google OAuth: system-browser loopback ─────────────────────────────
+GOOGLE_REDIRECT_PORT = 8765
+GOOGLE_REDIRECT_URI  = f"http://127.0.0.1:{GOOGLE_REDIRECT_PORT}/oauth2callback"
+GOOGLE_SCOPES = [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
+]
+
+class _OAuthCatcher(BaseHTTPRequestHandler):
+    def do_GET(self):
+        params = parse_qs(urlparse(self.path).query)
+        self.server.captured = {
+            "code":  params.get("code",  [None])[0],
+            "state": params.get("state", [None])[0],
+            "error": params.get("error", [None])[0],
+        }
+        body = b"""<!doctype html><html><body style="font-family:-apple-system,sans-serif;
+        background:#0b1a1f;color:#eaf7f2;text-align:center;padding-top:80px;">
+        <h1 style="color:#7fe7dc;">&#129446; Otter got it</h1>
+        <p>You can close this tab and return to Otter.</p></body></html>"""
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+    def log_message(self, *a):
+        pass
+
+
+def _catch_oauth_redirect(timeout=180):
+    """Block on a background thread until Google redirects back. Returns dict or None."""
+    try:
+        server = HTTPServer(("127.0.0.1", GOOGLE_REDIRECT_PORT), _OAuthCatcher)
+    except OSError as e:
+        print(f"[otter/oauth] port {GOOGLE_REDIRECT_PORT} busy: {e}")
+        return None
+    server.timeout = timeout
+    server.captured = None
+    server.handle_request()
+    server.server_close()
+    return server.captured
+
+
+
+def google_sign_in(browser, on_done):
+    """
+    System-browser OAuth for Google.
+    Uses google_auth_oauthlib (same as ollama.py4's Gmail flow).
+    Reads GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET from env.txt via dotenv.
+    """
+    import os
+    client_id     = os.getenv("GOOGLE_CLIENT_ID")
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+
+    if not client_id or not client_secret:
+        QMessageBox.warning(
+            browser, "Otter — Google sign-in",
+            "GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET not found.\n\n"
+            "Put them in your env.txt (same file Ollama uses):\n"
+            "  GOOGLE_CLIENT_ID=...\n"
+            "  GOOGLE_CLIENT_SECRET=...\n\n"
+            "Then add http://127.0.0.1:8765/oauth2callback to that\n"
+            "OAuth client's Authorized redirect URIs in Google Console."
+        )
+        on_done(None)
+        return
+
+    flow = Flow.from_client_config(
+        {
+            "installed": {
+                "client_id":     client_id,
+                "client_secret": client_secret,
+                "auth_uri":      "https://accounts.google.com/o/oauth2/auth",
+                "token_uri":     "https://oauth2.googleapis.com/token",
+                "redirect_uris": [GOOGLE_REDIRECT_URI],
+            }
+        },
+        scopes=GOOGLE_SCOPES,
+        redirect_uri=GOOGLE_REDIRECT_URI,
+    )
+
+    auth_url, state = flow.authorization_url(
+        access_type="offline",
+        prompt="consent",
+        include_granted_scopes="true",
+    )
+
+    captured = {"value": None}
+    listener = threading.Thread(
+        target=lambda: captured.update(value=_catch_oauth_redirect()),
+        daemon=True,
+    )
+    listener.start()
+
+
+    import subprocess
+
+    print(f"[otter/oauth] Handing off to Safari: {auth_url[:80]}...")
+
+
+    print(f"\n[OTTER-DEBUG] FULL URL → {auth_url}\n")
+
+    subprocess.Popen(["open", "-a", "Firefox", auth_url])
+
+    browser.statusBar().showMessage(
+        "🌐 Finish sign-in in your browser, then return to Otter…", 6000
+    )
+
+    def _poll():
+        if captured["value"] is None:
+            if not listener.is_alive():
+                QMessageBox.warning(browser, "Otter — Google sign-in",
+                                    "Sign-in window closed or timed out.")
+                on_done(None)
+                return
+            QTimer.singleShot(300, _poll)
+            return
+
+        result = captured["value"]
+        if result.get("error"):
+            QMessageBox.warning(browser, "Otter — Google sign-in",
+                                f"Google returned: {result['error']}")
+            on_done(None)
+            return
+        if not result.get("code"):
+            QMessageBox.warning(browser, "Otter — Google sign-in",
+                                "No authorization code returned.")
+            on_done(None)
+            return
+        if result.get("state") != state:
+            QMessageBox.warning(browser, "Otter — Google sign-in",
+                                "State mismatch (possible CSRF). Aborting.")
+            on_done(None)
+            return
+
+        try:
+            flow.fetch_token(code=result["code"])
+            creds = flow.credentials
+        except Exception as e:
+            QMessageBox.warning(browser, "Otter — Google sign-in",
+                                f"Token exchange failed:\n{e}")
+            on_done(None)
+            return
+
+        _fetch_profile_and_save(browser, creds, on_done)
+
+    QTimer.singleShot(300, _poll)
+
+
+def _fetch_profile_and_save(browser, creds, on_done):
+    """Use the token to hit Google's userinfo endpoint, then save."""
+    import requests
+    try:
+        r = requests.get(
+            "https://www.googleapis.com/oauth2/v2/userinfo",
+            headers={"Authorization": f"Bearer {creds.token}"},
+            timeout=15,
+        )
+        info = r.json() if r.status_code == 200 else {}
+    except Exception as e:
+        QMessageBox.warning(browser, "Otter — Google sign-in",
+                            f"Could not fetch profile: {e}")
+        on_done(None)
+        return
+
+    email = info.get("email", "unknown@gmail.com")
+    name  = info.get("name") or email.split("@")[0]
+
+    account = {
+        "id":     "g-" + secrets.token_hex(4),
+        "label":  name,
+        "email":  email,
+        "color":  "#7fe7dc",
+        "tokens": {
+            "access_token":  creds.token,
+            "refresh_token": creds.refresh_token,
+            "expiry":        creds.expiry.isoformat() if creds.expiry else None,
+            "scopes":        list(creds.scopes or []),
+        },
+    }
+
+    accounts = load_accounts()
+    if not isinstance(accounts, list):
+        accounts = []
+    accounts = [a for a in accounts if a.get("email") != email]
+    accounts.append(account)
+    save_accounts(accounts)
+    on_done(account)
+
+
+
 def load_accounts():
     """log.json equivalent — stores METADATA only, never passwords."""
     default = [
-        {"id": "acct1", "label": "Personal", "email": "you1@gmail.com", "color": "#7fe7dc"},
-        {"id": "acct2", "label": "Work",     "email": "you2@gmail.com", "color": "#ffb84d"},
-        {"id": "acct3", "label": "Alt",      "email": "you3@gmail.com", "color": "#ff5a5a"},
+        {"id": "acct1", "label": "Personal", "email": "@gmail.com", "color": "#7fe7dc"},
+        {"id": "acct2", "label": "Work",     "email": "@gmail.com", "color": "#ffb84d"},
+        {"id": "acct3", "label": "Alt",      "email": "@gmail.com", "color": "#ff5a5a"},
     ]
     return _load_json(OTTER_ACCOUNTS, default)
 
@@ -495,6 +706,28 @@ def draw_icon(name: str, size: int = 22, color: str = "#7fe7dc") -> QPixmap:
         p.drawArc(QRectF(cx-r*0.55, cy-r, r*1.1, r*2), 90*16, 180*16)
         p.drawArc(QRectF(cx-r*0.55, cy-r, r*1.1, r*2), -90*16, 180*16)
 
+
+    elif name == "notes":
+        # small notepad: rounded rect + top clip + lines
+        w, h = s*0.62, s*0.72
+        x0, y0 = (s - w) / 2, (s - h) / 2
+        # outer page
+        p.drawRoundedRect(QRectF(x0, y0, w, h), s*0.06, s*0.06)
+        # top binding strip
+        p.drawLine(int(x0 + w*0.15), int(y0 + h*0.12),
+                   int(x0 + w*0.85), int(y0 + h*0.12))
+        # ruled lines
+        for i, y in enumerate([0.35, 0.52, 0.69]):
+            p.drawLine(int(x0 + w*0.18), int(y0 + h*y),
+                       int(x0 + w*(0.55 + 0.2*i)), int(y0 + h*y))
+
+
+
+
+
+
+
+
     elif name == "mic":
         # Mic capsule
         p.drawRoundedRect(QRectF(s*0.35, m, s*0.3, s*0.45), s*0.15, s*0.15)
@@ -505,6 +738,11 @@ def draw_icon(name: str, size: int = 22, color: str = "#7fe7dc") -> QPixmap:
         p.drawLine(int(s*0.35), int(s*0.8), int(s*0.65), int(s*0.8))
 
 
+    elif name == "user":
+        # head
+        p.drawEllipse(QRectF(s*0.32, s*0.18, s*0.36, s*0.36))
+        # shoulders
+        p.drawArc(QRectF(s*0.20, s*0.60, s*0.60, s*0.42), 0, 180*16)
 
 
 
@@ -798,8 +1036,30 @@ class OtterPage(QWebEnginePage):
                     tab.browser._last_activity[id(view)] = time.time()
         # everything else stays silent
 
+
+        if isinstance(message, str) and message.startswith("__OTTER_FACTS__:"):
+            try:
+                payload = message.split("__OTTER_FACTS__:", 1)[1]
+                items = json.loads(payload)
+                view = self.view()
+                tab = getattr(view, "_otter_tab", None) if view else None
+                if tab:
+                    tab.browser._apply_scraped_facts(items)
+            except Exception as e:
+                print(f"[otter] facts parse: {e}")
+
+
+
+
     def acceptNavigationRequest(self, url, nav_type, is_main_frame):
         u = url.toString().lower()
+        
+        # ── BLOCK OAUTH CALLBACK FROM LOADING IN WEBVIEW ──
+        if "127.0.0.1:8765/oauth2callback" in u:
+            log_event("oauth-callback", u)
+            return False
+        # ──────────────────────────────────────────────────
+
 
         # Block known memory-hog ad domains even in sub-resource requests
         blocklist_domains = [
@@ -1078,6 +1338,101 @@ class PipWindow(QMainWindow):
         self.page.setAudioMuted(m); self.btn_mute.setText("🔇" if m else "🔊")
     def closeEvent(self, e):
         self.view.setPage(None); self.view.deleteLater(); self.page.deleteLater()
+        super().closeEvent(e)
+
+# ────────────────────────────────────────────────────────────────────────────
+# notes app pip
+# ────────────────────────────────────────────────────────────────────────────
+
+class NotesWindow(QMainWindow):
+    """PiP-style floating notes window, always-on-top, with debounced autosave."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("📝 Otter Notes")
+        self.resize(520, 480)
+        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+        self.setStyleSheet("QMainWindow { background: #041012; }")
+
+        self._save_timer = QTimer(self)
+        self._save_timer.setSingleShot(True)
+        self._save_timer.setInterval(2000)   # 2s after last keystroke
+        self._save_timer.timeout.connect(self._save_now)
+
+        central = QWidget(); v = QVBoxLayout(central)
+        v.setContentsMargins(10, 10, 10, 10); v.setSpacing(6)
+
+        # header row
+        bar = QWidget(); bl = QHBoxLayout(bar)
+        bl.setContentsMargins(0, 0, 0, 0); bl.setSpacing(4)
+
+        self.lbl_status = QLabel("ready")
+        self.lbl_status.setStyleSheet("color:#7fe7dc; font-size:11px;")
+        bl.addWidget(self.lbl_status)
+        bl.addStretch()
+
+        b_save = QPushButton("💾 Save now"); b_save.clicked.connect(self._save_now)
+        b_edit = QPushButton("open -e");    b_edit.clicked.connect(self._open_in_textedit)
+        b_close = QPushButton("✕");         b_close.clicked.connect(self.close)
+        b_close.setFixedWidth(32)
+        bl.addWidget(b_save); bl.addWidget(b_edit); bl.addWidget(b_close)
+        v.addWidget(bar)
+
+        # editor
+        self.editor = QPlainTextEdit()
+        self.editor.setPlaceholderText("Take a note…")
+        self.editor.textChanged.connect(self._on_edit)
+        v.addWidget(self.editor, stretch=1)
+
+        self.setCentralWidget(central)
+
+        self.notes_path   = DATA_DIR / "otter-notes.txt"
+        self.notes_json   = DATA_DIR / "otter-notes.json"
+        self._load()
+
+    # ── load / save ──────────────────────────────────────────────────
+    def _load(self):
+        try:
+            if self.notes_path.exists():
+                self.editor.blockSignals(True)
+                self.editor.setPlainText(self.notes_path.read_text(encoding="utf-8"))
+                self.editor.blockSignals(False)
+                self.lbl_status.setText(f"loaded · {len(self.editor.toPlainText())} chars")
+        except Exception as e:
+            self.lbl_status.setText(f"⚠ load failed: {e}")
+
+    def _on_edit(self):
+        # debounce: restart timer on every keystroke
+        self._save_timer.start()
+
+    def _save_now(self):
+        text = self.editor.toPlainText()
+        try:
+            self.notes_path.write_text(text, encoding="utf-8")
+            import json as _json
+            self.notes_json.write_text(_json.dumps({
+                "saved": datetime.now().isoformat(),
+                "chars": len(text),
+            }, indent=2), encoding="utf-8")
+            self.lbl_status.setText(f"✓ saved {datetime.now().strftime('%H:%M:%S')} · {len(text)} chars")
+        except Exception as e:
+            self.lbl_status.setText(f"⚠ save failed: {e}")
+
+    # ── open -e in TextEdit ──────────────────────────────────────────
+    def _open_in_textedit(self):
+        try:
+            self._save_now()  # flush first so TextEdit sees latest
+            import subprocess
+            subprocess.Popen(["open", "-e", str(self.notes_path)])
+            self.lbl_status.setText("→ opened in TextEdit")
+        except Exception as e:
+            self.lbl_status.setText(f"⚠ open failed: {e}")
+
+    # ── cleanup ──────────────────────────────────────────────────────
+    def closeEvent(self, e):
+        # flush any pending autosave before vanishing
+        if self._save_timer.isActive():
+            self._save_timer.stop()
+            self._save_now()
         super().closeEvent(e)
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -1503,6 +1858,68 @@ class SettingsPanel(PanelPage):
         self.zoom_status.setText(f"Current: {int(new_zoom * 100)}%")
         self.browser.zoom_reset() # Applies to current page
 
+# ────────────────────────────────────────────────────────────────────────────
+# class accountpanel(PanelPage):
+# ────────────────────────────────────────────────────────────────────────────
+
+class AccountsPanel(PanelPage):
+    title = "Google Accounts"
+
+    def __init__(self, browser):
+        super().__init__(browser)
+
+        hint = QLabel("Sign in with your system browser. Otter never sees your password.")
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color:#0b1a1f; font-size:11px;")
+        self.root.addWidget(hint)
+
+        self.list = QListWidget()
+        self.list.setStyleSheet("""
+            QListWidget { background: transparent; border: none; }
+            QListWidget::item { padding: 8px; border-radius: 6px; }
+            QListWidget::item:hover { background: rgba(15,155,142,0.25); }
+        """)
+        self.root.addWidget(self.list, 1)
+
+        b_add = QPushButton("➕ Sign in with Google")
+        b_add.clicked.connect(self._sign_in)
+        self.root.addWidget(b_add)
+
+        b_gmail = QPushButton("📧 Open Gmail (system browser)")
+        b_gmail.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://mail.google.com")))
+        self.root.addWidget(b_gmail)
+
+        self.refresh()
+
+    def refresh(self):
+        self.list.clear()
+        accounts = load_accounts()
+        if not isinstance(accounts, list):
+            accounts = []
+        if not accounts:
+            self.list.addItem("No accounts yet — click Sign in below.")
+            return
+        for a in accounts:
+            email = a.get("email", "?")
+            label = a.get("label", email)
+            it = QListWidgetItem(f"👤  {label}\n{email}")
+            it.setData(Qt.ItemDataRole.UserRole, email)
+            self.list.addItem(it)
+
+    def _sign_in(self):
+        self.browser.statusBar().showMessage("🌐 Opening Google sign-in in your browser…", 5000)
+
+        def done(account):
+            if account:
+                self.browser.statusBar().showMessage(
+                    f"✅ signed in as {account['email']}", 5000
+                )
+                self.refresh()
+            else:
+                self.browser.statusBar().showMessage("Google sign-in cancelled", 3000)
+
+        google_sign_in(self.browser, done)
+
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -1622,8 +2039,11 @@ class IconRail(QWidget):
         ("clock",    "History"),
         ("download", "Downloads"),
         # ("reader",   "Reader mode"),  <--- silence THIS LINE
-
+        ("user",     "Google Accounts"),
         ("mic",      "Transcribe"),      # <--- ADD THIS
+
+        ("notes",    "Notes"),          # <--- ADD THIS
+
 
         ("camera",   "Screenshot"),
         ("pip",      "Picture-in-Picture"),
@@ -1690,6 +2110,8 @@ class IconRail(QWidget):
         # if name == "reader": self.browser.reader_mode(); return  <--- silence THIS LINE
 
         if name == "mic":      self.browser.voice_to_url(); return  # <--- ADD THIS
+        if name == "notes":    self.browser.open_notes(); return      # <--- ADD THIS
+        if name == "user":     self.iconClicked.emit("accounts"); return
         if name == "camera": self.browser.screenshot(); return
         if name == "pip":    self.browser.open_pip(); return
         if name == "devtools": self.browser.toggle_devtools(); return
@@ -1735,8 +2157,11 @@ class SidePanel(QWidget):
             "bookmark":  BookmarksPanel(browser),
             "clock":     HistoryPanel(browser),
             "download":  DownloadsPanel(browser),
+
             "music":     MediaPanel(browser),     # <--- ADD THIS
             "settings":  SettingsPanel(browser),
+
+            "accounts":  AccountsPanel(browser),  # ← NEW
         }
         for p in self.pages.values():
             self.stack.addWidget(p)
@@ -1828,7 +2253,7 @@ class Tab:
 
 
 # ────────────────────────────────────────────────────────────────────────────
-# Main window
+# Main window : OtterBrowser.__init__
 # ────────────────────────────────────────────────────────────────────────────
 
 class OtterBrowser(QMainWindow):
@@ -1843,6 +2268,11 @@ class OtterBrowser(QMainWindow):
         self._fact_timer = QTimer(self); self._fact_timer.timeout.connect(self._rotate_fact)
         self._fact_timer.start(9000)
 
+        # ── otter-_scraped_facts ──
+
+        self._scraped_facts = _load_json(OTTER_FACTS_URL, [])
+        if not isinstance(self._scraped_facts, list):
+            self._scraped_facts = []
 
         # ── Auto-refresh watchdog ──
         self._last_activity = {}
@@ -2448,7 +2878,13 @@ class OtterBrowser(QMainWindow):
         m = QMenu(self)
         m.addAction("＋ New Tab",           "Ctrl+T", lambda: self.new_tab())
         m.addAction("🕶 New Incognito Tab",  lambda: self.new_tab(incognito=True))
+
+
         m.addSeparator()
+        m.addAction("📰 Scrape headlines from current tab", self.scrape_headlines)
+        m.addAction("🦦 Reset facts to otters",             self.reset_facts_to_otters)
+
+
         m.addAction("🔍 Search panel",      lambda: self._on_rail("search"))
         m.addAction("📚 Bookmarks panel",   lambda: self._on_rail("bookmark"))
         m.addAction("🕘 History panel",     lambda: self._on_rail("clock"))
@@ -2457,7 +2893,7 @@ class OtterBrowser(QMainWindow):
         m.addAction("🎨 Theme Picker",        self.open_theme_picker)  # <--- ADD THIS LINE
         m.addAction("🎤 Transcribe (voice → URL bar)", self.voice_to_url)
 
-
+        m.addAction("👤 Google Accounts",   lambda: self._on_rail("accounts"))
         m.addSeparator()
 
         # m.addAction("📄 Reader mode",       self.reader_mode) # <-- silence this line
@@ -2609,7 +3045,8 @@ class OtterBrowser(QMainWindow):
 
     # ── fact ticker ─────────────────────────────────────────────────────
     def _rotate_fact(self):
-        self.fact_label.setText(random.choice(OTTER_FACTS))
+        pool = self._scraped_facts if len(self._scraped_facts) >= 3 else OTTER_FACTS
+        self.fact_label.setText(random.choice(pool))
 
     # ── tab context menu ────────────────────────────────────────────────
     def _tab_ctx(self, pos):
@@ -2686,10 +3123,86 @@ class OtterBrowser(QMainWindow):
         self.local_profile.scripts().insert(script)
 
 
-    # ── voice init ───────────────────────────────────────────────────────────
 
 
+    # ── OtterBrowser init facts ────────────────────────────────────────────
 
+    def scrape_headlines(self):
+        """Pull <h3> headline text from the active tab and use it as the fact ticker."""
+        v = self._active_view()
+        if not v:
+            self.statusBar().showMessage("📰 no active tab", 2500)
+            return
+
+        js = r"""
+        (function() {
+            try {
+                var out = [];
+                var seen = {};
+                document.querySelectorAll('h3 a[aria-label]').forEach(function(a) {
+                    var t = (a.getAttribute('aria-label') || '').trim();
+                    if (t.length < 15 || t.length > 160) return;
+                    if (seen[t]) return;
+                    seen[t] = 1;
+                    out.push(t);
+                });
+                console.log('__OTTER_FACTS__:' + JSON.stringify(out));
+            } catch(e) {
+                console.log('__OTTER_FACTS__:' + JSON.stringify([]));
+            }
+        })();
+        """
+        try:
+            v.page().runJavaScript(js)
+            self.statusBar().showMessage("📰 scraping headlines…", 2500)
+        except Exception as e:
+            self.statusBar().showMessage(f"📰 scrape failed: {e}", 4000)
+
+    def _apply_scraped_facts(self, items):
+        """Called back from the console ping with a list of headline strings."""
+        items = [str(x).strip() for x in (items or []) if 15 <= len(str(x).strip()) <= 160]
+        seen = set(); clean = []
+        for x in items:
+            if x not in seen:
+                seen.add(x); clean.append(x)
+
+        if len(clean) < 3:
+            self.statusBar().showMessage("⚠ no headlines found on this page", 4000)
+            return
+
+        _save_json(OTTER_FACTS_URL, clean)
+        self._scraped_facts = clean
+        self.statusBar().showMessage(f"📰 loaded {len(clean)} headlines from this page", 4000)
+
+    def reset_facts_to_otters(self):
+        """Clear scraped facts, fall back to the built-in otter facts."""
+        self._scraped_facts = []
+        try:
+            if OTTER_FACTS_URL.exists():
+                tombstone(OTTER_FACTS_URL, "reset to otter facts")
+        except Exception:
+            pass
+        self.statusBar().showMessage("🦦 facts reset to otters", 3000)
+
+
+    # ── notes init ───────────────────────────────────────────────────────────
+
+
+    def open_notes(self):
+        """Open (or raise) the floating notes window."""
+        if getattr(self, "_notes_win", None) is not None:
+            try:
+                if self._notes_win.isVisible():
+                    self._notes_win.raise_()
+                    self._notes_win.activateWindow()
+                    return
+                else:
+                    self._notes_win = None
+            except Exception:
+                self._notes_win = None
+        self._notes_win = NotesWindow(self)
+        self._notes_win.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        self._notes_win.show()
 
 # ────────────────────────────────────────────────────────────────────────────
 # Banner / main
