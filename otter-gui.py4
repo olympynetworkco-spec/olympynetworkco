@@ -71,7 +71,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem, QComboBox, QCheckBox, QPlainTextEdit, QProgressBar,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QStatusBar, QFrame, QScrollArea, QSplitter, QToolBar, QGraphicsDropShadowEffect,
-    QSlider, QSpinBox  # <--- add QSpinBox here
+    QSlider, QSpinBox, QStyleOption, QStyle  # <--- add QSpinBox here
 
 )
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -115,6 +115,9 @@ OTTER_NOTES       = DATA_DIR / "otter-notes.txt"
 OTTER_NOTES_JSON  = DATA_DIR / "otter-notes.json"
 
 OTTER_FACTS_URL   = DATA_DIR / "otter-facts.json"
+
+OTTER_SEARCHES = DATA_DIR / "otter-searches.json"
+
 
 for d in (OTTER_PROFILE_DIR, OTTER_SCREENSHOTS, OTTER_INCOGNITO):
     d.mkdir(parents=True, exist_ok=True)
@@ -1751,6 +1754,8 @@ class SearchPanel(PanelPage):
     title = "Search"
     def __init__(self, browser):
         super().__init__(browser)
+        
+        # 1. Search Box & Engine
         self.box = QComboBox(); self.box.addItems(SEARCH_ENGINES.keys())
         self.box.setCurrentText(SETTINGS.get("search_engine", "DuckDuckGo"))
         self.box.currentTextChanged.connect(lambda t: SETTINGS.set("search_engine", t))
@@ -1759,30 +1764,98 @@ class SearchPanel(PanelPage):
         self.q = QLineEdit(); self.q.setPlaceholderText("Search…")
         self.q.returnPressed.connect(self._go)
         self.root.addWidget(self.q)
+        
         b = QPushButton("Search"); b.clicked.connect(self._go)
         self.root.addWidget(b)
 
-        lbl = QLabel("SHORTCUT SITES")
+        # 2. Recent Searches Chips
+        lbl = QLabel("RECENT SEARCHES")
         lbl.setStyleSheet("color:#7fe7dc; font-weight:bold; letter-spacing:2px; font-size:11px; margin-top:10px;")
         self.root.addWidget(lbl)
+
+        # We use a FlowLayout-style container for the chips
+        self.chip_container = QWidget()
+        self.chip_layout = QVBoxLayout(self.chip_container) # Using VBox for simplicity, wraps manually
+        self.chip_layout.setContentsMargins(0, 0, 0, 0)
+        self.chip_layout.setSpacing(4)
+        self.root.addWidget(self.chip_container)
+
+        # 3. Shortcut Sites
+        lbl2 = QLabel("SHORTCUT SITES")
+        lbl2.setStyleSheet("color:#7fe7dc; font-weight:bold; letter-spacing:2px; font-size:11px; margin-top:10px;")
+        self.root.addWidget(lbl2)
         for name, url in SHORTCUT_SITES:
             bb = QPushButton(name); bb.setStyleSheet("text-align:left; padding-left:12px;")
             bb.clicked.connect(lambda _=False, u=url: browser.open_target(u))
             self.root.addWidget(bb)
 
-
-
-
-
-
-
-
-
         self.root.addStretch()
+        
+        # 4. Load existing history
+        self._load_history()
+
+    def _load_history(self):
+        # Clear old chips
+        for i in reversed(range(self.chip_layout.count())): 
+            widget = self.chip_layout.itemAt(i).widget()
+            if widget: widget.deleteLater()
+
+        # Load from JSON
+        history = _load_json(OTTER_SEARCHES, [])
+        if not isinstance(history, list):
+            history = []
+
+        # Display the last 8 searches
+        for query in history[:8]:
+            if not query: continue
+            chip = QPushButton(query)
+            # Style the chip to look like a rounded pill
+            chip.setStyleSheet("""
+                QPushButton {
+                    background-color: rgba(15, 155, 142, 0.2);
+                    color: #eaf7f2;
+                    border: 1px solid #0f9b8e;
+                    border-radius: 12px;
+                    padding: 4px 12px;
+                    text-align: left;
+                    font-weight: normal;
+                }
+                QPushButton:hover { background-color: #0f9b8e; }
+            """)
+            chip.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+            # When clicked, put it in the search box and run it
+            chip.clicked.connect(lambda _, q=query: self._run_chip(q))
+            self.chip_layout.addWidget(chip)
+
+    def _run_chip(self, query):
+        self.q.setText(query)
+        self._go()
 
     def _go(self):
         t = self.q.text().strip()
-        if t: self.browser.open_target(normalize(t))
+        if not t: return
+
+        # 1. Save to history
+        history = _load_json(OTTER_SEARCHES, [])
+        if not isinstance(history, list): history = []
+        
+        # Remove if it already exists so it moves to the top
+        history = [h for h in history if h.lower() != t.lower()]
+
+        # To this (insert at the beginning):
+        history.insert(0, t)
+        history = history[:20]
+
+        _save_json(OTTER_SEARCHES, history)
+
+        # 2. Reload the chips so the new one appears
+        self._load_history()
+
+        # 3. Clear the text box and go
+        self.q.clear()
+        self.browser.open_target(normalize(t))
+
+
 
 class SettingsPanel(PanelPage):
     title = "Settings"
@@ -2095,6 +2168,7 @@ class IconRail(QWidget):
         
         # Hide the horizontal scrollbar, style the vertical one to be thin
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.viewport().setAutoFillBackground(False)   # <-- ADD THIS
 
         scroll.setStyleSheet("""
             QScrollArea { background: transparent; border: none; }
@@ -2284,99 +2358,213 @@ class Tab:
         self.view.setZoomFactor(self.zoom)
 
 
+# ────────────────────────────────────────────────────────────────────────────
+# Step 1: Create the Chip Card Popup class
+# ────────────────────────────────────────────────────────────────────────────
+
+class SearchChipPopup(QDialog):
+    """A floating card that shows recent searches as clickable chips."""
+    def __init__(self, parent, history, on_select):
+        super().__init__(parent)
+        
+        # Make the window frameless and transparent
+        self.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setFixedWidth(300) # Width of the card
+        
+        # The main layout
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        
+        # The "Card" widget with rounded corners
+        card = QWidget()
+        card.setStyleSheet("""
+            QWidget {
+                background-color: #0b1a1f;
+                border: 1px solid #0f9b8e;
+                border-radius: 12px;
+            }
+        """)
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(12, 12, 12, 12)
+        card_layout.setSpacing(8)
+        
+        # Title
+        title = QLabel("RECENT SEARCHES")
+        title.setStyleSheet("color: #7fe7dc; font-weight: bold; font-size: 10px; border: none;")
+        card_layout.addWidget(title)
+        
+        # Container for chips
+        chip_container = QWidget()
+        chip_container.setStyleSheet("background: transparent; border: none;")
+        chip_layout = QVBoxLayout(chip_container)
+        chip_layout.setContentsMargins(0, 0, 0, 0)
+        chip_layout.setSpacing(6)
+        
+        for query in history[:6]:  # Show up to 6 chips
+            chip = QPushButton(query)
+            chip.setStyleSheet("""
+                QPushButton {
+                    background-color: rgba(15, 155, 142, 0.2);
+                    color: #eaf7f2;
+                    border: 1px solid #0f9b8e;
+                    border-radius: 12px;
+                    padding: 6px 12px;
+                    text-align: left;
+                    font-weight: normal;
+                }
+                QPushButton:hover { background-color: #0f9b8e; }
+            """)
+            chip.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+            chip.clicked.connect(lambda _, q=query: self._select(q, on_select))
+            chip_layout.addWidget(chip)
+            
+        card_layout.addWidget(chip_container)
+        layout.addWidget(card)
+        
+        # Adjust size to fit content
+        self.adjustSize()
+
+    def _select(self, query, callback):
+        self.close()
+        callback(query)
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# class class WallpaperWidget(QWidget):
+# ────────────────────────────────────────────────────────────────────────────
+
+class WallpaperWidget(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._pix = None
+        self._cache = None
+        self._overlay = QColor(11, 26, 31, 150)   # tint strength (0-255)
+
+    def set_wallpaper(self, path):
+        pm = QPixmap(path) if path else QPixmap()
+        self._pix = None if pm.isNull() else pm
+        self._cache = None
+        self.update()
+
+    def paintEvent(self, e):
+        p = QPainter(self)
+        if self._pix is None:
+            # honor the normal stylesheet background (dark/light modes)
+            opt = QStyleOption(); opt.initFrom(self)
+            self.style().drawPrimitive(QStyle.PrimitiveElement.PE_Widget, opt, p, self)
+            return
+        if self._cache is None or self._cache.size() != self.size():
+            self._cache = self._pix.scaled(
+                self.size(),
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation)
+        x = (self._cache.width()  - self.width())  // 2
+        y = (self._cache.height() - self.height()) // 2
+        p.drawPixmap(0, 0, self._cache, x, y, self.width(), self.height())
+        p.fillRect(self.rect(), self._overlay)
 
 # ────────────────────────────────────────────────────────────────────────────
 # Main window : OtterBrowser.__init__
 # ────────────────────────────────────────────────────────────────────────────
 
+
 class OtterBrowser(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Otter Browser")
-
         self.setGeometry(180, 100, 820, 700)
         self.setMinimumSize(640, 460)
 
         self._pips = []
-        self._fact_timer = QTimer(self); self._fact_timer.timeout.connect(self._rotate_fact)
+        self._fact_timer = QTimer(self)
+        self._fact_timer.timeout.connect(self._rotate_fact)
         self._fact_timer.start(9000)
-
-        # ── otter-_scraped_facts ──
 
         self._scraped_facts = _load_json(OTTER_FACTS_URL, [])
         if not isinstance(self._scraped_facts, list):
             self._scraped_facts = []
 
-        # ── Auto-refresh watchdog ──
         self._last_activity = {}
         self._refresh_timer = QTimer(self)
         self._refresh_timer.timeout.connect(self._watchdog_tick)
         self.update_refresh_timer()
-
-
 
         # ── Profiles ────────────────────────────────────────────────────
         self.profile = self._make_profile("otter-main", OTTER_PROFILE_DIR, True)
         self.local_profile = QWebEngineProfile(self)
         self.local_profile.setHttpUserAgent(REAL_UA)
         self.incognito_profile = self._make_profile("otter-incognito", OTTER_INCOGNITO, False)
-
         for prof in (self.profile, self.local_profile, self.incognito_profile):
             prof.downloadRequested.connect(self._on_download)
 
-        # ── YouTube skipper ─────────────────────────────────────────────
         self._inject_ad_skipper()
 
-        # ── Root: rail | side panel | main column ───────────────────────
-        central = QWidget(); self.setCentralWidget(central)
-        root = QHBoxLayout(central); root.setContentsMargins(0,0,0,0); root.setSpacing(0)
+        # ── Root: WallpaperWidget is the central widget ────────────────
+        central = WallpaperWidget()
+        self.setCentralWidget(central)
+        self.central = central
+        root = QHBoxLayout(central)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
+        # ── Left rail ──────────────────────────────────────────────────
         self.rail = IconRail(self)
         self.rail.iconClicked.connect(self._on_rail)
         root.addWidget(self.rail)
 
+        # ── Side panel ─────────────────────────────────────────────────
         self.side = SidePanel(self)
         root.addWidget(self.side)
 
-        # main column: top bar + tabs
-        main = QWidget(); mv = QVBoxLayout(main)
-        mv.setContentsMargins(0,0,0,0); mv.setSpacing(0)
+        # ── Main column (top bar + tabs) ───────────────────────────────
+        main = QWidget()
+        mv = QVBoxLayout(main)
+        mv.setContentsMargins(0, 0, 0, 0)
+        mv.setSpacing(0)
         root.addWidget(main, 1)
 
-        # ── Top bar (minimal) ───────────────────────────────────────────
-        top = QWidget(); 
-        top.setObjectName("top_bar")  
+        # Top bar
+        top = QWidget()
+        top.setObjectName("top_bar")
         top.setStyleSheet("background:#0b1a1f;")
-        tv = QHBoxLayout(top); tv.setContentsMargins(10, 8, 10, 6); tv.setSpacing(6)
-
-
+        tv = QHBoxLayout(top)
+        tv.setContentsMargins(10, 8, 10, 6)
+        tv.setSpacing(6)
 
         self.btn_back = make_icon_button("back", "Back (Alt+←)", self.go_back, size=18, btn_size=32)
         self.btn_fwd  = make_icon_button("forward", "Forward (Alt+→)", self.go_forward, size=18, btn_size=32)
         self.btn_rl   = make_icon_button("reload", "Reload (Ctrl+R)", self.reload, size=18, btn_size=32)
-        tv.addWidget(self.btn_back); tv.addWidget(self.btn_fwd); tv.addWidget(self.btn_rl)
+        tv.addWidget(self.btn_back)
+        tv.addWidget(self.btn_fwd)
+        tv.addWidget(self.btn_rl)
 
-
-
-
-        self.url = QLineEdit(); self.url.setPlaceholderText("🔍 URL, path, or search…")
-        self.url.setClearButtonEnabled(True); self.url.returnPressed.connect(self.go)
+        self.url = QLineEdit()
+        self.url.setPlaceholderText("🔍 URL, path, or search…")
+        self.url.setClearButtonEnabled(True)
+        self.url.returnPressed.connect(self.go)
         self.url.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.url.setMinimumHeight(32)
+        self.url.installEventFilter(self)
         tv.addWidget(self.url, 1)
 
-        # 👇 ADD THIS GLOBE BUTTON
         self.btn_globe = make_icon_button("globe", "Restore current URL", self.restore_url, size=16, btn_size=30)
         tv.addWidget(self.btn_globe)
 
         mv.addWidget(top)
+
+        # ── Object names + styled backgrounds (once) ───────────────────
+        self.rail.setObjectName("rail")
+        self.side.setObjectName("side")
+        for w in (self.rail, self.side, top):
+            w.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
 
         # ── Tabs ────────────────────────────────────────────────────────
         self.tabs = QTabWidget()
         self.tabs.setTabsClosable(False)
         self.tabs.setMovable(True)
         self.tabs.setDocumentMode(False)
-        self.tabs.setStyleSheet("QTabWidget { background: #000000; }")
+        self.tabs.setStyleSheet("QTabWidget { background: transparent; }")
         self.tabs.tabCloseRequested.connect(self.close_tab)
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self.tabs.tabBar().setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -2398,9 +2586,11 @@ class OtterBrowser(QMainWindow):
             sess = _load_json(OTTER_SESSION, {})
             for u in (sess.get("tabs") or [HOME_PAGE]):
                 self.new_tab(u, focus=False)
-            if self.tabs.count() == 0: self.new_tab(HOME_PAGE)
+            if self.tabs.count() == 0:
+                self.new_tab(HOME_PAGE)
             idx = sess.get("active", 0)
-            if 0 <= idx < self.tabs.count(): self.tabs.setCurrentIndex(idx)
+            if 0 <= idx < self.tabs.count():
+                self.tabs.setCurrentIndex(idx)
         else:
             self.new_tab(HOME_PAGE)
 
@@ -2455,43 +2645,32 @@ class OtterBrowser(QMainWindow):
         if image_path == "LIGHT":
             app.setStyleSheet(LIGHT_STYLE)
             self.rail.setStyleSheet("background:#ffffff; border: none;")
-            self.side.setStyleSheet("background-color: transparent; border-right:1px solid #f12;")
+            self.side.setStyleSheet("background-color: transparent; border-right:1px solid #0b1a1f;")
+
             top_bar = self.findChild(QWidget, "top_bar")
             if top_bar:
                 top_bar.setStyleSheet("background:#ffffff;") # Changed to white
             # Make labels black
-            self._set_panel_label_colors("#f12")
+            self._set_panel_label_colors("#0b1a1f")
             self.statusBar().showMessage("☀️ Light mode applied", 3000)
             return
 
 
         # --- Image / Theme Extension Mode ---
+        # --- Image / Theme Extension Mode ---
         app.setStyleSheet(THEME_STYLE)
-        
-        path_str = str(image_path).replace("\\", "/")
-        if not path_str.startswith("file://"):
-            path_str = f"file://{path_str}"
+        self.setStyleSheet("")                       # drop the old border-image
+        self.central.set_wallpaper(str(image_path))
 
-        main_style = f"""
-            QMainWindow {{
-                border-image: linear-gradient(rgba(11, 26, 31, 0.5), rgba(11, 26, 31, 0.5)), url("{path_str}") 0 0 0 0 stretch stretch;
-            }}
-        """
-        self.setStyleSheet(main_style)
-        
-        transparent = "background-color: transparent;"
-        self.rail.setStyleSheet(transparent + "border: none;")
-        self.side.setStyleSheet(transparent + "border-right: 1px solid rgba(15, 155, 142, 0.5);")
-        
+        self.rail.setStyleSheet("QWidget#rail { background-color: rgba(4,16,18,0.55); border:none; }")
+        self.side.setStyleSheet("QWidget#side { background-color: rgba(11,26,31,0.60);"
+                                " border-right:1px solid rgba(15,155,142,0.5); }")
         top_bar = self.findChild(QWidget, "top_bar")
         if top_bar:
-            top_bar.setStyleSheet(transparent)
+            top_bar.setStyleSheet("QWidget#top_bar { background-color: rgba(11,26,31,0.45); }")
 
-        # Make labels teal (to show up against the dark overlay)
         self._set_panel_label_colors("#7fe7dc")
-
         self.update()
-        self.repaint()
         self.statusBar().showMessage(f"🎨 Theme applied: {Path(image_path).name}", 4000)
 
     def open_theme_picker(self):
@@ -2677,19 +2856,69 @@ class OtterBrowser(QMainWindow):
         except Exception:
             pass
 
+    def _show_search_menu(self):
+        history = _load_json(OTTER_SEARCHES, [])
+        if not isinstance(history, list) or not history:
+            self.statusBar().showMessage("no recent searches yet", 2000)
+            return
+        menu = QMenu(self)
+        menu.setWindowFlags(menu.windowFlags()
+                            | Qt.WindowType.FramelessWindowHint
+                            | Qt.WindowType.NoDropShadowWindowHint)
+        menu.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)  # lets border-radius show
+        menu.setStyleSheet("""
+            QMenu { background-color:#ffffff; border:1px solid #e0e0e0;
+                    border-radius:12px; padding:8px; }
+            QMenu::item { padding:8px 16px; border-radius:6px; color:#333; font-size:14px; }
+            QMenu::item:selected { background-color:#f0f0f0; }
+        """)
+        for q in history[:8]:
+            menu.addAction(f"🔍  {q}", lambda _=False, q=q: self._run_from_url(q))
+        menu.exec(self.url.mapToGlobal(QPoint(0, self.url.height() + 2)))
+
+
+    def eventFilter(self, obj, event):
+        if obj is self.url and event.type() == QEvent.Type.MouseButtonPress:
+            if not self.url.isModified() or not self.url.text().strip():
+                QTimer.singleShot(0, self._show_search_menu)
+        return super().eventFilter(obj, event)
+
+    def _run_from_url(self, query):
+        self.url.setText(query)
+        self.go()
+
+    # ── record searches typed in the URL bar ────────────────────────────
+    def _record_search(self, text):
+        hist = _load_json(OTTER_SEARCHES, [])
+        if not isinstance(hist, list):
+            hist = []
+        hist = [h for h in hist if h.lower() != text.lower()]
+        hist.insert(0, text)
+        _save_json(OTTER_SEARCHES, hist[:20])
+
     def go(self):
-        url = normalize(self.url.text())
-        if not url: return
+        raw = self.url.text().strip()
+        url = normalize(raw)
+        if not url:
+            return
+        engine = SETTINGS.get("search_engine", "DuckDuckGo")
+        if url == SEARCH_ENGINES.get(engine, SEARCH_ENGINES["DuckDuckGo"]).format(quote_plus(raw)):
+            self._record_search(raw)          # it was a search, not a URL
         self._swap_page_if_needed(QUrl(url))
         v = self._active_view()
-        if v: v.setUrl(QUrl(url))
+        if v:
+            v.setUrl(QUrl(url))
         log_event("visit", url)
 
     def home(self):
         self.url.setText(SETTINGS.get("home", HOME_PAGE)); self.go()
+
     def reload(self):
         v = self._active_view()
         if v: v.reload()
+
+
+
     def go_back(self):
         v = self._active_view()
         if v: v.back()
