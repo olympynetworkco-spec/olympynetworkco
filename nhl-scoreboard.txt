@@ -1,0 +1,371 @@
+Search Query for Search
+Home
+News
+Finance
+Sports
+More
+Mail
+
+    NHL imageNHL
+    News
+    Scores
+    Schedule
+    Standings
+    Stats
+    Teams
+    Players
+    Injuries
+    Odds
+    Fantasy Hockey
+    Stanley Cup Final
+    World Juniors
+
+    Fantasy imageFantasy
+    Network imageNetwork
+    Fantasy Plus
+
+nhl Scores
+Scheduled
+
+    Edmonton Oilers
+    Oilers
+    17-4-3
+    Carolina Hurricanes
+    Hurricanes
+    16-3-3
+        Lenovo Center
+        NHLN, CARN, HHN
+            CAR -1.5
+            O/U 6.5
+        Tickets from $92
+        L. Draisaitl
+        L. Draisaitl
+        21 G23 A25 +/-
+        C. McDavid
+        C. McDavid
+        13 G42 A28 +/-
+        P. Kochetkov
+        P. Kochetkov
+        12 W1 L.920 SV%1.64 GAA
+    Chicago Blackhawks
+    Blackhawks
+    6-14-2
+    Calgary Flames
+    Flames
+    10-12-1
+        Scotiabank Saddledome
+        ESPN+, CHSN
+            CGY -1.5
+            O/U 5.5
+        Tickets from $34
+        F. Nazar
+        F. Nazar
+        11 G2 A-15 +/-
+        R. Kantserov
+        R. Kantserov
+        9 G3 A-12 +/-
+        S. Knight
+        S. Knight
+        6 W11 L.886 SV%3.49 GAA
+    Buffalo Sabres
+    Sabres
+    9-9-4
+    Florida Panthers
+    Panthers
+    12-8-3
+        Amerant Bank Arena
+        ESPN+, MSG-, SCRI
+            FLA -1.5
+            O/U 6.5
+        Tickets from $30
+        T. Thompson
+        T. Thompson
+        14 G10 A6 +/-
+        S. Reinhart
+        S. Reinhart
+        12 G10 A4 +/-
+        J. Markstrom
+        J. Markstrom
+        6 W4 L.898 SV%2.56 GAA
+    Pittsburgh Penguins
+    Penguins
+    7-12-2
+    Nashville Predators
+    Predators
+    11-6-5
+        Bridgestone Arena
+        ESPN+, SCRI
+            NSH -1.5
+            O/U 6.5
+        Tickets from $112
+        S. Stamkos
+        S. Stamkos
+        12 G11 A-7 +/-
+        R. O'Reilly
+        R. O'Reilly
+        9 G11 A-10 +/-
+        J. Saros
+        J. Saros
+        7 W4 L.918 SV%2.46 GAA
+    Washington Capitals
+    Capitals
+    10-10-0
+    Boston Bruins
+    Bruins
+    14-7-1
+        TD Garden
+        ESPN+, NESN, MNMT
+            BOS -1.5
+            O/U 6.5
+        Tickets from $108
+        A. Tuch
+        A. Tuch
+        13 G3 A0 +/-
+        D. Pastrnak
+        D. Pastrnak
+        10 G18 A3 +/-
+        J. Swayman
+        J. Swayman
+        10 W5 L.908 SV%2.50 GAA
+    New York Islanders
+    Islanders
+    10-6-5
+    Detroit Red Wings
+    Red Wings
+    8-11-3
+        Little Caesars Arena
+        ESPN+, DSN, MSGS
+            NYI -1.5
+            O/U 5.5
+        Tickets from $41
+        L. Raymond
+        L. Raymond
+        9 G13 A2 +/-
+        S. Holmstrom
+        S. Holmstrom
+        9 G8 A4 +/-
+        I. Sorokin
+        I. Sorokin
+        8 W4 L.919 SV%2.42 GAA
+    Philadelphia Flyers
+    Flyers
+    8-11-6
+    Montreal Canadiens
+    Canadiens
+    14-5-4
+        Bell Centre
+        NHLN, NBCS
+            MTL -1.5
+            O/U 5.5
+        Tickets from $183
+        C. Caufield
+        C. Caufield
+        12 G8 A6 +/-
+        M. Michkov
+        M. Michkov
+        11 G8 A-12 +/-
+        J. Fowler
+        J. Fowler
+        10 W2 L.923 SV%2.19 GAA
+    Los Angeles Kings
+    Kings
+    7-11-2
+    Ottawa Senators
+    Senators
+    14-6-3
+        Canadian Tire Centre
+        ESPN+, ABTV
+            OTT -1.5
+            O/U 5.5
+        Tickets from $30
+        D. Batherson
+        D. Batherson
+        12 G10 A7 +/-
+        T. Stutzle
+        T. Stutzle
+        11 G17 A10 +/-
+        L. Ullmark
+        L. Ullmark
+        10 W1 L.940 SV%1.42 GAA
+    New Jersey Devils
+    Devils
+    15-7-0
+    St. Louis Blues
+    Blues
+    11-9-2
+        Enterprise Center
+        ESPN+, STLN, MSGS, BN+
+            NJ -1.5
+            O/U 5.5
+        Tickets from $39
+        J. Snuggerud
+        J. Snuggerud
+        12 G5 A6 +/-
+        J. Hughes
+        J. Hughes
+        10 G17 A11 +/-
+        J. Hofer
+        J. Hofer
+        9 W6 L.923 SV%2.26 GAA
+    Columbus Blue Jackets
+    Blue Jackets
+    8-12-0
+    Toronto Maple Leafs
+    Maple Leafs
+    8-13-3
+        Scotiabank Arena
+        ESPN+, CBJN, CBJH
+            TOR -1.5
+            O/U 6.5
+        Tickets from $93
+        A. Matthews
+        A. Matthews
+        13 G19 A8 +/-
+        W. Nylander
+        W. Nylander
+        11 G13 A-9 +/-
+        C. Talbot
+        C. Talbot
+        6 W4 L.909 SV%2.61 GAA
+    NEWSLeafs turn to Rory McIlroy for help amid 8-game skid
+    Vegas Golden Knights
+    Golden Knights
+    13-6-5
+    Winnipeg Jets
+    Jets
+    11-9-3
+        Canada Life Centre
+        ESPN+, SCRI
+            VGK -1.5
+            O/U 6.5
+        Tickets from $41
+        K. Connor
+        K. Connor
+        18 G10 A2 +/-
+        M. Stone
+        M. Stone
+        11 G11 A2 +/-
+        A. Hill
+        A. Hill
+        7 W2 L.898 SV%2.61 GAA
+    Anaheim Ducks
+    Ducks
+    11-11-1
+    Utah Mammoth
+    Mammoth
+    11-9-3
+        Delta Center
+        ESPN+, Utah, Amaz, KCOP
+            UTA -1.5
+            O/U 6.5
+        Tickets from $71
+        C. Gauthier
+        C. Gauthier
+        21 G8 A-1 +/-
+        B. Sennecke
+        B. Sennecke
+        12 G14 A3 +/-
+        K. Vejmelka
+        K. Vejmelka
+        6 W7 L.870 SV%3.14 GAA
+    Seattle Kraken
+    Kraken
+    10-8-1
+    San Jose Sharks
+    Sharks
+    10-12-2
+        SAP Center at San Jose
+        ESPN+, NBCS, KHN/, KONG
+            SJ -1.5
+            O/U 6.5
+        Tickets from $73
+        M. Celebrini
+        M. Celebrini
+        9 G18 A-2 +/-
+        W. Smith
+        W. Smith
+        8 G11 A-8 +/-
+        Y. Askarov
+        Y. Askarov
+        6 W9 L.888 SV%3.29 GAA
+    Minnesota Wild
+    Wild
+    17-3-4
+    Vancouver Canucks
+    Canucks
+    5-18-1
+        Rogers Arena
+        ESPN+, MINN, Wild
+            MIN -1.5
+            O/U 6.5
+        Tickets from $47
+        K. Kaprizov
+        K. Kaprizov
+        18 G25 A24 +/-
+        M. Boldy
+        M. Boldy
+        13 G14 A22 +/-
+        J. Wallstedt
+        J. Wallstedt
+        16 W2 L.926 SV%1.95 GAA
+
+Advertisement
+
+    NFL
+    NBA
+    MLB
+    NHL
+    NCAAF
+    NCAAB
+    NCAAW
+    Fantasy
+    Betting
+    WNBA
+    Golf
+    Tennis
+    MMA
+    Racing
+    Soccer
+    Horse Racing
+    Lacrosse
+    Swimming
+    College Sports
+    Daily Draw
+    Collectibles
+    Sports Business
+    IFL
+    Combat
+    Boxing
+    Wrestling
+    Women's Sports
+    College & High School
+    Olympics
+    Adventure Sports
+    Cycling
+    UFL
+    Cricket
+    Curling
+    Rugby
+    Watch
+    What & How To Watch
+    More News
+    Newsletters
+    GameChannel
+    RSS
+    Jobs
+    Help
+
+    Help
+    Responsible Gaming
+    Share Your Feedback
+    About Us
+    About Our Ads
+
+Follow us on
+
+Download our app
+
+    Download app from appStore
+    Download app from googlePlay
+
+© 2026 Yahoo. All rights reserved.

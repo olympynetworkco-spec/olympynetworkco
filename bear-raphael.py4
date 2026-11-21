@@ -1,0 +1,547 @@
+#!/usr/bin/env python4
+# -*- coding: utf-8 -*-
+
+import os
+import re
+import json
+import time
+import signal
+import threading
+import subprocess
+import urllib.request
+import urllib.parse
+import ssl
+import sys
+import webbrowser
+from pathlib import Path
+from datetime import datetime
+from http.server import HTTPServer, BaseHTTPRequestHandler
+
+# ─── PYTHON4 LIBRARY PATH ───
+PYTHON4_LIB = "/Applications/python4/bin/Library"
+if PYTHON4_LIB not in sys.path:
+    sys.path.insert(0, PYTHON4_LIB)
+
+try:
+    import qrcode
+except:
+    subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--target=' + PYTHON4_LIB, 'qrcode', '--quiet'])
+    import qrcode
+
+# ═══════════════════════════════════════════════════════════════
+# SECTION 1: CONFIGURATION & CONSTANTS
+# ═══════════════════════════════════════════════════════════════
+
+KEYBOARD = {
+    "new_window": "Cmd+N", "minimize": "Cmd+M", "settings": "Cmd+,",
+    "bookmark": "Cmd+D", "find": "Cmd+F", "find_next": "Cmd+G",
+    "hide": "Cmd+H", "url_bar": "Cmd+L", "refresh": "Cmd+R",
+    "history": "Cmd+Y", "open_file": "Cmd+O", "back": "Cmd+[",
+    "forward": "Cmd+]", "switch_apps": "Cmd+Tab", "bold": "Cmd+B",
+    "italic": "Cmd+I", "underline": "Cmd+U", "save": "Cmd+S",
+    "print_pdf": "Cmd+P",
+}
+
+# ─── BOX DRAWING ───
+TOP_LEFT = "╭"
+TOP_RIGHT = "╮"
+BOT_LEFT = "╰"
+BOT_RIGHT = "╯"
+HORIZ = "─"
+VERT = "│"
+BOX_WIDTH = 50
+BOX_HEIGHT = 12
+
+# ─── TELEGRAM CONFIG ───
+TELEGRAM_FILE = "/Applications/python4/merge-agent/telegram.json"
+_last_update_id = 0
+
+# ═══════════════════════════════════════════════════════════════
+# SECTION 2: BEAR BOX FILLER SYSTEM
+# ═══════════════════════════════════════════════════════════════
+
+def wrap_text(text, width):
+    words = text.split()
+    lines = []
+    current = ""
+    for word in words:
+        if len(current) + len(word) + 1 <= width:
+            current += (" " if current else "") + word
+        else:
+            if current:
+                lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+    return lines
+
+def draw_box(content, width=BOX_WIDTH, max_lines=BOX_HEIGHT):
+    lines = []
+    lines.append(TOP_LEFT + HORIZ * (width - 2) + TOP_RIGHT)
+    
+    if isinstance(content, str):
+        content = [content]
+    
+    fitted = []
+    for item in content:
+        if isinstance(item, str):
+            if len(item) <= width - 2:
+                fitted.append(item)
+            else:
+                wrapped = wrap_text(item, width - 4)
+                fitted.extend(wrapped)
+        else:
+            fitted.extend(item)
+    
+    while len(fitted) < max_lines:
+        fitted.append("")
+    
+    if len(fitted) > max_lines:
+        fitted = fitted[:max_lines]
+    
+    for line in fitted:
+        if len(line) > width - 2:
+            line = line[:width - 5] + "..."
+        padding = width - len(line) - 3
+        if padding < 0:
+            padding = 0
+        lines.append(VERT + " " + line + " " * padding + VERT)
+    
+    lines.append(BOT_LEFT + HORIZ * (width - 2) + BOT_RIGHT)
+    return lines
+
+def draw_divider():
+    return "|" + HORIZ * 50 + "|"
+
+def fetch_html(url):
+    try:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        req = urllib.request.Request(url, headers={'User-Agent': 'Raphael-Bear/1.0'})
+        with urllib.request.urlopen(req, timeout=15, context=ctx) as r:
+            return r.read().decode('utf-8', errors='ignore')
+    except Exception as e:
+        return f"Error: {e}"
+
+def generate_qr(url, path):
+    try:
+        q = qrcode.QRCode(box_size=4, border=2)
+        q.add_data(url)
+        q.make_image(fill_color="black", back_color="white").save(path)
+        return True
+    except:
+        return False
+
+def parse_text_into_blocks(text, max_width=46, max_lines=12):
+    lines = text.split('\n')
+    
+    clean_lines = []
+    for line in lines:
+        if line:
+            clean_lines.append(line)
+    
+    processed_lines = []
+    for line in clean_lines:
+        indent = len(line) - len(line.lstrip())
+        content = line.lstrip()
+        
+        if len(line) <= max_width:
+            processed_lines.append(line)
+        else:
+            words = content.split()
+            current = " " * indent
+            for word in words:
+                if len(current) + len(word) + 1 <= max_width:
+                    current += (" " if current != " " * indent else "") + word
+                else:
+                    if current:
+                        processed_lines.append(current)
+                    current = " " * indent + word
+            if current:
+                processed_lines.append(current)
+    
+    merged_lines = []
+    i = 0
+    while i < len(processed_lines):
+        current_line = processed_lines[i]
+        while i + 1 < len(processed_lines):
+            next_line = processed_lines[i + 1]
+            next_indent = len(next_line) - len(next_line.lstrip())
+            current_indent = len(current_line) - len(current_line.lstrip())
+            
+            if next_indent == current_indent and len(current_line) + len(next_line) + 1 <= max_width:
+                current_line += " " + next_line.lstrip()
+                i += 1
+            else:
+                break
+        merged_lines.append(current_line)
+        i += 1
+    
+    blocks = []
+    for i in range(0, len(merged_lines), max_lines):
+        block = merged_lines[i:i+max_lines]
+        blocks.append(block)
+    
+    return blocks
+
+def get_clipboard():
+    try:
+        script = 'the clipboard as text'
+        result = subprocess.run(['osascript', '-e', script], capture_output=True, text=True)
+        return result.stdout
+    except Exception as e:
+        return f"Clipboard error: {e}"
+
+def bear_box_process(url, filename, folder):
+    """Main Bear box filler process - generates QR and boxed template"""
+    folder_path = Path(folder)
+    folder_path.mkdir(parents=True, exist_ok=True)
+    
+    print("\n📡 Fetching HTML...")
+    html = fetch_html(url)
+    
+    html_path = folder_path / f"{filename}.html"
+    with open(html_path, 'w', encoding='utf-8') as f:
+        f.write(html)
+    print(f"✅ HTML saved: {html_path}")
+    
+    qr_path = folder_path / f"{filename}.qr.png"
+    if generate_qr(url, qr_path):
+        print(f"✅ QR saved: {qr_path}")
+    
+    print(f"\n🌐 Opening browser...")
+    webbrowser.open(url)
+    
+    print("\n⏳ Waiting 12 seconds for page to load...")
+    for i in range(12, 0, -1):
+        print(f"   {i}s", end="", flush=True)
+        time.sleep(1)
+    print("\r   ✓")
+    
+    print("\n📋 Copying content...")
+    time.sleep(0.5)
+    subprocess.run(['osascript', '-e', 'tell application "System Events" to keystroke "a" using command down'])
+    time.sleep(0.3)
+    subprocess.run(['osascript', '-e', 'tell application "System Events" to keystroke "c" using command down'])
+    time.sleep(0.5)
+    
+    content = get_clipboard()
+    if not content:
+        content = html[:5000]
+    
+    txt_path = folder_path / f"{filename}.txt"
+    with open(txt_path, 'w', encoding='utf-8') as f:
+        f.write(content)
+    print(f"✅ TXT saved: {txt_path}")
+    
+    print("\n" + "="*60)
+    print("📊 Bear Box Template")
+    print("="*60 + "\n")
+    
+    blocks = parse_text_into_blocks(content)
+    
+    output = []
+    output.append(draw_divider())
+    
+    # Raphael header
+    header_content = [
+        f"⚡ RAPHAEL YOSHI",
+        f"URL: {url[:43]}",
+        f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    ]
+    output.extend(draw_box(header_content, 50, 3))
+    output.append(draw_divider())
+    
+    output.extend(draw_box([f"URL: {url[:45]}"], 50, 2))
+    output.append(draw_divider())
+    
+    output.extend(draw_box([f"Search: {filename.replace('_', ' ')}"], 50, 2))
+    output.append(draw_divider())
+    
+    for block in blocks:
+        output.extend(draw_box(block, 50, 12))
+        output.append(draw_divider())
+    
+    print("\n".join(output))
+    
+    template_path = folder_path / f"{filename}_template.txt"
+    with open(template_path, 'w', encoding='utf-8') as f:
+        f.write("\n".join(output))
+    print(f"\n✅ Template saved: {template_path}")
+    
+    return output
+
+# ═══════════════════════════════════════════════════════════════
+# SECTION 3: TELEGRAM HANDLERS
+# ═══════════════════════════════════════════════════════════════
+
+def load_telegram_config():
+    try:
+        with open(TELEGRAM_FILE, 'r', encoding='utf-8') as f:
+            cfg = json.load(f)
+        return {'token': cfg.get('token') or cfg.get('TOKEN'), 'chat_id': str(cfg.get('chat_id') or cfg.get('CHAT_ID'))}
+    except:
+        return None
+
+def send_telegram(message):
+    cfg = load_telegram_config()
+    if not cfg or not cfg['token']:
+        return False
+    try:
+        context = ssl._create_unverified_context()
+        msg = json.dumps({"chat_id": cfg['chat_id'], "text": message}).encode()
+        req = urllib.request.Request(f"https://api.telegram.org/bot{cfg['token']}/sendMessage", data=msg, headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=3, context=context)
+        print(f"[TG] Sent: {message[:50]}...")
+        return True
+    except Exception as e:
+        print(f"[TG] Send failed: {e}")
+        return False
+
+def listen_telegram():
+    global _last_update_id
+    cfg = load_telegram_config()
+    if not cfg or not cfg['token']:
+        return None
+    try:
+        context = ssl._create_unverified_context()
+        url = f"https://api.telegram.org/bot{cfg['token']}/getUpdates?offset={_last_update_id + 1}&timeout=30"
+        req = urllib.request.Request(url)
+        response = urllib.request.urlopen(req, timeout=35, context=context)
+        data = json.loads(response.read().decode('utf-8'))
+        if data.get('ok') and data.get('result'):
+            updates = data['result']
+            if updates:
+                last_update = updates[-1]
+                update_id = last_update.get('update_id')
+                if update_id:
+                    _last_update_id = update_id
+                message = last_update.get('message', {})
+                chat_id = message.get('chat', {}).get('id')
+                text = message.get('text', '')
+                if str(chat_id) == str(cfg['chat_id']) and text:
+                    return text
+        return None
+    except Exception as e:
+        return None
+
+def extract_url(text):
+    url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+'
+    matches = re.findall(url_pattern, text)
+    return matches[0] if matches else None
+
+# ═══════════════════════════════════════════════════════════════
+# SECTION 4: PROXY SERVER
+# ═══════════════════════════════════════════════════════════════
+
+class ProxyHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        try:
+            parsed = urllib.parse.urlparse(self.path)
+            query = urllib.parse.parse_qs(parsed.query)
+            target_url = query.get('url', [None])[0]
+            if not target_url:
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(b"Missing url parameter")
+                return
+            target_url = urllib.parse.unquote(target_url)
+            context = ssl.create_default_context()
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+            req = urllib.request.Request(
+                target_url,
+                headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'}
+            )
+            response = urllib.request.urlopen(req, timeout=30, context=context)
+            content = response.read()
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(content)
+        except Exception as e:
+            self.send_response(500)
+            self.end_headers()
+            self.wfile.write(f"Error: {str(e)}".encode())
+
+def start_proxy():
+    server = HTTPServer(('', 9000), ProxyHandler)
+    print("\n[❶] Proxy: http://localhost:9000/proxy/?url=")
+    server.serve_forever()
+
+# ═══════════════════════════════════════════════════════════════
+# SECTION 5: RAPHAEL VERIFIERS (Error Handling)
+# ═══════════════════════════════════════════════════════════════
+
+VERIFIERS = {
+    "CORE_FIGHTERS": [
+        ("3.A", "⚔️ Error Catch", "Detects failures across all modules instantly"),
+        ("3.B", "🔪 Loop Breaker", "Kills infinite retries — never blind loops"),
+        ("3.C", "🗡️ Strategy Pivot", "Path A fails → Path B executes quietly"),
+        ("3.D", "⚙️ Conflict Monitor", "Two modules fight → resolves by priority"),
+        ("3.E", "📢 Telegram Trigger", "Escalates REAL problems to DrGully once"),
+        ("3.F", "📝 Recovery Log", "Writes what broke AND how it got fixed"),
+    ],
+    "HUNTER_LAYER": [
+        ("3.G", "🔥 Rage Escalator", "Converts errors into usable fuel — precision anger"),
+        ("3.H", "💀 Root Cause Slayer", "Drills through layers until real bastard dies"),
+        ("3.I", "👁️ Preemptive Patrol", "Scans patterns BEFORE they break"),
+        ("3.J", "🛡️ Turtle Shield", "Protects from cascading damage"),
+        ("3.K", "🤖 Bot Hunter", "Special red-mode for syntax errors & AI garbage"),
+        ("3.L", "🩸 Eternal Scar Archive", "Every recovery becomes unbreakable system wisdom"),
+    ],
+    "GUARDIAN_LAYER": [
+        ("3.M", "🎯 Anomaly Sniper", "Detects weird behavior before it's an error"),
+        ("3.N", "⚡ Rate Limit Enforcer", "Stops modules from spamming retries"),
+        ("3.O", "🔒 Sandbox Brawler", "Forces suspicious scripts into safe sandbox"),
+        ("3.P", "🚫 System Quarantine", "Isolates corrupted modules instantly"),
+        ("3.Q", "🔙 Backtrace Hunter", "Walks backward through stack to find root"),
+        ("3.R", "🚨 Red Alert Mode", "Triggers emergency protection when critical"),
+    ],
+    "MASTER_LAYER": [
+        ("3.S", "🔥 The Crucible", "Strips failed script to bare metal → Clean Recompile"),
+        ("3.T", "💥 Berserker Override", "Kills all non-essential when system 99% locked"),
+        ("3.U", "👁️ The Eternal Sentry", "Never sleeps — watches the 20 watchers"),
+    ],
+}
+
+SECTIONS = [
+    ("3.A", "Error Catch", "something failed — log it immediately", "active"),
+    ("3.B", "Loop Breaker", "never retry broken things blindly", "active"),
+    ("3.C", "Strategy Pivot", "if path A fails, find path B quietly", "active"),
+    ("3.D", "Conflict Monitor", "two tasks collide — resolve or hold", "active"),
+    ("3.E", "Telegram Trigger", "error is real — ping DrGully once", "active"),
+    ("3.F", "Recovery Log", "write what broke, what fixed it", "active"),
+]
+
+# ═══════════════════════════════════════════════════════════════
+# SECTION 6: RAPHAEL MAIN LOOP (BEAR INTEGRATED)
+# ═══════════════════════════════════════════════════════════════
+
+def speak(text):
+    """RAPHAEL speaks using macOS say command"""
+    try:
+        subprocess.run(['say', text], capture_output=True, timeout=10)
+        return True
+    except Exception as e:
+        print(f"[RAPHAEL] Speak failed: {e}")
+        return False
+
+def send_notification(title, message, subtitle=""):
+    """Send macOS notification"""
+    try:
+        script = f'display notification "{message}" with title "{title}"'
+        if subtitle:
+            script += f' subtitle "{subtitle}"'
+        subprocess.run(['osascript', '-e', script], capture_output=True)
+    except:
+        pass
+
+def main():
+    print("\n" + "="*70)
+    print("⎚-⎚ Raphael Yoshi — Bear Box Integration")
+    print("-"*70)
+    print(f"➪ Active: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("➪ RAPHAEL Skills On.")
+    speak("Raphael skills on")
+    
+    print("➪ Commands: /bear /goggles /exit")
+    print("➪ Output: .txt, .html, .qr.png, .template.txt (BEAR BOX)")
+    print("➪ Proxy: http://localhost:9000/proxy/?url=")
+    print("-"*70)
+    
+    # Start proxy in background
+    proxy_thread = threading.Thread(target=start_proxy, daemon=True)
+    proxy_thread.start()
+    time.sleep(1)
+    
+    # Start Telegram listener
+    if load_telegram_config():
+        print("[✆] [✓] Telegram active")
+        speak("Telegram active")
+        send_telegram("[⚕] Raphael configured")
+        # Start listener thread
+        def tg_listener():
+            while True:
+                try:
+                    msg = listen_telegram()
+                    if msg:
+                        print(f"[TG] Received: {msg}")
+                        url = extract_url(msg)
+                        if url:
+                            send_telegram(f"🔗 URL detected: {url[:40]}...")
+                            filename = f"telegram_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                            folder = str(Path.home() / "Desktop" / "raphael_output")
+                            bear_box_process(url, filename, folder)
+                            send_telegram(f"✅ Done: {filename}")
+                        elif msg.strip().lower() == '/bear':
+                            send_telegram("🐻 Bear mode triggered!")
+                            send_telegram("Send a URL to box-fill")
+                        elif msg.strip().lower() == '/goggles':
+                            send_telegram("🔴 GOGGLES TRIGGERED")
+                            send_notification("RAPHAEL GOGGLES", "Alert sent")
+                        elif msg.strip().lower() == '/exit':
+                            send_telegram("🛑 Raphael stopping")
+                            sys.exit(0)
+                        else:
+                            send_telegram(f"✓ Got: {msg[:30]}...")
+                    time.sleep(2)
+                except Exception as e:
+                    print(f"[TG] Listener error: {e}")
+                    time.sleep(5)
+        
+        threading.Thread(target=tg_listener, daemon=True).start()
+    else:
+        print("[TG] Not configured - local mode only")
+    
+    # ─── MAIN INTERACTIVE LOOP ───
+    while True:
+        try:
+            print("\n" + "─"*50)
+            url = input("🔗 URL (or /exit to quit): ").strip()
+            
+            if url.lower() in ['/exit', '/quit', 'exit', 'quit']:
+                print("\n🛑 Raphael stopped.")
+                speak("Goodbye")
+                sys.exit(0)
+            
+            if url.lower() == '/bear':
+                print("🐻 Bear mode active - send a URL to box-fill")
+                continue
+            
+            if url.lower() == '/goggles':
+                print("🔴 GOGGLES TRIGGERED")
+                send_notification("RAPHAEL GOGGLES", "Alert sent", "URGENT")
+                speak("Goggles triggered")
+                continue
+            
+            if not url:
+                url = "https://example.com"
+            
+            filename = input("📄 Filename: ").strip()
+            if not filename:
+                filename = f"raphael_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            
+            folder = input("📁 Folder (default: ~/Desktop/raphael_output): ").strip()
+            if not folder:
+                folder = str(Path.home() / "Desktop" / "raphael_output")
+            
+            # ─── RUN BEAR BOX PROCESS ───
+            bear_box_process(url, filename, folder)
+            
+            print("\n" + "="*70)
+            print("⚡ RAPHAEL — Ready for next URL")
+            print("="*70)
+            
+        except KeyboardInterrupt:
+            print("\n\n🛑 Raphael stopped by user.")
+            speak("Turbo stop")
+            sys.exit(0)
+        except Exception as e:
+            print(f"\n❌ Error: {e}")
+            print("🔄 Continuing...\n")
+
+if __name__ == "__main__":
+    main()
