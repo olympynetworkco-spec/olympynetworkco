@@ -1,0 +1,1435 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ོ⎚-⎚Edi</title>
+      <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
+        <text y='.9em' font-size='90'>愛</text>
+        </svg>" />
+        <style>
+          
+          /* ----- RESET & BASE ----- */
+          * {
+          box-sizing: border-box;
+          margin: 0;
+          padding: 0;
+          }
+          html {
+          }
+          body {
+          font-family: 'Segoe UI', 'Comic Sans MS', 'Chalkboard SE', cursive, sans-serif;
+          background: #f5f1e9;
+          height: 100vh;
+          display: flex;
+          flex-direction: column;
+          color: #2d2a24;
+          }
+          
+          /* ----- COMIC HEADER ----- */
+          .header {
+          background-image: url('file:///Users/macbook/Desktop/data/donatello-bison-vision.png');
+          padding: 10px 24px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border-bottom: 6px solid #222;
+          box-shadow: 0 6px 0 #b38f2a;
+          flex-shrink: 0;
+          flex-wrap: wrap;
+          gap: 8px;
+          }
+          .header h1 {
+          font-size: 2rem;
+          font-weight: 900;
+          letter-spacing: 2px;
+          text-shadow: 3px 3px 0 #ff8c00, 5px 5px 0 #000;
+          color: #fff;
+          transform: rotate(-1deg);
+          }
+          .header h1 span {
+          display: inline-block;
+          transform: scale(1.2) rotate(3deg);
+          }
+          .header-actions {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+          }
+          .header-actions button {
+          background: #222;
+          color: #fff;
+          border: 3px solid #000;
+          padding: 6px 14px;
+          font-weight: bold;
+          font-size: 0.85rem;
+          cursor: pointer;
+          box-shadow: 4px 4px 0 #000;
+          transition: all 0.05s ease;
+          font-family: inherit;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          }
+          .header-actions button:hover {
+          transform: translate(2px, 2px);
+          box-shadow: 2px 2px 0 #000;
+          }
+          .header-actions button:active {
+          transform: translate(4px, 4px);
+          box-shadow: none;
+          }
+          .header-actions .☁︎ ོ Editorial ! {
+          background: #ff3b3b;
+          color: #fff;
+          }
+          .header-actions .DOC {
+          background: #3b8aff;
+          color: #fff;
+          }
+          
+          /* ----- MAIN LAYOUT ----- */
+          .app {
+          display: flex;
+          flex: 1;
+          overflow: hidden;
+          gap: 6px;
+          padding: 6px;
+          background-image: url('file:///Users/macbook/Desktop/data/donatello-bison-vision.png');
+          }
+          
+          /* ----- LEFT PANEL (collapsible) ----- */
+          .left-panel {
+          background-image: url('file:///Users/macbook/Desktop/data/donatello-bison-vision.png');
+          border: 4px solid #222;
+          box-shadow: 8px 8px 0 #000;
+          display: flex;
+          flex-direction: column;
+          width: 25%;
+          min-width: 280px;
+          transition: width 0.2s ease, min-width 0.2s ease;
+          overflow: hidden;
+          position: relative;
+          }
+          .left-panel.collapsed {
+          width: 48px;
+          min-width: 48px;
+          }
+          .left-panel.collapsed .panel-content {
+          opacity: 0;
+          pointer-events: none;
+          width: 0;
+          height: 0;
+          overflow: hidden;
+          }
+          .left-panel.collapsed .toggle-btn {
+          rotate: 180deg;
+          }
+          
+          /* ----- DRAG SLIDER (between panels) ----- */
+          .panel-resizer {
+          flex-shrink: 0;
+          width: 14px;
+          margin: 0 -3px;
+          background: #ff3b3b;
+          border: 3px solid #000;
+          box-shadow: 3px 3px 0 #000;
+          cursor: col-resize;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          position: relative;
+          z-index: 5;
+          border-radius: 4px;
+          touch-action: none;
+          }
+          .panel-resizer:hover,
+          .panel-resizer.dragging {
+          background: #ff6b6b;
+          }
+          .panel-resizer::after {
+          content: "⋮⋮";
+          color: #fff;
+          font-weight: 900;
+          font-size: 0.8rem;
+          letter-spacing: -2px;
+          pointer-events: none;
+          }
+          .left-panel.collapsed + .panel-resizer {
+          display: none;
+          }
+          .app.resizing {
+          cursor: col-resize;
+          user-select: none;
+          }
+          .app.resizing .left-panel,
+          .app.resizing .right-panel {
+          transition: none !important;
+          }
+          @media (max-width: 700px) {
+          .panel-resizer {
+          display: none !important;
+          }
+          }
+          
+          .panel-header {
+          background: #ffe374;
+          padding: 6px 12px;
+          border-bottom: 4px solid #222;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-shrink: 0;
+          }
+          .panel-header .panel-title {
+          font-weight: 900;
+          font-size: 1.1rem;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+          }
+          .toggle-btn {
+          background: #222;
+          color: #fff;
+          border: 2px solid #000;
+          width: 30px;
+          height: 30px;
+          font-size: 1.2rem;
+          font-weight: bold;
+          cursor: pointer;
+          box-shadow: 3px 3px 0 #000;
+          transition: 0.1s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          }
+          .toggle-btn:hover {
+          transform: translate(2px, 2px);
+          box-shadow: 1px 1px 0 #000;
+          }
+          
+          .panel-content {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          padding: 8px;
+          overflow: hidden;
+          transition: opacity 0.15s;
+          }
+          
+          /* ----- TOOLBAR (widget) ----- */
+          .widget-toolbar {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 5px;
+          margin-bottom: 8px;
+          padding-bottom: 8px;
+          border-bottom: 3px dashed #bbb;
+          }
+          .widget-toolbar button {
+          background: #eee;
+          border: 2px solid #222;
+          padding: 4px 12px;
+          font-weight: bold;
+          font-size: 0.75rem;
+          cursor: pointer;
+          box-shadow: 3px 3px 0 #222;
+          transition: 0.05s;
+          font-family: inherit;
+          }
+          .widget-toolbar button:hover {
+          transform: translate(2px, 2px);
+          box-shadow: 1px 1px 0 #222;
+          }
+          .widget-toolbar button:active {
+          transform: translate(4px, 4px);
+          box-shadow: none;
+          }
+          .widget-toolbar .find-group {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 4px;
+          background: #e8e0d0;
+          padding: 4px 8px;
+          border: 2px solid #222;
+          box-shadow: inset 2px 2px 0 #bbb;
+          }
+          .widget-toolbar .find-group input {
+          border: 2px solid #222;
+          padding: 4px 8px;
+          font-family: inherit;
+          background: #fff;
+          width: 120px;
+          }
+          .widget-toolbar .find-group button {
+          box-shadow: 2px 2px 0 #222;
+          font-size: 0.7rem;
+          padding: 3px 10px;
+          }
+          .widget-toolbar .file-actions {
+          display: flex;
+          gap: 4px;
+          margin-left: auto;
+          }
+          
+          /* ----- EDITOR AREA (drag-drop) ----- */
+          .editor-wrap {
+          flex: 1;
+          border: 4px solid #222;
+          background: #fff;
+          overflow: auto;
+          position: relative;
+          min-height: 180px;
+          }
+          .editor-wrap textarea {
+          width: 100%;
+          height: 100%;
+          border: none;
+          padding: 12px;
+          font-family: 'Courier New', monospace;
+          font-size: 14px;
+          resize: none;
+          outline: none;
+          background: #fffdf7;
+          color: #1e1b16;
+          line-height: 1.5;
+          min-height: 200px;
+          }
+          .editor-wrap.drag-over {
+          background: #fff1b8;
+          border-color: #ff8c00;
+          }
+          
+          /* ----- RIGHT PANEL (preview) ----- */
+          .right-panel {
+          flex: 1;
+          background: #fcf9f2;
+          border: 4px solid #222;
+          box-shadow: 8px 8px 0 #000;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          position: relative;
+          }
+          .right-panel .panel-header {
+          background: #8fcbff;
+          }
+          .preview-frame {
+          flex: 1;
+          background: #fff;
+          border: none;
+          width: 100%;
+          height: 100%;
+          }
+          
+          /* ----- FOOTER ----- */
+          .footer {
+          background: #ffdd44;
+          border-top: 12px solid #222;
+          padding: 6px 24px;
+          text-align: center;
+          font-weight: bold;
+          font-size: 0.8rem;
+          flex-shrink: 0;
+          box-shadow: 0 -6px 0 #b38f2a;
+          }
+          
+          /* ----- UTILITY ----- */
+          .hidden {
+          display: none !important;
+          }
+          .flex-center {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          }
+          .gap-1 {
+          gap: 4px;
+          }
+          
+          /* responsive */
+          @media (max-width: 700px) {
+          .left-panel {
+          width: 100%;
+          min-width: unset;
+          }
+          .app {
+          flex-direction: column;
+          }
+          .left-panel.collapsed {
+          width: 100%;
+          min-width: unset;
+          height: 48px;
+          }
+          .left-panel.collapsed .panel-content {
+          display: none;
+          }
+          }
+
+          /* ===== COMPACT HEADER: toolbar lives in the header ===== */
+          .header {
+            padding: 4px 10px !important;
+            gap: 6px 10px !important;
+            border-bottom-width: 4px !important;
+            box-shadow: 0 4px 0 #b38f2a !important;
+            justify-content: flex-start !important;
+          }
+          .header h1 {
+            font-size: 1.05rem !important;
+            letter-spacing: 1px !important;
+            text-shadow: 2px 2px 0 #ff8c00, 3px 3px 0 #000 !important;
+            white-space: nowrap;
+          }
+          .header .widget-toolbar {
+            flex: 1 1 320px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+          }
+          .header .widget-toolbar button {
+            padding: 2px 7px !important;
+            font-size: 0.66rem !important;
+            border-width: 2px !important;
+            box-shadow: 2px 2px 0 #222 !important;
+            white-space: nowrap;
+          }
+          .header .widget-toolbar button:hover { transform: translate(1px,1px); box-shadow: 1px 1px 0 #222 !important; }
+          .header .widget-toolbar button:active { transform: translate(2px,2px); box-shadow: none !important; }
+          .header .widget-toolbar .find-group {
+            padding: 1px 4px !important;
+            gap: 3px !important;
+            flex-wrap: nowrap !important;
+          }
+          .header .widget-toolbar .find-group input {
+            width: 90px !important;
+            padding: 2px 5px !important;
+            font-size: 0.7rem;
+          }
+          .header .widget-toolbar .find-group button { font-size: 0.62rem !important; padding: 1px 6px !important; }
+          .header-actions { gap: 4px !important; flex-wrap: nowrap !important; margin-left: auto; }
+          .header-actions button {
+            padding: 3px 9px !important;
+            font-size: 0.66rem !important;
+            border-width: 2px !important;
+            box-shadow: 2px 2px 0 #000 !important;
+            white-space: nowrap;
+          }
+          .panel-header { padding: 3px 10px !important; border-bottom-width: 3px !important; }
+          .panel-header .panel-title { font-size: 0.85rem !important; }
+          .toggle-btn { width: 24px !important; height: 24px !important; font-size: 1rem !important; }
+          .panel-content { padding: 6px !important; }
+          .right-panel .panel-header { padding: 3px 10px !important; }
+          @media (max-width: 900px) {
+            .header h1 { order: 1; }
+            .header-actions { order: 2; margin-left: auto; }
+            .header .widget-toolbar { order: 3; flex: 1 1 100%; }
+          }
+        </style>
+      </head>
+      <body>
+        <!-- HEADER -->
+        <header class="header">
+          <h1> ོ⎚-⎚ EDI <span>TheEditor</span> ☁︎ ོ</h1>
+            <!-- WIDGET TOOLBAR (now lives in the header) -->
+<div class="widget-toolbar">
+  <button onclick="previewHTML()">⎚-⎚ PREVIEW</button>
+  <button onclick="highlightFull()">🔦 HIGHLIGHT</button>
+  <button onclick="formatHTML()">☰ FORMAT</button>
+  <button onclick="expandAll()">⌞ ⌝ EXPAND</button>
+  <button onclick="collapseAll()">↕ COLLAPSE</button>
+  <button onclick="refreshFrame()" title="Re-render the preview from the current editor text (Alt+6)">🔄 REFRESH</button>
+  <button onclick="clearEditor()">☭ CLEAR</button>
+  <button id="sniperBtn" onclick="toggleSniper()" style="background:#ff4444;color:#fff;">🔍 SNIPER</button>
+  <button onclick="dumpLayers()" style="background:#8fcbff;color:#000;">🧬 LAYERS</button>
+  <button id="deltasBtn" onclick="toggleDeltas()" style="background:#ff4444;color:#fff;">🩸 DELTAS</button>
+  <div class="find-group">
+    <input type="text" id="findInput" placeholder="Find..." />
+    <button onclick="findAndReplace('replaceCurrent')">REP 1</button>
+    <button onclick="findAndReplace('replaceAll')">REP ALL</button>
+  </div>
+  <button onclick="document.getElementById('fileInput').click()">📂 IMPORT</button>
+  <input type="file" id="fileInput" accept=".html,.htm,.txt" style="display:none" onchange="importFile(event)" />
+</div>
+<div class="header-actions">
+              <button class="☁︎ ོ Editorial !" onclick="togglePanel()">⬅️ COLLAPSE</button>
+                <button class="DOC" onclick="downloadHTML()">=✪= ོ DOWNLOAD</button>
+                </div>
+              </header>
+              <!-- APP -->
+              <div class="app">
+                <!-- LEFT PANEL -->
+                <div class="left-panel" id="leftPanel">
+                  <div class="panel-header">
+                    <span class="panel-title">Edi the Editor</span>
+                      <button class="toggle-btn" id="collapseBtn" onclick="togglePanel()">◀</button>
+                      </div>
+                      <div class="panel-content">
+                                                <!-- EDITOR -->
+                                                <div class="editor-wrap" id="editorWrap">
+                                                  <textarea id="htmlEditor" spellcheck="false" placeholder="Drop your HTML here or paste it in...">
+                                                  </textarea>
+                                                </div>
+                                              </div>
+                                            </div>
+                                            <!-- DRAG SLIDER -->
+                                            <div class="panel-resizer" id="panelResizer" title="Drag to resize">
+                                            </div>
+                                            <!-- RIGHT PANEL (PREVIEW) -->
+                                            <div class="right-panel">
+                                              <div class="panel-header">
+                                                <span class="panel-title">🖼️ PREVIEW</span>
+                                                  <span style="font-size:0.75rem; background:#222; color:#fff; padding:2px 10px; border-radius:20px;">live</span>
+                                                  </div>
+                                                  <iframe class="preview-frame" id="previewFrame" sandbox="allow-scripts allow-modals allow-same-origin allow-popups allow-forms allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation">
+                                                  </iframe>
+                                                </div>
+                                              </div>
+                                              <!-- FOOTER -->
+                                              <footer class="footer">
+                                                HTML Online Viewer © 2026 — ☁︎ ོ Editorial ! DOC EDITION ☁︎ ོ
+                                              </footer>
+                                              <script>
+                                                (function() {
+                                                const editor = document.getElementById('htmlEditor');
+                                                let previewFrame = document.getElementById('previewFrame');
+                                                const editorWrap = document.getElementById('editorWrap');
+                                                
+                                                // ---------- SNIPER / INSPECTOR MODE ----------
+                                                let sniperActive = false;
+                                                let deltasActive = false;
+                                                let inspectorOverlay = null;
+                                                let infoPanel = null;
+                                                
+                                                function injectSniper() {
+                                                const doc = previewFrame.contentDocument || previewFrame.contentWindow.document;
+                                                if (!doc) return;
+                                                
+                                                // Remove old overlay if exists
+                                                if (inspectorOverlay && inspectorOverlay.parentNode) inspectorOverlay.parentNode.removeChild(inspectorOverlay);
+                                                if (infoPanel && infoPanel.parentNode) infoPanel.parentNode.removeChild(infoPanel);
+                                                
+                                                if (!sniperActive) {
+                                                // Restore normal cursor
+                                                doc.body.style.cursor = 'default';
+                                                return;
+                                                }
+                                                
+                                                // Create overlay
+                                                inspectorOverlay = doc.createElement('div');
+                                                inspectorOverlay.style.cssText = `
+                                                position: fixed;
+                                                top: 0; left: 0; width: 100%; height: 100%;
+                                                z-index: 99999;
+                                                pointer-events: none;
+                                                cursor: crosshair;
+                                                `;
+                                                doc.body.appendChild(inspectorOverlay);
+                                                
+                                                // Create info panel (floating)
+                                                infoPanel = doc.createElement('div');
+                                                infoPanel.style.cssText = `
+                                                position: fixed;
+                                                bottom: 20px; right: 20px;
+                                                background: rgba(0,0,0,0.9);
+                                                color: #fff;
+                                                padding: 16px 20px;
+                                                border-radius: 12px;
+                                                font-family: 'Courier New', monospace;
+                                                font-size: 13px;
+                                                max-width: 440px;
+                                                min-width: 240px;
+                                                max-height: 78vh;
+                                                overflow-y: auto;
+                                                border: 3px solid #ffdd44;
+                                                box-shadow: 8px 8px 0 #000;
+                                                z-index: 100000;
+                                                pointer-events: auto;
+                                                display: none;
+                                                cursor: move;
+                                                line-height: 1.5;
+                                                `;
+                                                doc.body.appendChild(infoPanel);
+                                                
+                                                // Make info panel draggable
+                                                let isDragging = false;
+                                                let offsetX, offsetY;
+                                                infoPanel.addEventListener('mousedown', (e) => {
+                                                isDragging = true;
+                                                offsetX = e.clientX - infoPanel.getBoundingClientRect().left;
+                                                offsetY = e.clientY - infoPanel.getBoundingClientRect().top;
+                                                infoPanel.style.cursor = 'grabbing';
+                                                });
+                                                doc.addEventListener('mousemove', (e) => {
+                                                if (isDragging) {
+                                                infoPanel.style.left = (e.clientX - offsetX) + 'px';
+                                                infoPanel.style.top = (e.clientY - offsetY) + 'px';
+                                                infoPanel.style.right = 'auto';
+                                                infoPanel.style.bottom = 'auto';
+                                                }
+                                                });
+                                                doc.addEventListener('mouseup', () => {
+                                                isDragging = false;
+                                                infoPanel.style.cursor = 'move';
+                                                });
+                                                
+                                                // Crosshair effect: show a small crosshair following mouse
+                                                const crosshair = doc.createElement('div');
+                                                crosshair.style.cssText = `
+                                                position: fixed;
+                                                pointer-events: none;
+                                                z-index: 99999;
+                                                width: 20px; height: 20px;
+                                                border: 2px solid #ff4444;
+                                                border-radius: 50%;
+                                                transform: translate(-50%, -50%);
+                                                display: none;
+                                                `;
+                                                doc.body.appendChild(crosshair);
+                                                
+                                                doc.addEventListener('mousemove', (e) => {
+                                                if (sniperActive) {
+                                                crosshair.style.display = 'block';
+                                                crosshair.style.left = e.clientX + 'px';
+                                                crosshair.style.top = e.clientY + 'px';
+                                                } else {
+                                                crosshair.style.display = 'none';
+                                                }
+                                                });
+                                                
+                                                // Click to inspect
+                                                doc.addEventListener('click', (e) => {
+                                                if (!sniperActive) return;
+                                                const target = e.target;
+                                                
+                                                // Highlight the element
+                                                const prevHighlight = doc.querySelector('.sniper-highlight');
+                                                if (prevHighlight) prevHighlight.classList.remove('sniper-highlight');
+                                                
+                                                target.classList.add('sniper-highlight');
+                                                // Add highlight style if not exists
+                                                if (!doc.getElementById('sniper-style')) {
+                                                const style = doc.createElement('style');
+                                                style.id = 'sniper-style';
+                                                style.textContent = `
+                                                .sniper-highlight {
+                                                outline: 4px solid #ff4444 !important;
+                                                outline-offset: 2px !important;
+                                                background: rgba(255, 68, 68, 0.1) !important;
+                                                transition: all 0.1s;
+                                                }
+                                                `;
+                                                doc.head.appendChild(style);
+                                                }
+                                                
+                                                // ---- Tag / ID / Classes ----
+                                                // The highlight class we just injected is a sniper artifact,
+                                                // not something the page actually wrote — never show it.
+                                                const tag = target.tagName.toLowerCase();
+                                                const id = target.id ? `#${target.id}` : '(no id)';
+                                                const realClasses = Array.from(target.classList).filter(c => c !== 'sniper-highlight');
+                                                const classes = realClasses.length ? realClasses.map(c => '.' + c).join(' ') : '(no classes)';
+                                                const text = target.textContent.trim().substring(0, 50) + (target.textContent.trim().length > 50 ? '...' : '');
+                                                
+                                                // ---- Find the real CSS rules that actually match this element ----
+                                                // Walks every stylesheet in the preview doc (not the computed-style
+                                                // dump) so you see the actual authored selectors and declarations,
+                                                // in source order (later rules = higher priority on a tie).
+                                                function getMatchedRules(el) {
+                                                const matched = [];
+                                                for (const sheet of Array.from(doc.styleSheets)) {
+                                                let rules;
+                                                try { rules = sheet.cssRules || sheet.rules; } catch (err) { continue; } // cross-origin sheet, skip
+                                                if (!rules) continue;
+                                                for (const rule of Array.from(rules)) {
+                                                if (!rule.selectorText || !rule.style) continue;
+                                                if (rule.selectorText.includes('sniper-highlight')) continue; // our own injected rule
+                                                try {
+                                                if (el.matches(rule.selectorText)) matched.push(rule);
+                                                } catch (err) { /* invalid/unsupported selector, skip */ }
+                                                }
+                                                }
+                                                return matched;
+                                                }
+                                                const matchedRules = getMatchedRules(target);
+                                                
+                                                // Authored value for a property: inline style first, then the
+                                                // last matching stylesheet rule that sets it (keeps units like % / vw
+                                                // instead of the browser's fully-resolved px), else computed value.
+                                                function authoredValue(prop, computedFallback) {
+                                                if (target.style && target.style.getPropertyValue(prop)) {
+                                                return { value: target.style.getPropertyValue(prop), src: 'inline style' };
+                                                }
+                                                for (let i = matchedRules.length - 1; i >= 0; i--) {
+                                                const v = matchedRules[i].style.getPropertyValue(prop);
+                                                if (v) return { value: v, src: matchedRules[i].selectorText };
+                                                }
+                                                return { value: computedFallback, src: '(computed, not set in CSS)' };
+                                                }
+                                                
+                                                const cs = getComputedStyle(target);
+                                                const rect = target.getBoundingClientRect();
+                                                
+                                                // ---- Position, as CSS actually wrote it ----
+                                                const posType = authoredValue('position', cs.position);
+                                                const offsets = ['top','right','bottom','left']
+                                                .map(side => ({ side, ...authoredValue(side, cs[side]) }))
+                                                .filter(o => o.value && o.value !== 'auto');
+                                                const offsetsStr = offsets.length
+                                                ? offsets.map(o => `${o.side}:${o.value}`).join(' ')
+                                                : '(no offsets — position is static/normal flow)';
+                                                
+                                                // ---- Size, with the authored unit (px, %, vw…) plus rendered px ----
+                                                const widthAuthored = authoredValue('width', cs.width);
+                                                const heightAuthored = authoredValue('height', cs.height);
+                                                
+                                                // ---- Box model totals (padding/border/margin), like devtools ----
+                                                const box = {
+                                                padding: [cs.paddingTop, cs.paddingRight, cs.paddingBottom, cs.paddingLeft],
+                                                border: [cs.borderTopWidth, cs.borderRightWidth, cs.borderBottomWidth, cs.borderLeftWidth],
+                                                margin: [cs.marginTop, cs.marginRight, cs.marginBottom, cs.marginLeft],
+                                                };
+                                                const trbl = (a) => `${parseFloat(a[0])||0}/${parseFloat(a[1])||0}/${parseFloat(a[2])||0}/${parseFloat(a[3])||0}`;
+                                                
+                                                // ---- Parent, described the way you'd actually recognize it ----
+                                                const parentEl = target.parentElement;
+                                                const parentDesc = parentEl
+                                                ? `${parentEl.tagName.toLowerCase()}${parentEl.id ? '#'+parentEl.id : ''}${
+                                                Array.from(parentEl.classList).filter(c=>c!=='sniper-highlight').length
+                                                ? '.'+Array.from(parentEl.classList).filter(c=>c!=='sniper-highlight').join('.') : ''
+                                                }`
+                                                : '(none — top of document)';
+                                                
+                                                // ---- Children: real element children only (text/CSS content isn't a "child") ----
+                                                const children = target.children.length;
+                                                const childrenNote = children === 0
+                                                ? " \u2014 no element children (this node's look likely comes from text, a background, or ::before/::after)"
+                                                : '';
+                                                
+                                                // ---- Matched CSS lines (the actual rules, not a computed-style dump) ----
+                                                let cssLines = '(no stylesheet rule matches this element — only inline/default styles apply)';
+                                                if (matchedRules.length) {
+                                                cssLines = matchedRules.slice(-6).map(r => {
+                                                const decls = r.style.cssText.split(';').map(s => s.trim()).filter(Boolean).slice(0, 5);
+                                                return `<div style="margin-top:4px;"><span style="color:#8fcbff;">${r.selectorText}</span> {<br>${decls.map(d => `&nbsp;&nbsp;${d};`).join('<br>')}${r.style.cssText.split(';').filter(Boolean).length > 5 ? '<br>&nbsp;&nbsp;…' : ''}<br>}</div>`;
+                                                }).join('');
+                                                }
+                                                
+                                                let info = `
+                                                <div style="font-weight:bold;color:#ffdd44;font-size:16px;margin-bottom:8px;">🎯 INSPECT</div>
+                                                  <div>
+                                                    <span style="color:#ffdd44;">Tag:</span>
+                                                      <span style="color:#8fcbff;">${tag}</span>
+                                                      </div>
+                                                      <div>
+                                                        <span style="color:#ffdd44;">ID:</span> ${id}</div>
+                                                          <div>
+                                                            <span style="color:#ffdd44;">Classes:</span> ${classes}</div>
+                                                              <div>
+                                                                <span style="color:#ffdd44;">Text:</span> ${text || '(empty)'}</div>
+                                                                  <div style="margin-top:6px;border-top:1px solid #555;padding-top:6px;">
+                                                                    <div style="color:#ffdd44;">Matched CSS:</div>
+                                                                    <div style="font-size:11px;max-height:140px;overflow-y:auto;background:#000;padding:6px 8px;border-radius:6px;margin-top:4px;">${cssLines}</div>
+                                                                  </div>
+                                                                  <div style="margin-top:6px;border-top:1px solid #555;padding-top:6px;">
+                                                                    <div>
+                                                                      <span style="color:#ffdd44;">Position:</span> ${posType.value} <span style="color:#666;">(${posType.src})</span></div>
+                                                                        <div style="font-size:11px;color:#aaa;">${offsetsStr}</div>
+                                                                        <div style="margin-top:4px;">
+                                                                          <span style="color:#ffdd44;">Size (CSS):</span> ${widthAuthored.value} × ${heightAuthored.value}</div>
+                                                                            <div>
+                                                                              <span style="color:#ffdd44;">Rendered:</span> ${Math.round(rect.width)}×${Math.round(rect.height)}px at (${Math.round(rect.left)}, ${Math.round(rect.top)})</div>
+                                                                                <div style="font-size:11px;color:#aaa;margin-top:4px;">
+                                                                                  padding(T/R/B/L): ${trbl(box.padding)}px · border: ${trbl(box.border)}px · margin: ${trbl(box.margin)}px
+                                                                                </div>
+                                                                            <div style="margin-top:6px;">
+                                                                              <span style="color:#ffdd44;">Parent:</span> ${parentDesc}</div>
+                                                                                <div>
+                                                                                  <span style="color:#ffdd44;">Children:</span> ${children}<span style="color:#888;font-size:11px;">${childrenNote}</span></div>
+                                                                                  </div>
+                                                                                  ${deltasActive ? `<div style="margin-top:6px;border-top:1px solid #555;padding-top:6px;">
+                                                                                    <div style="color:#00cc44;font-weight:bold;">\ud83e\ude78 DELTAS (cascade overrides)</div>
+                                                                                    <div style="font-size:11px;max-height:160px;overflow-y:auto;background:#000;padding:6px 8px;border-radius:6px;margin-top:4px;">${renderDeltasBlock(buildCascadeDeltas(matchedRules))}</div>
+                                                                                    <div style="font-size:10px;color:#888;margin-top:4px;">blue = overridden in the editor's source \u00b7 green = what's actually applied</div>
+                                                                                  </div>` : ''}
+                                                                                  <div style="margin-top:6px;font-size:11px;color:#888;">
+                                                                                    Click again to inspect another element
+                                                                                  </div>
+                                                                                  <div style="margin-top:8px;">
+                                                                                    <button onclick="this.parentElement.parentElement.style.display='none'" style="background:#ff4444;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-weight:bold;">✕ CLOSE</button>
+                                                                                    </div>
+                                                                                    `;
+                                                                                    infoPanel.innerHTML = info;
+                                                                                    infoPanel.style.display = 'block';
+
+                                                                                    // DELTAS mode: also select the matching source line in the
+                                                                                    // editor itself, in red, so the two panels read as one trace.
+                                                                                    if (deltasActive) {
+                                                                                    ensureDeltasCodeStyle(doc);
+                                                                                    highlightSourceLine(locateSourceRange(target));
+                                                                                    }
+                                                                                    });
+                                                                                    
+                                                                                    // Set crosshair cursor
+                                                                                    doc.body.style.cursor = 'crosshair';
+                                                                                    }
+                                                                                    
+                                                                                    window.toggleSniper = function() {
+                                                                                    sniperActive = !sniperActive;
+                                                                                    const btn = document.getElementById('sniperBtn');
+                                                                                    if (sniperActive) {
+                                                                                    btn.style.background = '#00cc44';
+                                                                                    btn.textContent = '🔍 SNIPER ON';
+                                                                                    // Inject after a small delay to ensure iframe is ready
+                                                                                    setTimeout(injectSniper, 100);
+                                                                                    } else {
+                                                                                    btn.style.background = '#ff4444';
+                                                                                    btn.textContent = '🔍 SNIPER';
+                                                                                    const doc = previewFrame.contentDocument || previewFrame.contentWindow.document;
+                                                                                    if (doc) {
+                                                                                    doc.body.style.cursor = 'default';
+                                                                                    if (inspectorOverlay && inspectorOverlay.parentNode) inspectorOverlay.parentNode.removeChild(inspectorOverlay);
+                                                                                    if (infoPanel && infoPanel.parentNode) infoPanel.parentNode.removeChild(infoPanel);
+                                                                                    // Remove highlight
+                                                                                    const hl = doc.querySelector('.sniper-highlight');
+                                                                                    if (hl) hl.classList.remove('sniper-highlight');
+                                                                                    }
+                                                                                    }
+                                                                                    };
+
+                                                                                    // ---------- DELTAS MODE ----------
+                                                                                    // Two-color linkage: RED selects the exact source line you clicked
+                                                                                    // in the editor (left), GREEN marks what actually wins in the
+                                                                                    // cascade for that element in the inspector (right).
+                                                                                    if (!document.getElementById('deltas-select-style')) {
+                                                                                    const dstyle = document.createElement('style');
+                                                                                    dstyle.id = 'deltas-select-style';
+                                                                                    dstyle.textContent = `#htmlEditor.deltas-mode::selection { background:#3b82f6; color:#fff; }`;
+                                                                                    document.head.appendChild(dstyle);
+                                                                                    }
+
+                                                                                    window.toggleDeltas = function() {
+                                                                                    deltasActive = !deltasActive;
+                                                                                    const btn = document.getElementById('deltasBtn');
+                                                                                    if (deltasActive) {
+                                                                                    btn.style.background = '#00cc44';
+                                                                                    btn.textContent = '\ud83e\ude78 DELTAS ON';
+                                                                                    editor.classList.add('deltas-mode');
+                                                                                    // Deltas rides on the sniper's clicks, so turn it on too if it's off
+                                                                                    if (!sniperActive) toggleSniper();
+                                                                                    } else {
+                                                                                    btn.style.background = '#ff4444';
+                                                                                    btn.textContent = '\ud83e\ude78 DELTAS';
+                                                                                    editor.classList.remove('deltas-mode');
+                                                                                    }
+                                                                                    };
+
+                                                                                    // Best-effort locate of the clicked element's opening tag in the raw
+                                                                                    // source (id first, then a real class, then a bare tag match).
+                                                                                    function locateSourceRange(target) {
+                                                                                    const src = editor.value;
+                                                                                    const tag = target.tagName.toLowerCase();
+                                                                                    let re;
+                                                                                    if (target.id) {
+                                                                                    re = new RegExp(`<${tag}\\b[^>]*\\bid=["']${target.id}["'][^>]*>`, 'i');
+                                                                                    } else {
+                                                                                    const cls = Array.from(target.classList).filter(c => c !== 'sniper-highlight')[0];
+                                                                                    re = cls
+                                                                                    ? new RegExp(`<${tag}\\b[^>]*\\bclass=["'][^"']*\\b${cls}\\b[^"']*["'][^>]*>`, 'i')
+                                                                                    : new RegExp(`<${tag}\\b[^>]*>`, 'i');
+                                                                                    }
+                                                                                    const m = re.exec(src);
+                                                                                    return m ? { start: m.index, end: m.index + m[0].length } : null;
+                                                                                    }
+
+                                                                                    // Select the matched source text (styled red via .deltas-mode::selection)
+                                                                                    // and scroll the editor so it's actually in view.
+                                                                                    function highlightSourceLine(range) {
+                                                                                    if (!range) return;
+                                                                                    editor.focus();
+                                                                                    editor.setSelectionRange(range.start, range.end);
+                                                                                    const before = editor.value.substring(0, range.start);
+                                                                                    const lineNumber = before.split('\n').length;
+                                                                                    const lineHeight = parseFloat(getComputedStyle(editor).lineHeight) || 18;
+                                                                                    editor.scrollTop = Math.max(0, (lineNumber - 4) * lineHeight);
+                                                                                    }
+
+                                                                                    // Cascade deltas: for every property declared in more than one matched
+                                                                                    // rule, the earlier declaration is what got overridden (del/red) and
+                                                                                    // the later one is what's actually winning (ins/green). Rules are in
+                                                                                    // source order, so this is a real, if specificity-naive, cascade trace.
+                                                                                    function buildCascadeDeltas(matchedRules) {
+                                                                                    const propMap = {};
+                                                                                    matchedRules.forEach(rule => {
+                                                                                    const decls = rule.style;
+                                                                                    for (let i = 0; i < decls.length; i++) {
+                                                                                    const prop = decls[i];
+                                                                                    const value = decls.getPropertyValue(prop).trim();
+                                                                                    (propMap[prop] = propMap[prop] || []).push({ value, selector: rule.selectorText });
+                                                                                    }
+                                                                                    });
+                                                                                    const deltas = [];
+                                                                                    Object.keys(propMap).forEach(prop => {
+                                                                                    const entries = propMap[prop];
+                                                                                    if (entries.length < 2) return;
+                                                                                    const winning = entries[entries.length - 1];
+                                                                                    const overridden = entries[entries.length - 2];
+                                                                                    if (overridden.value !== winning.value) {
+                                                                                    deltas.push({ prop, oldValue: overridden.value, oldSelector: overridden.selector, newValue: winning.value, newSelector: winning.selector });
+                                                                                    }
+                                                                                    });
+                                                                                    return deltas;
+                                                                                    }
+
+                                                                                    function renderDeltasBlock(deltas) {
+                                                                                    if (!deltas.length) {
+                                                                                    return '<div style="color:#888;font-size:11px;">No cascade overrides \u2014 nothing here competes with another matched rule.</div>';
+                                                                                    }
+                                                                                    let n = 0;
+                                                                                    const rows = deltas.map(d => {
+                                                                                    n++;
+                                                                                    const delLine = `<div class="delta-line del"><span class="ln">${n}</span><span class="dp">${d.prop}</span>: <del>${d.oldValue}</del>; <span class="src">${d.oldSelector}</span></div>`;
+                                                                                    n++;
+                                                                                    const insLine = `<div class="delta-line ins"><span class="ln">${n}</span><span class="dp">${d.prop}</span>: <ins>${d.newValue}</ins>; <span class="src">${d.newSelector}</span></div>`;
+                                                                                    return delLine + insLine;
+                                                                                    }).join('');
+                                                                                    return `<pre class="deltas-code"><code>${rows}</code></pre>`;
+                                                                                    }
+
+                                                                                    // Injects the del/red, ins/green diff styling into the preview doc,
+                                                                                    // once, so the cascade deltas block reads like the DELTAS panel
+                                                                                    // is meant to: blue = overridden, green = what's actually applied.
+                                                                                    function ensureDeltasCodeStyle(doc) {
+                                                                                    if (doc.getElementById('deltas-code-style')) return;
+                                                                                    const style = doc.createElement('style');
+                                                                                    style.id = 'deltas-code-style';
+                                                                                    style.textContent = `
+                                                                                    .deltas-code { margin: 0; font-family: 'Courier New', monospace; }
+                                                                                    .deltas-code .delta-line { padding: 2px 4px; white-space: pre-wrap; word-break: break-word; }
+                                                                                    .deltas-code .ln { display:inline-block; width:16px; color:#666; margin-right:6px; }
+                                                                                    .deltas-code .dp { color:#8fcbff; }
+                                                                                    .deltas-code .src { color:#666; font-size:10px; margin-left:6px; }
+                                                                                    .deltas-code .delta-line.del { background: rgba(59,130,246,0.18); }
+                                                                                    .deltas-code .delta-line.ins { background: rgba(60,200,90,0.18); }
+                                                                                    .deltas-code del { background: rgba(59,130,246,0.55); text-decoration: line-through; color:#fff; padding:0 2px; border-radius:2px; }
+                                                                                    .deltas-code ins { background: rgba(60,200,90,0.55); text-decoration: none; color:#fff; padding:0 2px; border-radius:2px; }
+                                                                                    `;
+                                                                                    doc.head.appendChild(style);
+                                                                                    }
+                                                                                    // The sniper only sees what e.target reports, so pointer-events:none
+                                                                                    // layers and stacked full-screen canvases are invisible to it.
+                                                                                    // dumpLayers walks the DOM directly and reports every element's
+                                                                                    // computed style, regardless of whether it can receive a click.
+                                                                                    // Renders as an in-preview panel (same look as the INSPECT card),
+                                                                                    // rows are lazy-loaded in batches as you scroll, and clicking a
+                                                                                    // row highlights + scrolls to that element — no new tab, no dump.
+                                                                                    window.dumpLayers = function() {
+                                                                                    const doc = previewFrame.contentDocument || previewFrame.contentWindow.document;
+                                                                                    if (!doc) { alert('Preview not ready'); return; }
+
+                                                                                    const existing = doc.getElementById('layers-panel');
+                                                                                    if (existing) { existing.remove(); return; }
+
+                                                                                    const all = doc.querySelectorAll('*');
+                                                                                    const layerData = [];
+
+                                                                                    all.forEach((el, i) => {
+                                                                                    const cs = getComputedStyle(el);
+                                                                                    const rect = el.getBoundingClientRect();
+
+                                                                                    // skip elements that don't take up any space at all
+                                                                                    if (rect.width === 0 && rect.height === 0) return;
+
+                                                                                    // skip html/body/head/meta/link/script/style noise
+                                                                                    const tag = el.tagName.toLowerCase();
+                                                                                    if (['html','head','body','meta','link','script','style','title'].includes(tag) && i > 5) return;
+
+                                                                                    const id = el.id ? '#' + el.id : '';
+                                                                                    const cls = el.className && typeof el.className === 'string'
+                                                                                    ? '.' + el.className.trim().split(/\s+/).slice(0,3).join('.')
+                                                                                    : '';
+                                                                                    const z = cs.zIndex !== 'auto' ? cs.zIndex : '-';
+                                                                                    const pe = cs.pointerEvents;
+                                                                                    const op = parseFloat(cs.opacity).toFixed(2);
+                                                                                    const size = `${Math.round(rect.width)}\u00d7${Math.round(rect.height)}`;
+                                                                                    const visible = cs.display !== 'none' && cs.visibility !== 'hidden';
+
+                                                                                    // flag what the sniper can't reach
+                                                                                    const unreachable = pe === 'none' || op === '0.00' || !visible;
+
+                                                                                    layerData.push({ el, tag, id, cls, z, pe, op, size, unreachable });
+                                                                                    });
+
+                                                                                    // sort by z-index, highest (top of the stack) first
+                                                                                    layerData.sort((a, b) => (parseInt(b.z) || 0) - (parseInt(a.z) || 0));
+
+                                                                                    // ---- build the panel (same card language as INSPECT) ----
+                                                                                    const panel = doc.createElement('div');
+                                                                                    panel.id = 'layers-panel';
+                                                                                    panel.style.cssText = `
+                                                                                    position: fixed;
+                                                                                    top: 20px; right: 20px;
+                                                                                    width: 320px;
+                                                                                    max-height: 70vh;
+                                                                                    background: rgba(0,0,0,0.9);
+                                                                                    color: #fff;
+                                                                                    border-radius: 12px;
+                                                                                    border: 3px solid #8fcbff;
+                                                                                    box-shadow: 8px 8px 0 #000;
+                                                                                    font-family: 'Courier New', monospace;
+                                                                                    font-size: 12px;
+                                                                                    z-index: 2147483647;
+                                                                                    display: flex;
+                                                                                    flex-direction: column;
+                                                                                    overflow: hidden;
+                                                                                    `;
+
+                                                                                    const header = doc.createElement('div');
+                                                                                    header.style.cssText = `
+                                                                                    padding: 10px 14px;
+                                                                                    border-bottom: 1px solid #555;
+                                                                                    display: flex;
+                                                                                    justify-content: space-between;
+                                                                                    align-items: center;
+                                                                                    cursor: move;
+                                                                                    flex-shrink: 0;
+                                                                                    `;
+                                                                                    const title = doc.createElement('span');
+                                                                                    title.style.cssText = 'font-weight:bold;color:#8fcbff;font-size:14px;';
+                                                                                    title.textContent = `\ud83e\uddec LAYERS (${layerData.length})`;
+                                                                                    const closeBtn = doc.createElement('button');
+                                                                                    closeBtn.textContent = '\u2715 CLOSE';
+                                                                                    closeBtn.style.cssText = 'background:#ff4444;color:#fff;border:none;padding:3px 10px;border-radius:4px;cursor:pointer;font-weight:bold;font-size:11px;';
+                                                                                    closeBtn.onclick = () => panel.remove();
+                                                                                    header.appendChild(title);
+                                                                                    header.appendChild(closeBtn);
+
+                                                                                    const legend = doc.createElement('div');
+                                                                                    legend.style.cssText = 'padding:5px 14px;font-size:10px;color:#888;border-bottom:1px solid #333;flex-shrink:0;';
+                                                                                    legend.textContent = "\ud83d\udc7b can't be clicked   \u2705 sniper can hit it   \u00b7 click a row to jump to it";
+
+                                                                                    const list = doc.createElement('div');
+                                                                                    list.style.cssText = 'overflow-y:auto;flex:1;';
+
+                                                                                    panel.appendChild(header);
+                                                                                    panel.appendChild(legend);
+                                                                                    panel.appendChild(list);
+                                                                                    doc.body.appendChild(panel);
+
+                                                                                    // drag by header
+                                                                                    let dragging = false, offX, offY;
+                                                                                    header.addEventListener('mousedown', (e) => {
+                                                                                    if (e.target === closeBtn) return;
+                                                                                    dragging = true;
+                                                                                    offX = e.clientX - panel.getBoundingClientRect().left;
+                                                                                    offY = e.clientY - panel.getBoundingClientRect().top;
+                                                                                    });
+                                                                                    doc.addEventListener('mousemove', (e) => {
+                                                                                    if (!dragging) return;
+                                                                                    panel.style.left = (e.clientX - offX) + 'px';
+                                                                                    panel.style.top = (e.clientY - offY) + 'px';
+                                                                                    panel.style.right = 'auto';
+                                                                                    });
+                                                                                    doc.addEventListener('mouseup', () => { dragging = false; });
+
+                                                                                    // ---- lazy-loaded rows: only a batch renders at a time, ----
+                                                                                    // ---- more appends as the list is scrolled near the bottom ----
+                                                                                    const BATCH = 25;
+                                                                                    let rendered = 0;
+
+                                                                                    function ensureHighlightStyle() {
+                                                                                    if (doc.getElementById('sniper-style')) return;
+                                                                                    const style = doc.createElement('style');
+                                                                                    style.id = 'sniper-style';
+                                                                                    style.textContent = `.sniper-highlight { outline: 4px solid #ff4444 !important; outline-offset: 2px !important; background: rgba(255, 68, 68, 0.1) !important; transition: all 0.1s; }`;
+                                                                                    doc.head.appendChild(style);
+                                                                                    }
+
+                                                                                    function renderBatch() {
+                                                                                    const slice = layerData.slice(rendered, rendered + BATCH);
+                                                                                    slice.forEach((d) => {
+                                                                                    const row = doc.createElement('div');
+                                                                                    row.style.cssText = 'padding:6px 14px;border-bottom:1px solid #222;cursor:pointer;line-height:1.4;';
+                                                                                    row.innerHTML = `${d.unreachable ? '\ud83d\udc7b' : '\u2705'} <span style="color:#ffdd44;">&lt;${d.tag}${d.id}${d.cls}&gt;</span><br><span style="color:#888;">z:${d.z}  pe:${d.pe}  op:${d.op}  ${d.size}</span>`;
+                                                                                    row.addEventListener('mouseenter', () => { row.style.background = 'rgba(143,203,255,0.15)'; });
+                                                                                    row.addEventListener('mouseleave', () => { row.style.background = 'transparent'; });
+                                                                                    row.addEventListener('click', () => {
+                                                                                    const prev = doc.querySelector('.sniper-highlight');
+                                                                                    if (prev) prev.classList.remove('sniper-highlight');
+                                                                                    ensureHighlightStyle();
+                                                                                    d.el.classList.add('sniper-highlight');
+                                                                                    d.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                                                    });
+                                                                                    list.appendChild(row);
+                                                                                    });
+                                                                                    rendered += slice.length;
+                                                                                    }
+
+                                                                                    renderBatch(); // first batch only — rest lazy-loads on scroll
+
+                                                                                    list.addEventListener('scroll', () => {
+                                                                                    if (rendered >= layerData.length) return;
+                                                                                    if (list.scrollTop + list.clientHeight >= list.scrollHeight - 80) {
+                                                                                    renderBatch();
+                                                                                    }
+                                                                                    });
+                                                                                    };
+
+                                                                                    // Re-inject sniper when preview updates
+                                                                                    const originalUpdatePreview = updatePreview;
+                                                                                    function updatePreviewWithSniper() {
+                                                                                    originalUpdatePreview();
+                                                                                    if (sniperActive) {
+                                                                                    setTimeout(injectSniper, 300);
+                                                                                    }
+                                                                                    }
+                                                                                    // Override updatePreview
+                                                                                    let previewTimeout;
+                                                                                    function updatePreview() {
+  clearTimeout(previewTimeout);
+  previewTimeout = setTimeout(() => {
+    let html = editor.value;
+
+    // Inject a <base> so Yahoo's relative asset paths resolve against the live site
+    if (/baseballsavant\.mlb\.com|sports\.yahoo\.com|yahoo\.com/i.test(html) && !/<base\b/i.test(html)) {
+      html = html.replace(/<head([^>]*)>/i, '<head$1><base href="https://sports.yahoo.com/">');
+    }
+
+    const doc = previewFrame.contentDocument || previewFrame.contentWindow.document;
+    doc.open();
+    doc.write(html);
+    doc.close();
+                                                                                    if (sniperActive) {
+                                                                                    setTimeout(injectSniper, 300);
+                                                                                    }
+                                                                                    }, 200);
+                                                                                    }
+                                                                                    
+                                                                                    // ---------- LIVE PREVIEW (throttled) ----------
+                                                                                    editor.addEventListener('input', updatePreview);
+                                                                                    
+                                                                                    // ---------- DRAG & DROP ----------
+                                                                                    editorWrap.addEventListener('dragover', (e) => {
+                                                                                    e.preventDefault();
+                                                                                    editorWrap.classList.add('drag-over');
+                                                                                    });
+                                                                                    editorWrap.addEventListener('dragleave', (e) => {
+                                                                                    e.preventDefault();
+                                                                                    editorWrap.classList.remove('drag-over');
+                                                                                    });
+                                                                                    editorWrap.addEventListener('drop', (e) => {
+                                                                                    e.preventDefault();
+                                                                                    editorWrap.classList.remove('drag-over');
+                                                                                    const files = e.dataTransfer.files;
+                                                                                    if (files.length > 0) {
+                                                                                    const file = files[0];
+                                                                                    const reader = new FileReader();
+                                                                                    reader.onload = (ev) => {
+                                                                                    editor.value = ev.target.result;
+                                                                                    updatePreview();
+                                                                                    };
+                                                                                    reader.readAsText(file);
+                                                                                    }
+                                                                                    });
+                                                                                    
+                                                                                    // also allow drop on textarea directly
+                                                                                    const textarea = editor;
+                                                                                    textarea.addEventListener('dragover', (e) => e.preventDefault());
+                                                                                    textarea.addEventListener('drop', (e) => {
+                                                                                    e.preventDefault();
+                                                                                    const files = e.dataTransfer.files;
+                                                                                    if (files.length > 0) {
+                                                                                    const file = files[0];
+                                                                                    const reader = new FileReader();
+                                                                                    reader.onload = (ev) => {
+                                                                                    editor.value = ev.target.result;
+                                                                                    updatePreview();
+                                                                                    };
+                                                                                    reader.readAsText(file);
+                                                                                    }
+                                                                                    });
+                                                                                    
+                                                                                    // ---------- PANEL COLLAPSE ----------
+                                                                                    window.togglePanel = function() {
+                                                                                    const panel = document.getElementById('leftPanel');
+                                                                                    panel.classList.toggle('collapsed');
+                                                                                    const btn = document.getElementById('collapseBtn');
+                                                                                    btn.textContent = panel.classList.contains('collapsed') ? '▶' : '◀';
+                                                                                    // resize preview after transition
+                                                                                    setTimeout(() => updatePreview(), 250);
+                                                                                    };
+                                                                                    
+                                                                                    // ---------- DRAG SLIDER (resize panels) ----------
+                                                                                    (function initResizer() {
+                                                                                    const app = document.querySelector('.app');
+                                                                                    const leftPanel = document.getElementById('leftPanel');
+                                                                                    const resizer = document.getElementById('panelResizer');
+                                                                                    if (!app || !leftPanel || !resizer) return;
+                                                                                    
+                                                                                    const MIN_WIDTH = 220;
+                                                                                    let dragging = false;
+                                                                                    
+                                                                                    function clientXFrom(e) {
+                                                                                    return e.touches && e.touches.length ? e.touches[0].clientX : e.clientX;
+                                                                                    }
+                                                                                    
+                                                                                    function startDrag(e) {
+                                                                                    if (leftPanel.classList.contains('collapsed')) return;
+                                                                                    dragging = true;
+                                                                                    app.classList.add('resizing');
+                                                                                    resizer.classList.add('dragging');
+                                                                                    e.preventDefault();
+                                                                                    }
+                                                                                    
+                                                                                    function onMove(e) {
+                                                                                    if (!dragging) return;
+                                                                                    const appRect = app.getBoundingClientRect();
+                                                                                    const x = clientXFrom(e);
+                                                                                    let newWidth = x - appRect.left;
+                                                                                    const maxWidth = appRect.width - MIN_WIDTH - resizer.offsetWidth;
+                                                                                    newWidth = Math.max(MIN_WIDTH, Math.min(newWidth, maxWidth));
+                                                                                    leftPanel.style.width = newWidth + 'px';
+                                                                                    }
+                                                                                    
+                                                                                    function stopDrag() {
+                                                                                    if (!dragging) return;
+                                                                                    dragging = false;
+                                                                                    app.classList.remove('resizing');
+                                                                                    resizer.classList.remove('dragging');
+                                                                                    // let the preview iframe re-flow to its new size
+                                                                                    updatePreview();
+                                                                                    }
+                                                                                    
+                                                                                    resizer.addEventListener('mousedown', startDrag);
+                                                                                    resizer.addEventListener('touchstart', startDrag, { passive: false });
+                                                                                    window.addEventListener('mousemove', onMove);
+                                                                                    window.addEventListener('touchmove', onMove, { passive: false });
+                                                                                    window.addEventListener('mouseup', stopDrag);
+                                                                                    window.addEventListener('touchend', stopDrag);
+                                                                                    
+                                                                                    // double-click the slider to reset to default split
+                                                                                    resizer.addEventListener('dblclick', function() {
+                                                                                    leftPanel.style.width = '';
+                                                                                    updatePreview();
+                                                                                    });
+                                                                                    })();
+                                                                                    
+                                                                                    // ---------- WIDGET FUNCTIONS ----------
+                                                                                    window.previewHTML = function() {
+                                                                                    updatePreview();
+                                                                                    // scroll to preview
+                                                                                    document.querySelector('.right-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                                                                    };
+                                                                                    
+                                                                                    window.highlightFull = function() {
+                                                                                    // Simple highlight: wrap in a <pre> with a yellow background (comic style)
+                                                                                    const html = editor.value;
+                                                                                    const highlighted = `<html>
+                                                                                    <head>
+                                                                                      <style>body{background:#fff8e0;font-family:monospace;padding:20px;white-space:pre-wrap;word-break:break-all;} .hl{background:#ffdd44;padding:2px 0;}</style>
+                                                                                      </head>
+                                                                                      <body>
+                                                                                        <pre>${escapeHtml(html)}</pre>
+                                                                                        </body>
+                                                                                      </html>`;
+                                                                                      const doc = previewFrame.contentDocument || previewFrame.contentWindow.document;
+                                                                                      doc.open();
+                                                                                      doc.write(highlighted);
+                                                                                      doc.close();
+                                                                                      if (sniperActive) setTimeout(injectSniper, 300);
+                                                                                      };
+                                                                                      
+                                                                                      function escapeHtml(str) {
+                                                                                      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+                                                                                      }
+                                                                                      
+                                                                                      window.formatHTML = function() {
+                                                                                      // Simple beautify: just pretty print with indent (basic)
+                                                                                      try {
+                                                                                      const raw = editor.value;
+                                                                                      // Use a simple formatter: add newlines between tags
+                                                                                      let formatted = raw.replace(/>\s*</g, '>\n<');
+                                                                                      // Indent basic tags (very naive, but fun)
+                                                                                      let lines = formatted.split('\n');
+                                                                                      let indent = 0;
+                                                                                      let result = [];
+                                                                                      for (let line of lines) {
+                                                                                      line = line.trim();
+                                                                                      if (line.match(/^<\/(\w+)/)) indent = Math.max(0, indent - 1);
+                                                                                      result.push('  '.repeat(indent) + line);
+                                                                                      if (line.match(/^<(\w+)[^>]*>/) && !line.match(/^<\/(\w+)/) && !line.match(/\/>$/)) indent++;
+                                                                                      }
+                                                                                      editor.value = result.join('\n');
+                                                                                      updatePreview();
+                                                                                      } catch(e) {
+                                                                                      alert('Format oops! Try simpler HTML.');
+                                                                                      }
+                                                                                      };
+                                                                                      
+                                                                                      window.expandAll = function() {
+                                                                                      // Just a fun visual: show all code (no folding) — we just scroll to top
+                                                                                      editor.scrollTop = 0;
+                                                                                      // also expand by setting height auto (but textarea already shows all)
+                                                                                      editor.style.height = 'auto';
+                                                                                      editor.style.height = editor.scrollHeight + 'px';
+                                                                                      };
+                                                                                      
+                                                                                      window.collapseAll = function() {
+                                                                                      // reset height
+                                                                                      editor.style.height = '100%';
+                                                                                      };
+                                                                                      
+                                                                                      window.loadTemplate = function() {
+                                                                                      editor.value = `<!DOCTYPE html>
+                                                                                      <html>
+                                                                                        <head>
+                                                                                          <title> ོ ☁︎ ོ Editorial ! DOC Tool</title>
+                                                                                          </head>
+                                                                                          <body style="font-family:Comic Sans MS;background:#f0e8d0;padding:0.05%;">
+                                                                                            <h1 style="color:#ff3b3b;text-shadow:1px 1px 1 #f12;">☁︎ ོ    ོ Editorial !!</h1>
+                                                                                              <p style="font-size:1.0rem;background:#ffff;display:inline-block;padding:4px 10px;border:2px solid #000;box-shadow:4px 4px 0 #f12;">DOC ☁︎ ོ 
+                                                                                                <ul> </p>  " welcome to edi editorial " <p>
+
+<div>                                                                                                                                                              <li>CSS</li>  
+<li>BODY</li>  
+<li>JAVASCRIPT</li>                                                                              <li>Live preview</li>
+<li>create,articulate,accelrate your masters with alfred and Edi-editoral</li>                                                                                                      </ul>
+                                                                                                  </body>
+                                                                                                </html>`;
+                                                                                                updatePreview();
+                                                                                                };
+                                                                                                
+                                                                                                window.refreshFrame = function() {
+                                                                                                  // Refresh ONLY the preview iframe. Editor text is never touched.
+                                                                                                  clearTimeout(previewTimeout);              // drop any pending debounced render
+                                                                                                  const html = editor.value;
+                                                                                                  const old = previewFrame;
+                                                                                                  const scrollY = (() => { try { return old.contentWindow.scrollY; } catch (e) { return 0; } })();
+
+                                                                                                  // Brand-new iframe = kills stuck scripts, timers, listeners and toggle state from the old one
+                                                                                                  const fresh = document.createElement('iframe');
+                                                                                                  fresh.className = old.className;
+                                                                                                  fresh.id = old.id;
+                                                                                                  fresh.setAttribute('sandbox', old.getAttribute('sandbox'));
+                                                                                                  old.replaceWith(fresh);
+                                                                                                  previewFrame = fresh;
+
+                                                                                                  const doc = fresh.contentDocument || fresh.contentWindow.document;
+                                                                                                  doc.open();
+                                                                                                  doc.write(html);
+                                                                                                  doc.close();
+
+                                                                                                  // restore scroll position after render
+                                                                                                  setTimeout(() => { try { fresh.contentWindow.scrollTo(0, scrollY); } catch (e) {} }, 50);
+                                                                                                  if (sniperActive) setTimeout(injectSniper, 300);
+                                                                                                };
+
+
+                                                                                                window.clearEditor = function() {
+                                                                                                if (confirm('🧨 Clear the editor?')) {
+                                                                                                editor.value = '';
+                                                                                                updatePreview();
+                                                                                                }
+                                                                                                };
+                                                                                                
+                                                                                                // ---------- FIND & REPLACE ----------
+                                                                                                window.findAndReplace = function(mode) {
+                                                                                                const findInput = document.getElementById('findInput');
+                                                                                                const findText = findInput.value;
+                                                                                                if (!findText) {
+                                                                                                alert('🔍 Enter a word to find!');
+                                                                                                return;
+                                                                                                }
+                                                                                                const current = editor.value;
+                                                                                                if (mode === 'replaceAll') {
+                                                                                                // escape regex special chars
+                                                                                                const escaped = findText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                                                                                                const replaceWith = prompt('Replace ALL with:', '');
+                                                                                                if (replaceWith === null) return;
+                                                                                                const regex = new RegExp(escaped, 'g');
+                                                                                                editor.value = current.replace(regex, replaceWith);
+                                                                                                updatePreview();
+                                                                                                } else if (mode === 'replaceCurrent') {
+                                                                                                // replace first occurrence only (from cursor position)
+                                                                                                const cursorPos = editor.selectionStart;
+                                                                                                const before = current.substring(0, cursorPos);
+                                                                                                const after = current.substring(cursorPos);
+                                                                                                const replaceWith = prompt('Replace this occurrence with:', '');
+                                                                                                if (replaceWith === null) return;
+                                                                                                const idx = after.indexOf(findText);
+                                                                                                if (idx === -1) {
+                                                                                                alert('❌ "' + findText + '" not found after cursor.');
+                                                                                                return;
+                                                                                                }
+                                                                                                const newAfter = after.substring(0, idx) + replaceWith + after.substring(idx + findText.length);
+                                                                                                editor.value = before + newAfter;
+                                                                                                // set cursor after replacement
+                                                                                                editor.selectionStart = editor.selectionEnd = before.length + idx + replaceWith.length;
+                                                                                                editor.focus();
+                                                                                                updatePreview();
+                                                                                                }
+                                                                                                };
+                                                                                                
+                                                                                                // ---------- IMPORT / EXPORT ----------
+                                                                                                window.importFile = function(event) {
+                                                                                                const file = event.target.files[0];
+                                                                                                if (!file) return;
+                                                                                                const reader = new FileReader();
+                                                                                                reader.onload = (e) => {
+                                                                                                editor.value = e.target.result;
+                                                                                                updatePreview();
+                                                                                                };
+                                                                                                reader.readAsText(file);
+                                                                                                event.target.value = ''; // reset
+                                                                                                };
+                                                                                                
+                                                                                                window.downloadHTML = function() {
+                                                                                                const content = editor.value;
+                                                                                                const blob = new Blob([content], { type: 'text/html' });
+                                                                                                const url = URL.createObjectURL(blob);
+                                                                                                const a = document.createElement('a');
+                                                                                                a.href = url;
+                                                                                                a.download = 'index.html';
+                                                                                                document.body.appendChild(a);
+                                                                                                a.click();
+                                                                                                document.body.removeChild(a);
+                                                                                                URL.revokeObjectURL(url);
+                                                                                                };
+                                                                                                
+                                                                                                // ---------- KEYBOARD SHORTCUTS ----------
+                                                                                                document.addEventListener('keydown', (e) => {
+                                                                                                // Alt+1 preview, Alt+2 highlight, Alt+3 format, Alt+4 expand, Alt+5 collapse, Alt+6 Refresh, Alt+7 clear, Alt+8 sniper
+                                                                                                if (e.altKey) {
+                                                                                                const map = {
+                                                                                                '1': previewHTML,
+                                                                                                '2': highlightFull,
+                                                                                                '3': formatHTML,
+                                                                                                '4': expandAll,
+                                                                                                '5': collapseAll,
+                                                                                                '6': refreshFrame,
+                                                                                                '7': clearEditor,
+                                                                                                '8': toggleSniper,
+                                                                                                };
+                                                                                                const fn = map[e.key];
+                                                                                                if (fn) { e.preventDefault(); fn(); }
+                                                                                                }
+                                                                                                // Ctrl+F focus find
+                                                                                                if (e.ctrlKey && e.key === 'f') {
+                                                                                                e.preventDefault();
+                                                                                                document.getElementById('findInput').focus();
+                                                                                                document.getElementById('findInput').select();
+                                                                                                }
+                                                                                                });
+                                                                                                
+                                                                                                // ---------- INIT ----------
+                                                                                                // load starter template on first start
+                                                                                                loadTemplate();
+                                                                                                // preview after load
+                                                                                                setTimeout(updatePreview, 300);
+                                                                                                })();
+                                                                                              </script>
+                                                                                            </body>
+                                                                                          </html>
