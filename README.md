@@ -32,7 +32,7 @@ sudo ln -sf /Library/Frameworks/Python.framework/Versions/3.9/bin/python3 /usr/l
 
 that allows you to enable with your sudo acceptance if want be to set up shims 
 
-<img width="155" height="132" alt="red-oly" src="https://github.com/user-attachments/assets/75734398-b3fc-445f-aedb-b55bd959dac8" />
+<img width="800" height="582" alt="red-oly" src="https://github.com/user-attachments/assets/75734398-b3fc-445f-aedb-b55bd959dac8" />
 
 sudo chmod +x /usr/local/bin/python4
 chmod +x /Users/artiomstriuc/Desktop/olympynetworkco-main/raphael-nba.py4
