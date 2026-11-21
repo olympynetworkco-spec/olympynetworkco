@@ -1,0 +1,1937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Win Probability</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            height: 100%;
+            width: 100%;
+            overflow-x: hidden;
+        }
+        body {
+            background: #f6f8fa;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 16px;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1600px;
+            width: 100%;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 12px;
+            border: 1px solid #e1e4e8;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* HEADER 1 */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding: 10px 20px;
+            background: #ffffff;
+            border-bottom: 1px solid #e1e4e8;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .status-bubble {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            border: 1px solid #d0d7de;
+            background: #f6f8fa;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #24292e;
+            flex-shrink: 0;
+        }
+        .status-bubble:hover {
+            border-color: #0366d6;
+        }
+        .status-bubble .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            flex-shrink: 0;
+        }
+        .status-bubble .dot.active {
+            background: #2da44e;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        .status-bubble .dot.result {
+            background: #0366d6;
+        }
+        .status-bubble .label {
+            color: #57606a;
+        }
+        .status-bubble .value {
+            color: #24292e;
+            font-weight: 600;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+        }
+
+        /* HEADER 2 - Widget Header */
+        .widget-header {
+            display: flex;
+            flex-direction: column;
+            padding: 6px 20px;
+            background: #ffffff;
+            border-bottom: 1px solid #e1e4e8;
+            gap: 2px;
+            flex-shrink: 0;
+        }
+
+        .widget-header .row {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0;
+            padding: 2px 0;
+        }
+
+        .widget-header .row .item {
+            font-size: 11px;
+            color: #0366d6;
+            text-decoration: none;
+            padding: 0 4px;
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+        .widget-header .row .item:hover {
+            text-decoration: underline;
+        }
+
+        .widget-header .row .sep {
+            color: #d0d7de;
+            font-size: 11px;
+            padding: 0 2px;
+            flex-shrink: 0;
+        }
+
+        .widget-header .row .action {
+            font-size: 10px;
+            font-weight: 500;
+            color: #24292e;
+            padding: 0 4px;
+            cursor: pointer;
+            flex-shrink: 0;
+            letter-spacing: 0.3px;
+            white-space: nowrap;
+        }
+        .widget-header .row .action:hover {
+            color: #0366d6;
+        }
+
+        .row-links .item {
+            color: #0366d6;
+        }
+        .row-actions .action {
+            font-size: 10px;
+        }
+        .row-actions .sep {
+            font-size: 10px;
+        }
+
+        /* ===== CHART AREA ===== */
+        .chart-area {
+            background: #ffffff;
+            padding: 16px 20px 12px 20px;
+            flex: 0 0 auto;
+            display: flex;
+            flex-direction: column;
+            border-bottom: 1px solid #e1e4e8;
+            position: relative;
+        }
+
+        .chart-container {
+            display: flex;
+            flex-direction: column;
+            min-height: 280px;
+            width: 100%;
+            position: relative;
+        }
+
+        .chart-with-labels {
+            display: flex;
+            flex: 1;
+            position: relative;
+            padding-left: 36px;
+            min-height: 200px;
+            width: 100%;
+        }
+
+        .y-labels {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            font-size: clamp(10px, 1.2vw, 12px);
+            color: #57606a;
+            font-weight: 500;
+            padding: 0 6px 0 0;
+            width: 30px;
+        }
+        .y-labels .label {
+            line-height: 1;
+        }
+
+        .team-label-away {
+            position: absolute;
+            right: -70px;
+            top: 0;
+            font-size: clamp(10px, 1vw, 12px);
+            font-weight: 600;
+            color: #0366d6;
+            writing-mode: vertical-rl;
+            letter-spacing: 2px;
+            opacity: 0.6;
+        }
+        .team-label-home {
+            position: absolute;
+            right: -70px;
+            bottom: 0;
+            font-size: clamp(10px, 1vw, 12px);
+            font-weight: 600;
+            color: #d29922;
+            writing-mode: vertical-rl;
+            letter-spacing: 2px;
+            opacity: 0.6;
+        }
+
+        .label-top {
+            position: absolute;
+            right: -32px;
+            top: -6px;
+            font-size: clamp(9px, 1vw, 11px);
+            font-weight: 600;
+            color: #0366d6;
+        }
+        .label-bottom {
+            position: absolute;
+            right: -32px;
+            bottom: -6px;
+            font-size: clamp(9px, 1vw, 11px);
+            font-weight: 600;
+            color: #d29922;
+        }
+        .label-50 {
+            position: absolute;
+            right: -32px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: clamp(9px, 1vw, 11px);
+            font-weight: 600;
+            color: #57606a;
+        }
+
+        .chart-grid-wrapper {
+            flex: 1;
+            position: relative;
+            border-left: 1px solid #d0d7de;
+            border-bottom: 1px solid #d0d7de;
+            min-height: 160px;
+            width: 100%;
+            cursor: crosshair;
+            background: #fafbfc;
+        }
+
+        /* Grid lines - drawn in canvas now */
+        .chart-grid-wrapper .grid-line {
+            position: absolute;
+            left: 0;
+            right: 0;
+            border-bottom: 1px dashed #e1e4e8;
+            height: 0;
+            pointer-events: none;
+        }
+        .chart-grid-wrapper .grid-line.mid {
+            border-bottom: 2px solid #d0d7de;
+        }
+
+        /* Canvas for chart drawing */
+        #winChartCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        /* ===== CARGO TRUCK LOADER ===== */
+        .cargo-loader-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 5;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.9);
+        }
+        .cargo-loader-overlay.active {
+            display: flex;
+        }
+        .loader {
+            width: fit-content;
+            height: fit-content;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .truckWrapper {
+            width: 200px;
+            height: 100px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            align-items: center;
+            justify-content: flex-end;
+            overflow-x: hidden;
+        }
+        .truckBody {
+            width: 130px;
+            height: fit-content;
+            margin-bottom: 6px;
+            animation: cargoMotion 1s linear infinite;
+        }
+        @keyframes cargoMotion {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(3px); }
+            100% { transform: translateY(0px); }
+        }
+        .truckTires {
+            width: 130px;
+            height: fit-content;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0px 10px 0px 15px;
+            position: absolute;
+            bottom: 0;
+        }
+        .truckTires svg {
+            width: 24px;
+        }
+        .cargoRoad {
+            width: 100%;
+            height: 1.5px;
+            background-color: #282828;
+            position: relative;
+            bottom: 0;
+            align-self: flex-end;
+            border-radius: 3px;
+        }
+        .cargoRoad::before {
+            content: "";
+            position: absolute;
+            width: 20px;
+            height: 100%;
+            background-color: #282828;
+            right: -50%;
+            border-radius: 3px;
+            animation: cargoRoadAnimation 1.4s linear infinite;
+            border-left: 10px solid white;
+        }
+        .cargoRoad::after {
+            content: "";
+            position: absolute;
+            width: 10px;
+            height: 100%;
+            background-color: #282828;
+            right: -65%;
+            border-radius: 3px;
+            animation: cargoRoadAnimation 1.4s linear infinite;
+            border-left: 4px solid white;
+        }
+        .lampPost {
+            position: absolute;
+            bottom: 0;
+            right: -90%;
+            height: 90px;
+            animation: cargoRoadAnimation 1.4s linear infinite;
+        }
+        @keyframes cargoRoadAnimation {
+            0% { transform: translateX(0px); }
+            100% { transform: translateX(-350px); }
+        }
+        .cargo-loader-text {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 11px;
+            font-weight: 600;
+            color: #57606a;
+            letter-spacing: 0.5px;
+        }
+
+        .chart-grid-wrapper .center-text {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            color: #8b949e;
+            font-size: clamp(12px, 1.4vw, 14px);
+            letter-spacing: 0.5px;
+            text-align: center;
+            padding: 0 20px;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .x-labels {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0 0 0;
+            font-size: clamp(8px, 0.9vw, 10px);
+            color: #57606a;
+            margin-left: 36px;
+            flex-wrap: nowrap;
+            width: calc(100% - 36px);
+        }
+        .x-labels span {
+            text-align: center;
+            flex: 1;
+            min-width: 0;
+            padding: 0 1px;
+            white-space: nowrap;
+        }
+
+        /* ===== MINI INFO BOX - Single unified box ===== */
+        .mini-info-box-wrapper {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            z-index: 10;
+            pointer-events: none;
+            transition: transform 0.2s;
+        }
+        .mini-info-box-wrapper.collapsed {
+            transform: translateX(100%);
+        }
+        .mini-info-box {
+            background: rgba(255, 255, 255, 0.97);
+            border: 1px solid #d0d7de;
+            border-radius: 8px;
+            padding: 10px 14px;
+            min-width: 200px;
+            max-width: 320px;
+            max-height: 280px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+            font-size: 11px;
+            color: #24292e;
+            pointer-events: none;
+            backdrop-filter: blur(4px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .box-toggle {
+            position: absolute;
+            top: 50%;
+            left: -20px;
+            transform: translateY(-50%);
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            background: #0366d6;
+            border: 2px solid #ffffff;
+            color: #ffffff;
+            font-size: 12px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+            pointer-events: auto;
+            z-index: 12;
+            user-select: none;
+        }
+        .box-toggle:hover {
+            background: #0356c0;
+        }
+        .mini-info-box-wrapper.collapsed .box-toggle {
+            transform: translateY(-50%) rotate(180deg);
+        }
+        .mini-info-box .info-scroll {
+            overflow-y: auto;
+            flex: 1;
+            max-height: 200px;
+            pointer-events: auto;
+            padding-right: 4px;
+        }
+        .mini-info-box .info-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .mini-info-box .info-scroll::-webkit-scrollbar-track {
+            background: #f6f8fa;
+            border-radius: 2px;
+        }
+        .mini-info-box .info-scroll::-webkit-scrollbar-thumb {
+            background: #d0d7de;
+            border-radius: 2px;
+        }
+
+        .mini-info-box .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 2px 0;
+            gap: 8px;
+        }
+        .mini-info-box .info-row .label {
+            color: #57606a;
+            font-weight: 500;
+        }
+        .mini-info-box .info-row .value {
+            color: #24292e;
+            font-weight: 600;
+            text-align: right;
+        }
+        .mini-info-box .divider {
+            border: none;
+            height: 1px;
+            background: #e1e4e8;
+            margin: 4px 0;
+        }
+
+        .mini-info-box .pin-area {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+            pointer-events: auto;
+            align-items: center;
+        }
+        .mini-info-box .pin-area .pin-btn {
+            padding: 2px 12px;
+            border: 1px solid #0366d6;
+            border-radius: 4px;
+            background: #0366d6;
+            color: #fff;
+            font-size: 11px;
+            cursor: pointer;
+            font-weight: 500;
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .mini-info-box .pin-area .pin-btn:hover {
+            background: #0255b3;
+        }
+        .mini-info-box .pin-area .pin-btn.active {
+            background: #d29922;
+            border-color: #d29922;
+        }
+        .mini-info-box .pin-area input {
+            flex: 1;
+            border: 1px solid #d0d7de;
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-size: 10px;
+            background: #f6f8fa;
+            color: #24292e;
+            pointer-events: auto;
+            min-width: 60px;
+        }
+        .mini-info-box .pin-area input:focus {
+            outline: none;
+            border-color: #0366d6;
+        }
+        .mini-info-box .pin-area .save-btn {
+            padding: 2px 10px;
+            border: 1px solid #2da44e;
+            border-radius: 4px;
+            background: #2da44e;
+            color: #fff;
+            font-size: 10px;
+            cursor: pointer;
+            pointer-events: auto;
+            font-weight: 500;
+        }
+        .mini-info-box .pin-area .save-btn:hover {
+            background: #22863a;
+        }
+
+        .mini-info-box .note-list {
+            font-size: 10px;
+            color: #57606a;
+            margin-top: 4px;
+            max-height: 80px;
+            overflow-y: auto;
+            pointer-events: auto;
+        }
+        .mini-info-box .note-list::-webkit-scrollbar {
+            width: 3px;
+        }
+        .mini-info-box .note-list::-webkit-scrollbar-track {
+            background: #f6f8fa;
+            border-radius: 2px;
+        }
+        .mini-info-box .note-list::-webkit-scrollbar-thumb {
+            background: #d0d7de;
+            border-radius: 2px;
+        }
+        .mini-info-box .note-list .note-item {
+            padding: 2px 0;
+            border-bottom: 1px solid #eaeef2;
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+        }
+        .mini-info-box .note-list .note-item .note-text {
+            color: #24292e;
+        }
+        .mini-info-box .note-list .note-item .note-time {
+            color: #8b949e;
+            font-size: 8px;
+            flex-shrink: 0;
+            margin-left: 8px;
+        }
+        .mini-info-box .note-list .empty-notes {
+            color: #8b949e;
+            font-size: 10px;
+            text-align: center;
+            padding: 6px 0;
+        }
+
+        /* ===== TABLE AREA ===== */
+        .table-area {
+            background: #ffffff;
+            padding: 8px 20px 12px 20px;
+            flex: 0 0 auto;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-bottom: 1px solid #e1e4e8;
+        }
+
+        .table-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4px 0 6px 0;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .table-header .title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #24292e;
+        }
+
+        .table-header .live-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            color: #2da44e;
+            font-weight: 500;
+        }
+        .table-header .live-indicator .live-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #2da44e;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .table-wrapper {
+            flex: 1;
+            overflow-x: auto;
+            overflow-y: auto;
+            min-height: 100px;
+            max-height: 250px;
+        }
+        .table-wrapper::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .table-wrapper::-webkit-scrollbar-track {
+            background: #f6f8fa;
+            border-radius: 3px;
+        }
+        .table-wrapper::-webkit-scrollbar-thumb {
+            background: #d0d7de;
+            border-radius: 3px;
+        }
+        .table-wrapper::-webkit-scrollbar-thumb:hover {
+            background: #b0b7be;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            min-width: 700px;
+        }
+
+        thead {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        th {
+            background: #f6f8fa;
+            color: #57606a;
+            font-weight: 600;
+            padding: 6px 8px;
+            text-align: left;
+            border-bottom: 2px solid #e1e4e8;
+            white-space: nowrap;
+            font-size: 11px;
+            letter-spacing: 0.3px;
+        }
+
+        td {
+            padding: 5px 8px;
+            border-bottom: 1px solid #eaeef2;
+            color: #24292e;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+
+        tr:hover td {
+            background: #f6f8fa;
+        }
+
+        tr.start-row td {
+            background: #f0f6ff;
+            font-weight: 500;
+        }
+
+        .col-inning { min-width: 50px; }
+        .col-batter { min-width: 90px; }
+        .col-pitcher { min-width: 80px; }
+        .col-description { min-width: 200px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
+        .col-home { min-width: 50px; text-align: right; }
+        .col-away { min-width: 50px; text-align: right; }
+        .col-diff { min-width: 50px; text-align: right; }
+
+        .empty-table {
+            text-align: center;
+            padding: 30px 20px;
+            color: #8b949e;
+            font-size: 13px;
+        }
+
+        /* ===== MESSY TEXT BOX ===== */
+        .messy-box-area {
+            background: #ffffff;
+            padding: 8px 20px 12px 20px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 150px;
+        }
+
+        .messy-box-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4px 0 6px 0;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .messy-box-header .title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #24292e;
+        }
+
+        .messy-box-header .actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .messy-box-header .actions button {
+            padding: 4px 14px;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+            background: #f6f8fa;
+            color: #24292e;
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .messy-box-header .actions button:hover {
+            background: #eaeef2;
+            border-color: #0366d6;
+            color: #0366d6;
+        }
+
+        .messy-box-header .actions button.primary {
+            background: #0366d6;
+            color: #ffffff;
+            border-color: #0366d6;
+        }
+        .messy-box-header .actions button.primary:hover {
+            background: #0255b3;
+        }
+
+        .messy-textarea {
+            flex: 1;
+            width: 100%;
+            min-height: 120px;
+            padding: 10px 12px;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            color: #24292e;
+            background: #fafbfc;
+            resize: vertical;
+            transition: border-color 0.2s;
+        }
+        .messy-textarea:focus {
+            outline: none;
+            border-color: #0366d6;
+            box-shadow: 0 0 0 3px rgba(3, 102, 214, 0.15);
+        }
+        .messy-textarea::placeholder {
+            color: #8b949e;
+        }
+
+        /* Divider */
+        .divider {
+            border: none;
+            height: 1px;
+            background: #e1e4e8;
+            margin: 0;
+            flex-shrink: 0;
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .widget-header .row .action { font-size: 9px; padding: 0 2px; }
+            .widget-header .row .item { font-size: 10px; padding: 0 2px; }
+            .widget-header .row .sep { font-size: 10px; padding: 0 1px; }
+            table { font-size: 11px; min-width: 600px; }
+            th { font-size: 10px; padding: 4px 6px; }
+            td { font-size: 10px; padding: 4px 6px; }
+            .col-description { min-width: 150px; max-width: 200px; }
+            .team-label-away { right: -60px; }
+            .team-label-home { right: -60px; }
+            .label-top { right: -28px; }
+            .label-bottom { right: -28px; }
+            .label-50 { right: -28px; }
+            .messy-textarea { font-size: 11px; }
+            .mini-info-box { min-width: 170px; max-width: 240px; font-size: 10px; padding: 8px 12px; }
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 8px; }
+            .header { padding: 8px 12px; justify-content: center; }
+            .widget-header { padding: 4px 12px; }
+            .widget-header .row { justify-content: center; }
+            .widget-header .row .action { font-size: 8px; padding: 0 2px; }
+            .widget-header .row .item { font-size: 9px; padding: 0 2px; }
+            .widget-header .row .sep { font-size: 9px; padding: 0 1px; }
+            .chart-area { padding: 10px 12px 8px 12px; }
+            .chart-with-labels { padding-left: 28px; }
+            .y-labels { font-size: 9px; width: 22px; padding: 0 4px 0 0; }
+            .x-labels { font-size: 7px; margin-left: 28px; width: calc(100% - 28px); }
+            .chart-grid-wrapper { min-height: 120px; }
+            .table-area { padding: 6px 12px 10px 12px; }
+            .table-wrapper { max-height: 180px; }
+            table { font-size: 10px; min-width: 500px; }
+            th { font-size: 9px; padding: 3px 4px; }
+            td { font-size: 9px; padding: 3px 4px; }
+            .col-description { min-width: 100px; max-width: 150px; }
+            .table-header .title { font-size: 11px; }
+            .table-header .live-indicator { font-size: 10px; }
+            .team-label-away { right: -50px; font-size: 9px; }
+            .team-label-home { right: -50px; font-size: 9px; }
+            .label-top { right: -24px; font-size: 8px; }
+            .label-bottom { right: -24px; font-size: 8px; }
+            .label-50 { right: -24px; font-size: 8px; }
+            .messy-box-area { padding: 6px 12px 10px 12px; }
+            .messy-textarea { font-size: 10px; min-height: 80px; }
+            .messy-box-header .title { font-size: 11px; }
+            .messy-box-header .actions button { font-size: 10px; padding: 3px 10px; }
+            .mini-info-box-wrapper { bottom: 6px; right: 6px; }
+            .mini-info-box { min-width: 150px; max-width: 200px; font-size: 9px; padding: 6px 10px; max-height: 220px; }
+            .mini-info-box .pin-area input { font-size: 9px; }
+            .mini-info-box .pin-area .pin-btn { font-size: 10px; padding: 1px 8px; }
+            .mini-info-box .pin-area .save-btn { font-size: 9px; padding: 1px 8px; }
+        }
+
+        @media (max-width: 480px) {
+            body { padding: 4px; }
+            .header { padding: 6px 8px; }
+            .status-bubble { font-size: 10px; padding: 2px 10px; }
+            .status-bubble .dot { width: 6px; height: 6px; }
+            .widget-header { padding: 2px 8px; }
+            .widget-header .row .action { font-size: 7px; padding: 0 1px; }
+            .widget-header .row .item { font-size: 8px; padding: 0 1px; }
+            .widget-header .row .sep { font-size: 8px; padding: 0 1px; }
+            .chart-area { padding: 6px 8px 4px 8px; }
+            .chart-with-labels { padding-left: 20px; }
+            .y-labels { font-size: 8px; width: 16px; padding: 0 2px 0 0; }
+            .x-labels { font-size: 6px; margin-left: 20px; width: calc(100% - 20px); padding: 4px 0 0 0; }
+            .chart-grid-wrapper { min-height: 100px; }
+            .table-area { padding: 4px 8px 8px 8px; }
+            .table-wrapper { max-height: 150px; }
+            table { font-size: 8px; min-width: 400px; }
+            th { font-size: 8px; padding: 2px 3px; }
+            td { font-size: 8px; padding: 2px 3px; }
+            .col-description { min-width: 80px; max-width: 100px; }
+            .col-inning { min-width: 35px; }
+            .col-batter { min-width: 60px; }
+            .col-pitcher { min-width: 55px; }
+            .col-home, .col-away, .col-diff { min-width: 35px; }
+            .table-header .title { font-size: 10px; }
+            .table-header .live-indicator { font-size: 9px; }
+            .team-label-away { display: none; }
+            .team-label-home { display: none; }
+            .label-top { right: -18px; font-size: 7px; }
+            .label-bottom { right: -18px; font-size: 7px; }
+            .label-50 { right: -18px; font-size: 7px; }
+            .messy-box-area { padding: 4px 8px 8px 8px; }
+            .messy-textarea { font-size: 9px; min-height: 60px; padding: 6px 8px; }
+            .messy-box-header .title { font-size: 10px; }
+            .messy-box-header .actions button { font-size: 9px; padding: 2px 8px; }
+            .mini-info-box-wrapper { bottom: 4px; right: 4px; }
+            .mini-info-box { min-width: 120px; max-width: 160px; font-size: 8px; padding: 4px 8px; max-height: 180px; }
+            .mini-info-box .pin-area input { font-size: 8px; padding: 1px 4px; }
+            .mini-info-box .pin-area .pin-btn { font-size: 9px; padding: 1px 6px; }
+            .mini-info-box .pin-area .save-btn { font-size: 8px; padding: 1px 6px; }
+            .mini-info-box .note-list .note-item { font-size: 8px; }
+        }
+
+        @media (max-width: 360px) {
+            .widget-header .row { flex-wrap: wrap; justify-content: center; }
+            .x-labels span { font-size: 5px; }
+            table { min-width: 320px; font-size: 7px; }
+            .col-description { min-width: 60px; max-width: 80px; }
+            .mini-info-box { min-width: 100px; max-width: 140px; font-size: 7px; padding: 3px 6px; max-height: 150px; }
+        }
+
+        @media (max-height: 600px) and (orientation: landscape) {
+            .chart-grid-wrapper { min-height: 100px; }
+            .chart-container { min-height: 120px; }
+            .table-wrapper { max-height: 120px; }
+            .messy-textarea { min-height: 60px; }
+            .mini-info-box-wrapper { bottom: 4px; right: 4px; }
+            .mini-info-box { max-height: 160px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- HEADER 1 -->
+    <header class="header">
+        <div class="status-bubble" id="statusBubble" onclick="toggleStatus()">
+            <span class="dot active" id="statusDot"></span>
+            <span class="label">Status:</span>
+            <span class="value" id="statusText">Active</span>
+        </div>
+    </header>
+
+    <!-- HEADER 2 - Widget Header -->
+    <div class="widget-header">
+        <div class="row row-links">
+            <a href="#" class="item">Direct Link</a>
+            <span class="sep">|</span>
+            <a href="#" class="item">Gameday</a>
+            <span class="sep">|</span>
+            <a href="#" class="item">Game Preview</a>
+            <span class="sep">|</span>
+            <a href="#" class="item">Click to Hide ↑</a>
+        </div>
+        <div class="row row-actions">
+            <span class="action">SCOREBOARD</span>
+            <span class="sep">|</span>
+            <span class="action">ILLUSTRATOR</span>
+            <span class="sep">|</span>
+            <span class="action">BOX SCORE</span>
+            <span class="sep">|</span>
+            <span class="action">EXIT VELOCITY</span>
+            <span class="sep">|</span>
+            <span class="action">PITCH VELOCITY</span>
+            <span class="sep">|</span>
+            <span class="action">PLAYER BREAKDOWNS</span>
+            <span class="sep">|</span>
+            <span class="action">PITCH 3D</span>
+            <span class="sep">|</span>
+            <span class="action">MATCHUPS</span>
+            <span class="sep">|</span>
+            <span class="action">WIN PROBABILITY</span>
+            <span class="sep">|</span>
+            <span class="action">ABS</span>
+            <span class="sep">|</span>
+            <span class="action">FILM ROOM</span>
+        </div>
+    </div>
+
+    <!-- DIVIDING LINE -->
+    <hr class="divider">
+
+    <!-- ===== CHART AREA ===== -->
+    <div class="chart-area">
+        <div class="chart-container">
+            <div class="chart-with-labels">
+                <div class="y-labels">
+                    <span class="label">100</span>
+                    <span class="label">75</span>
+                    <span class="label">50</span>
+                    <span class="label">75</span>
+                    <span class="label">100</span>
+                </div>
+
+                <span class="team-label-away">AWAY</span>
+                <span class="team-label-home">HOME</span>
+                <span class="label-top">100</span>
+                <span class="label-bottom">100</span>
+                <span class="label-50">50</span>
+
+                <div class="chart-grid-wrapper" id="chartGrid">
+                    <!-- Canvas for chart drawing -->
+                    <canvas id="winChartCanvas"></canvas>
+                    
+                    <div class="center-text" id="chartPlaceholder">📊 Paste game data to see the chart</div>
+
+                    <!-- CARGO TRUCK LOADER -->
+                    <div class="cargo-loader-overlay" id="cargoLoader">
+                        <div class="loader">
+                            <div class="truckWrapper">
+                                <div class="truckBody">
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        fill="none"
+                                        viewBox="0 0 198 93"
+                                        class="trucksvg"
+                                    >
+                                        <path stroke-width="3" stroke="#282828" fill="#F83D3D" d="M135 22.5H177.264C178.295 22.5 179.22 23.133 179.594 24.0939L192.33 56.8443C192.442 57.1332 192.5 57.4404 192.5 57.7504V89C192.5 90.3807 191.381 91.5 190 91.5H135C133.619 91.5 132.5 90.3807 132.5 89V25C132.5 23.6193 133.619 22.5 135 22.5Z"></path>
+                                        <path stroke-width="3" stroke="#282828" fill="#7D7C7C" d="M146 33.5H181.741C182.779 33.5 183.709 34.1415 184.078 35.112L190.538 52.112C191.16 53.748 189.951 55.5 188.201 55.5H146C144.619 55.5 143.5 54.3807 143.5 53V36C143.5 34.6193 144.619 33.5 146 33.5Z"></path>
+                                        <path stroke-width="2" stroke="#282828" fill="#282828" d="M150 65C150 65.39 149.763 65.8656 149.127 66.2893C148.499 66.7083 147.573 67 146.5 67C145.427 67 144.501 66.7083 143.873 66.2893C143.237 65.8656 143 65.39 143 65C143 64.61 143.237 64.1344 143.873 63.7107C144.501 63.2917 145.427 63 146.5 63C147.573 63 148.499 63.2917 149.127 63.7107C149.763 64.1344 150 64.61 150 65Z"></path>
+                                        <rect stroke-width="2" stroke="#282828" fill="#FFFCAB" rx="1" height="7" width="5" y="63" x="187"></rect>
+                                        <rect stroke-width="2" stroke="#282828" fill="#282828" rx="1" height="11" width="4" y="81" x="193"></rect>
+                                        <rect stroke-width="3" stroke="#282828" fill="#DFDFDF" rx="2.5" height="90" width="121" y="1.5" x="6.5"></rect>
+                                        <rect stroke-width="2" stroke="#282828" fill="#DFDFDF" rx="2" height="4" width="6" y="84" x="1"></rect>
+                                    </svg>
+                                </div>
+                                <div class="truckTires">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 30 30" class="tiresvg">
+                                        <circle stroke-width="3" stroke="#282828" fill="#282828" r="13.5" cy="15" cx="15"></circle>
+                                        <circle fill="#DFDFDF" r="7" cy="15" cx="15"></circle>
+                                    </svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 30 30" class="tiresvg">
+                                        <circle stroke-width="3" stroke="#282828" fill="#282828" r="13.5" cy="15" cx="15"></circle>
+                                        <circle fill="#DFDFDF" r="7" cy="15" cx="15"></circle>
+                                    </svg>
+                                </div>
+                                <div class="cargoRoad"></div>
+                                <svg
+                                    xml:space="preserve"
+                                    viewBox="0 0 453.459 453.459"
+                                    xmlns:xlink="http://www.w3.org/1999/xlink"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    version="1.1"
+                                    fill="#000000"
+                                    class="lampPost"
+                                >
+                                    <path d="M252.882,0c-37.781,0-68.686,29.953-70.245,67.358h-6.917v8.954c-26.109,2.163-45.463,10.011-45.463,19.366h9.993
+c-1.65,5.146-2.507,10.54-2.507,16.017c0,28.956,23.558,52.514,52.514,52.514c28.956,0,52.514-23.558,52.514-52.514
+c0-5.478-0.856-10.872-2.506-16.017h9.992c0-9.354-19.352-17.204-45.463-19.366v-8.954h-6.149C200.189,38.779,223.924,16,252.882,16
+c29.952,0,54.32,24.368,54.32,54.32c0,28.774-11.078,37.009-25.105,47.437c-17.444,12.968-37.216,27.667-37.216,78.884v113.914
+h-0.797c-5.068,0-9.174,4.108-9.174,9.177c0,2.844,1.293,5.383,3.321,7.066c-3.432,27.933-26.851,95.744-8.226,115.459v11.202h45.75
+v-11.202c18.625-19.715-4.794-87.527-8.227-115.459c2.029-1.683,3.322-4.223,3.322-7.066c0-5.068-4.107-9.177-9.176-9.177h-0.795
+V196.641c0-43.174,14.942-54.283,30.762-66.043c14.793-10.997,31.559-23.461,31.559-60.277C323.202,31.545,291.656,0,252.882,0z
+M232.77,111.694c0,23.442-19.071,42.514-42.514,42.514c-23.442,0-42.514-19.072-42.514-42.514c0-5.531,1.078-10.957,3.141-16.017
+h78.747C231.693,100.736,232.77,106.162,232.77,111.694z"
+                                    ></path>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="cargo-loader-text">🚚 Loading game data…</div>
+                    </div>
+
+                    <!-- MINI INFO BOX - Single unified box -->
+                    <div class="mini-info-box-wrapper" id="miniInfoBox">
+                        <div class="box-toggle" id="boxToggle" onclick="toggleMiniBox()" title="Slide info box">⟷</div>
+                        <div class="mini-info-box">
+                        <div class="info-scroll" id="infoScroll">
+                            <!-- Event Info -->
+                            <div class="info-row">
+                                <span class="label">Event</span>
+                                <span class="value" id="infoEvent">—</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">Inning</span>
+                                <span class="value" id="infoInning">—</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">Home WP</span>
+                                <span class="value" id="infoHomeWP">—</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">Away WP</span>
+                                <span class="value" id="infoAwayWP">—</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">Diff</span>
+                                <span class="value" id="infoDiff">—</span>
+                            </div>
+                            <hr class="divider">
+                            <div class="info-row">
+                                <span class="label">Batter</span>
+                                <span class="value" id="infoBatter">—</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">Pitcher</span>
+                                <span class="value" id="infoPitcher">—</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">Classification</span>
+                                <span class="value" id="infoClass">—</span>
+                            </div>
+
+                            <!-- Pin / Note Area -->
+                            <div class="pin-area">
+                                <button class="pin-btn" id="pinBtn" onclick="togglePinMode()">📍 Pin</button>
+                                <input type="text" id="noteInput" placeholder="Write note..." style="display:none;">
+                                <button class="save-btn" id="saveNoteBtn" onclick="saveNote()" style="display:none;">Save</button>
+                            </div>
+
+                            <!-- Notes List -->
+                            <div class="note-list" id="noteList">
+                                <div class="empty-notes">📌 Click "Pin" then click on the chart to add a note</div>
+                            </div>
+                        </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="x-labels">
+                <span>T1</span><span>B1</span><span>T2</span><span>B2</span>
+                <span>T3</span><span>B3</span><span>T4</span><span>B4</span>
+                <span>T5</span><span>B5</span><span>T6</span><span>B6</span>
+                <span>T7</span><span>B7</span><span>T8</span><span>B8</span>
+                <span>T9</span><span>B9</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- DIVIDING LINE -->
+    <hr class="divider">
+
+    <!-- ===== TABLE AREA ===== -->
+    <div class="table-area">
+        <div class="table-header">
+            <span class="title">📋 Live Feed</span>
+            <span class="live-indicator">
+                <span class="live-dot"></span>
+                LIVE
+            </span>
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th class="col-inning">#</th>
+                        <th class="col-inning">Inning</th>
+                        <th class="col-batter">Batter</th>
+                        <th class="col-pitcher">Pitcher</th>
+                        <th class="col-description">Description</th>
+                        <th class="col-home">Home WP%</th>
+                        <th class="col-away">Away WP%</th>
+                        <th class="col-diff">Diff</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <tr>
+                        <td colspan="8" class="empty-table">No events loaded. Paste game data below.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- DIVIDING LINE -->
+    <hr class="divider">
+
+    <!-- ===== MESSY TEXT BOX ===== -->
+    <div class="messy-box-area">
+        <div class="messy-box-header">
+            <span class="title">📝 Paste Game Data</span>
+            <div class="actions">
+                <button class="primary" onclick="parseData()">▶ Parse</button>
+                <button onclick="document.getElementById('messyInput').value = ''; clearAll();">🗑 Clear</button>
+                <button onclick="exportJSON()">💾 Export JSON</button>
+            </div>
+        </div>
+        <textarea class="messy-textarea" id="messyInput" placeholder="Paste your tab-delimited game data here..."></textarea>
+    </div>
+</div>
+
+<script>
+    let statusActive = true;
+    let events = [];
+    let currentHoverIndex = -1;
+    let notes = [];
+    let pinMode = false;
+    let pinnedIndex = -1;
+
+    // ============================================================
+    // STATUS TOGGLE
+    // ============================================================
+    function toggleStatus() {
+        statusActive = !statusActive;
+        const dot = document.getElementById('statusDot');
+        const text = document.getElementById('statusText');
+
+        if (statusActive) {
+            dot.className = 'dot active';
+            text.textContent = 'Active';
+        } else {
+            dot.className = 'dot result';
+            text.textContent = 'Result';
+        }
+    }
+
+    // ============================================================
+    // PIN MODE TOGGLE
+    // ============================================================
+    function toggleMiniBox() {
+        document.getElementById('miniInfoBox').classList.toggle('collapsed');
+    }
+
+    function togglePinMode() {
+        pinMode = !pinMode;
+        const pinBtn = document.getElementById('pinBtn');
+        const noteInput = document.getElementById('noteInput');
+        const saveBtn = document.getElementById('saveNoteBtn');
+        const grid = document.getElementById('chartGrid');
+
+        if (pinMode) {
+            pinBtn.classList.add('active');
+            pinBtn.textContent = '📍 Pin Active';
+            grid.style.cursor = 'crosshair';
+            noteInput.style.display = 'block';
+            saveBtn.style.display = 'block';
+            noteInput.placeholder = 'Click chart to pin, then write note...';
+            noteInput.focus();
+            showStatus('📍 Click on the chart to pin a point', 'info');
+        } else {
+            pinBtn.classList.remove('active');
+            pinBtn.textContent = '📍 Pin';
+            grid.style.cursor = 'crosshair';
+            noteInput.style.display = 'none';
+            saveBtn.style.display = 'none';
+            pinnedIndex = -1;
+        }
+    }
+
+    // ============================================================
+    // SAVE NOTE
+    // ============================================================
+    function saveNote() {
+        const input = document.getElementById('noteInput');
+        const text = input.value.trim();
+        if (!text) {
+            showStatus('Please write a note first!', 'error');
+            return;
+        }
+
+        if (pinnedIndex < 0 || pinnedIndex >= events.length) {
+            showStatus('Please click on the chart to pin a point first!', 'error');
+            return;
+        }
+
+        const d = events[pinnedIndex];
+        const cls = classifyEvent(d.Description);
+        notes.push({
+            eventIndex: pinnedIndex,
+            text: text,
+            inning: d.Inning || 'T1',
+            batter: d.Batter || '—',
+            description: d.Description || '—',
+            classification: cls,
+            timestamp: new Date().toLocaleTimeString()
+        });
+
+        input.value = '';
+        pinnedIndex = -1;
+        renderNotes();
+        highlightPoint(notes[notes.length - 1].eventIndex);
+        showStatus('✅ Note saved!', 'success');
+        
+        // Auto switch to show notes
+        renderNotes();
+    }
+
+    // ============================================================
+    // PARSE DATA
+    // ============================================================
+    function parseData() {
+        const text = document.getElementById('messyInput').value;
+        if (!text.trim()) {
+            alert('Please paste some game data first!');
+            return;
+        }
+
+        showCargoLoader();
+
+        // Let the loader paint before we crunch the data + render the chart
+        setTimeout(() => {
+            parseDataInner(text);
+        }, 400);
+    }
+
+    function showCargoLoader() {
+        document.getElementById('cargoLoader').classList.add('active');
+        document.getElementById('chartPlaceholder').style.display = 'none';
+    }
+
+    function hideCargoLoader() {
+        document.getElementById('cargoLoader').classList.remove('active');
+    }
+
+    function parseDataInner(text) {
+        const lines = text.split('\n').filter(line => line.trim());
+        const result = [];
+        let inData = false;
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+
+            if (line.includes('Inning') && line.includes('Batter') && line.includes('Pitcher') && line.includes('Description')) {
+                inData = true;
+                continue;
+            }
+
+            if (!inData) {
+                if (/^\d+\s/.test(line)) inData = true;
+                else continue;
+            }
+
+            if (!/^\d/.test(line)) continue;
+
+            let parts = line.split('\t').filter(p => p.trim());
+            if (parts.length < 7) {
+                parts = line.split(/\s{2,}/).filter(p => p.trim());
+            }
+
+            if (parts.length >= 7) {
+                const inning = parts[1] || '';
+                const batter = parts[2] || '';
+                const pitcher = parts[3] || '';
+                const descParts = parts.slice(4, parts.length - 3);
+                let description = descParts.join(' ').trim();
+                const homeWP = parseFloat(parts[parts.length - 3]);
+                const awayWP = parseFloat(parts[parts.length - 2]);
+                const diff = parseFloat(parts[parts.length - 1]);
+
+                if (!isNaN(homeWP) && !isNaN(awayWP)) {
+                    if (description.toLowerCase().includes('start of game') || 
+                        description.toLowerCase().includes('start game') ||
+                        (batter === '' && pitcher === '' && description === '')) {
+                        description = '🏁 Start of Game';
+                    }
+
+                    result.push({
+                        Inning: inning,
+                        Batter: batter || '—',
+                        Pitcher: pitcher || '—',
+                        Description: description || '—',
+                        HomeWP: homeWP,
+                        AwayWP: awayWP,
+                        Diff: diff || 0,
+                        isStart: description.includes('Start of Game')
+                    });
+                }
+            }
+        }
+
+        events = result.reverse();
+        renderTable(events);
+        updateLiveIndicator(events.length > 0);
+
+        // Wait for the layout to actually settle (canvas has real width/height)
+        // before drawing — drawing too early paints onto a zero-sized canvas
+        // and silently produces nothing.
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                // setupChartClick() clones the canvas node to strip old listeners.
+                // It MUST run before renderChart() draws — cloning a canvas does
+                // not copy its drawn pixels, so drawing first and cloning after
+                // wipes the chart back to blank.
+                setupChartClick();
+                renderChart(events);
+
+                if (events.length > 0) {
+                    console.log(`✅ Loaded ${events.length} events`);
+                    updateInfoBox(events.length - 1);
+                }
+
+                hideCargoLoader();
+            });
+        });
+    }
+
+    // ============================================================
+    // RENDER CHART with GRID
+    // ============================================================
+    function renderChart(events) {
+        const canvas = document.getElementById('winChartCanvas');
+        const grid = document.getElementById('chartGrid');
+        const rect = grid.getBoundingClientRect();
+        
+        const dpr = window.devicePixelRatio || 1;
+        const width = grid.clientWidth;
+        const height = grid.clientHeight;
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        canvas.style.width = width + 'px';
+        canvas.style.height = height + 'px';
+        
+        const ctx = canvas.getContext('2d');
+        ctx.scale(dpr, dpr);
+
+        // Clear canvas
+        ctx.clearRect(0, 0, width, height);
+
+        // Hide placeholder if we have data
+        const placeholder = document.getElementById('chartPlaceholder');
+        if (events.length > 0) {
+            placeholder.style.display = 'none';
+        } else {
+            placeholder.style.display = 'block';
+            return;
+        }
+
+        // Draw GRID
+        const padding = { top: 20, bottom: 20, left: 0, right: 0 };
+        const chartWidth = width - padding.left - padding.right;
+        const chartHeight = height - padding.top - padding.bottom;
+
+        // Grid lines - horizontal (5 lines: 0%, 25%, 50%, 75%, 100%)
+        const gridPositions = [0, 25, 75, 100];
+        ctx.strokeStyle = '#e1e4e8';
+        ctx.lineWidth = 0.5;
+        ctx.setLineDash([3, 4]);
+        
+        gridPositions.forEach(pos => {
+            const y = padding.top + chartHeight - (pos / 100) * chartHeight;
+            ctx.beginPath();
+            ctx.moveTo(padding.left, y);
+            ctx.lineTo(padding.left + chartWidth, y);
+            ctx.stroke();
+        });
+        ctx.setLineDash([]);
+
+        // Median (50%) line - highlighted in red
+        const medianY = padding.top + chartHeight - (50 / 100) * chartHeight;
+        ctx.strokeStyle = '#d73a49';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([5, 3]);
+        ctx.beginPath();
+        ctx.moveTo(padding.left, medianY);
+        ctx.lineTo(padding.left + chartWidth, medianY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Vertical grid lines (every inning)
+        const n = events.length;
+        const step = Math.max(1, Math.floor(n / 18));
+        for (let i = 0; i < n; i += step) {
+            const x = padding.left + (i / (n - 1)) * chartWidth;
+            ctx.strokeStyle = '#eaeef2';
+            ctx.lineWidth = 0.5;
+            ctx.beginPath();
+            ctx.moveTo(x, padding.top);
+            ctx.lineTo(x, padding.top + chartHeight);
+            ctx.stroke();
+        }
+
+        // Get data
+        const homeWP = events.map(d => d.HomeWP);
+        const awayWP = events.map(d => d.AwayWP);
+        
+        if (n < 2) return;
+
+        // Determine winner
+        const lastHome = homeWP[homeWP.length - 1];
+        const lastAway = awayWP[awayWP.length - 1];
+        const homeWon = lastHome > lastAway;
+        const data = homeWon ? homeWP : awayWP;
+        const lineColor = homeWon ? '#d29922' : '#0366d6';
+        const fillColor = homeWon ? '210, 153, 34' : '3, 102, 214';
+
+        // Draw area fill
+        const gradient = ctx.createLinearGradient(0, padding.top, 0, height - padding.bottom);
+        gradient.addColorStop(0, `rgba(${fillColor}, 0.25)`);
+        gradient.addColorStop(0.5, `rgba(${fillColor}, 0.08)`);
+        gradient.addColorStop(1, `rgba(${fillColor}, 0.02)`);
+        
+        ctx.beginPath();
+        for (let i = 0; i < n; i++) {
+            const x = padding.left + (i / (n - 1)) * chartWidth;
+            const y = padding.top + chartHeight - (data[i] / 100) * chartHeight;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.lineTo(padding.left + chartWidth, padding.top + chartHeight);
+        ctx.lineTo(padding.left, padding.top + chartHeight);
+        ctx.closePath();
+        ctx.fillStyle = gradient;
+        ctx.fill();
+
+        // Draw line
+        ctx.beginPath();
+        ctx.strokeStyle = lineColor;
+        ctx.lineWidth = 2.5;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+
+        for (let i = 0; i < n; i++) {
+            const x = padding.left + (i / (n - 1)) * chartWidth;
+            const y = padding.top + chartHeight - (data[i] / 100) * chartHeight;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // Draw points
+        for (let i = 0; i < n; i++) {
+            const x = padding.left + (i / (n - 1)) * chartWidth;
+            const y = padding.top + chartHeight - (data[i] / 100) * chartHeight;
+            
+            ctx.beginPath();
+            ctx.arc(x, y, 2.5, 0, 2 * Math.PI);
+            ctx.fillStyle = lineColor;
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+
+        // Draw pinned notes on chart
+        notes.forEach(note => {
+            const idx = note.eventIndex;
+            if (idx >= 0 && idx < n) {
+                const x = padding.left + (idx / (n - 1)) * chartWidth;
+                const y = padding.top + chartHeight - (data[idx] / 100) * chartHeight;
+                
+                // Pin marker
+                ctx.beginPath();
+                ctx.arc(x, y, 6, 0, 2 * Math.PI);
+                ctx.fillStyle = '#d29922';
+                ctx.fill();
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Small pin icon
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '8px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('📌', x, y);
+            }
+        });
+
+        // Store chart data for interactions
+        window._chartData = { data, padding, chartWidth, chartHeight, n, homeWon };
+    }
+
+    // ============================================================
+    // SETUP CHART CLICK (for pinning)
+    // ============================================================
+    function setupChartClick() {
+        const grid = document.getElementById('chartGrid');
+        if (!grid) return;
+
+        // Remove old listeners
+        const newGrid = grid.cloneNode(true);
+        grid.parentNode.replaceChild(newGrid, grid);
+        
+        // Click handler for pinning
+        newGrid.addEventListener('click', function(e) {
+            if (!pinMode) return;
+            
+            const rect = this.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            
+            if (events.length > 0 && window._chartData) {
+                const data = window._chartData;
+                const idx = Math.round((x / rect.width) * (data.n - 1));
+                if (idx >= 0 && idx < events.length) {
+                    pinnedIndex = idx;
+                    const d = events[idx];
+                    const cls = classifyEvent(d.Description);
+                    document.getElementById('noteInput').placeholder = 
+                        `📌 #${idx} ${d.Inning} ${d.Batter} - Write note...`;
+                    document.getElementById('noteInput').focus();
+                    highlightPoint(idx);
+                    showStatus(`📍 Pinned event #${idx} - ${d.Inning} ${d.Batter}`, 'info');
+                    
+                    // Update info box to show pinned event
+                    updateInfoBox(idx);
+                }
+            }
+        });
+
+        // Hover handler for info display
+        newGrid.addEventListener('mousemove', function(e) {
+            const rect = this.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            
+            if (events.length > 0 && window._chartData) {
+                const data = window._chartData;
+                const idx = Math.round((x / rect.width) * (data.n - 1));
+                if (idx >= 0 && idx < events.length) {
+                    // Only update if not in pin mode or different from pinned
+                    if (!pinMode || idx !== pinnedIndex) {
+                        updateInfoBox(idx);
+                    }
+                }
+            }
+        });
+
+        newGrid.addEventListener('mouseleave', function() {
+            if (events.length > 0 && !pinMode) {
+                const lastIdx = events.length - 1;
+                updateInfoBox(lastIdx);
+            }
+        });
+
+        document.getElementById('chartGrid')._listenerGrid = newGrid;
+    }
+
+    // ============================================================
+    // HIGHLIGHT POINT
+    // ============================================================
+    function highlightPoint(idx) {
+        const canvas = document.getElementById('winChartCanvas');
+
+        renderChart(events);
+
+        // renderChart() already resets the canvas transform and applies the
+        // device-pixel-ratio scale once. Scaling again here would double it
+        // and draw the highlight glow/dot in the wrong place on high-DPI
+        // screens, so we reuse the same (already-scaled) context as-is.
+        const ctx = canvas.getContext('2d');
+
+        if (window._chartData) {
+            const data = window._chartData;
+            const x = data.padding.left + (idx / (data.n - 1)) * data.chartWidth;
+            const y = data.padding.top + data.chartHeight - (data.data[idx] / 100) * data.chartHeight;
+            
+            // Glow
+            const glow = ctx.createRadialGradient(x, y, 2, x, y, 25);
+            const color = data.homeWon ? '210, 153, 34' : '3, 102, 214';
+            glow.addColorStop(0, `rgba(${color}, 0.5)`);
+            glow.addColorStop(1, `rgba(${color}, 0)`);
+            ctx.beginPath();
+            ctx.arc(x, y, 25, 0, 2 * Math.PI);
+            ctx.fillStyle = glow;
+            ctx.fill();
+
+            // Large circle
+            ctx.beginPath();
+            ctx.arc(x, y, 8, 0, 2 * Math.PI);
+            ctx.fillStyle = data.homeWon ? '#d29922' : '#0366d6';
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+    }
+
+    // ============================================================
+    // UPDATE INFO BOX
+    // ============================================================
+    function updateInfoBox(idx) {
+        if (idx < 0 || idx >= events.length) return;
+        const d = events[idx];
+        currentHoverIndex = idx;
+        const cls = classifyEvent(d.Description);
+
+        document.getElementById('infoEvent').textContent = idx;
+        document.getElementById('infoInning').textContent = d.Inning || 'T1';
+        document.getElementById('infoHomeWP').textContent = d.HomeWP.toFixed(1) + '%';
+        document.getElementById('infoAwayWP').textContent = d.AwayWP.toFixed(1) + '%';
+        document.getElementById('infoDiff').textContent = d.Diff.toFixed(1) + '%';
+        document.getElementById('infoBatter').textContent = d.Batter || '—';
+        document.getElementById('infoPitcher').textContent = d.Pitcher || '—';
+        document.getElementById('infoClass').textContent = `${cls.icon} ${cls.label}`;
+    }
+
+    // ============================================================
+    // CLASSIFY EVENT
+    // ============================================================
+    function classifyEvent(desc) {
+        if (!desc || desc === '—') return { class: 'other', label: 'EVT', icon: '⚾' };
+        const text = desc.toLowerCase();
+        if (text.includes('homer') || text.includes('homers')) return { class: 'hr', label: 'HR', icon: '🏠' };
+        if (text.includes('triple')) return { class: 'triple', label: '3B', icon: '3️⃣' };
+        if (text.includes('double')) return { class: 'double', label: '2B', icon: '2️⃣' };
+        if (text.includes('single')) return { class: 'single', label: '1B', icon: '1️⃣' };
+        if (text.includes('walk') || text.includes('walks')) return { class: 'walk', label: 'BB', icon: '🚶' };
+        if (text.includes('strikeout') || text.includes('strikes out') || text.includes('called out on strikes')) {
+            return { class: 'strikeout', label: 'K', icon: '❌' };
+        }
+        if (text.includes('grounds out') || text.includes('pops out') || text.includes('flies out') || text.includes('lines out')) {
+            return { class: 'out', label: 'OUT', icon: '⬅️' };
+        }
+        if (text.includes('hit by pitch')) return { class: 'hbp', label: 'HBP', icon: '🎯' };
+        return { class: 'other', label: 'EVT', icon: '⚾' };
+    }
+
+    // ============================================================
+    // RENDER NOTES
+    // ============================================================
+    function renderNotes() {
+        const noteList = document.getElementById('noteList');
+        if (!notes.length) {
+            noteList.innerHTML = `
+                <div class="empty-notes">📌 Click "Pin" then click on the chart to add a note</div>
+            `;
+            return;
+        }
+
+        noteList.innerHTML = notes.map((n, i) => {
+            const cls = n.classification || { icon: '⚾' };
+            return `
+                <div class="note-item" onclick="highlightPoint(${n.eventIndex})" style="cursor:pointer;">
+                    <span class="note-text">${cls.icon} ${n.text}</span>
+                    <span class="note-time">#${n.eventIndex} ${n.inning}</span>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // ============================================================
+    // RENDER TABLE
+    // ============================================================
+    function renderTable(events) {
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = '';
+
+        if (!events.length) {
+            tbody.innerHTML = '<tr><td colspan="8" class="empty-table">No events loaded. Paste game data above.</td></tr>';
+            return;
+        }
+
+        events.forEach((d, i) => {
+            const tr = document.createElement('tr');
+            if (d.isStart || d.Description.includes('Start of Game')) {
+                tr.className = 'start-row';
+            }
+
+            const cls = classifyEvent(d.Description);
+            const descShort = d.Description ? d.Description.substring(0, 40) : '';
+
+            let displayBatter = d.Batter;
+            let displayPitcher = d.Pitcher;
+            let displayDesc = descShort;
+
+            if (d.isStart || d.Description.includes('Start of Game')) {
+                displayBatter = '—';
+                displayPitcher = '—';
+                displayDesc = '🏁 Start of Game';
+            }
+
+            tr.innerHTML = `
+                <td>${i}</td>
+                <td>${d.Inning || 'T1'}</td>
+                <td>${displayBatter}</td>
+                <td>${displayPitcher}</td>
+                <td style="max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${d.Description || ''}">
+                    ${cls.icon} ${displayDesc}${d.Description && d.Description.length > 40 && !d.isStart ? '...' : ''}
+                </td>
+                <td>${d.HomeWP.toFixed(1)}%</td>
+                <td>${d.AwayWP.toFixed(1)}%</td>
+                <td>${d.Diff.toFixed(1)}%</td>
+            `;
+            tr.addEventListener('click', () => {
+                highlightPoint(i);
+                updateInfoBox(i);
+            });
+            tbody.appendChild(tr);
+        });
+    }
+
+    // ============================================================
+    // UPDATE LIVE INDICATOR
+    // ============================================================
+    function updateLiveIndicator(hasData) {
+        const indicator = document.querySelector('.live-indicator');
+        if (hasData) {
+            indicator.style.display = 'flex';
+        } else {
+            indicator.style.display = 'none';
+        }
+    }
+
+    // ============================================================
+    // SHOW STATUS
+    // ============================================================
+    function showStatus(msg, type) {
+        // Simple status display - you could add a toast notification
+        console.log(`[${type}] ${msg}`);
+    }
+
+    // ============================================================
+    // EXPORT JSON
+    // ============================================================
+    function exportJSON() {
+        if (!events.length) {
+            alert('No data to export. Load a game first!');
+            return;
+        }
+
+        const exportData = {
+            metadata: {
+                exported: new Date().toISOString(),
+                totalEvents: events.length,
+                totalNotes: notes.length,
+            },
+            events: events.map((d, i) => ({
+                index: i,
+                inning: d.Inning,
+                batter: d.Batter,
+                pitcher: d.Pitcher,
+                description: d.Description,
+                homeWP: d.HomeWP,
+                awayWP: d.AwayWP,
+                diff: d.Diff,
+                classification: classifyEvent(d.Description),
+                isStart: d.isStart || false,
+            })),
+            notes: notes.map(n => ({
+                eventIndex: n.eventIndex,
+                text: n.text,
+                inning: n.inning,
+                batter: n.batter,
+                description: n.description,
+                classification: n.classification,
+                timestamp: n.timestamp,
+            })),
+        };
+
+        const jsonStr = JSON.stringify(exportData, null, 2);
+        console.log('📦 Export JSON:', jsonStr);
+
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `game-data-${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showStatus('✅ JSON exported with notes and classes!', 'success');
+    }
+
+    // ============================================================
+    // CLEAR ALL
+    // ============================================================
+    function clearAll() {
+        hideCargoLoader();
+        events = [];
+        notes = [];
+        pinnedIndex = -1;
+        pinMode = false;
+        document.getElementById('pinBtn').classList.remove('active');
+        document.getElementById('pinBtn').textContent = '📍 Pin';
+        document.getElementById('noteInput').style.display = 'none';
+        document.getElementById('saveNoteBtn').style.display = 'none';
+        renderTable(events);
+        renderChart(events);
+        updateLiveIndicator(false);
+        renderNotes();
+        document.getElementById('chartPlaceholder').style.display = 'block';
+        document.getElementById('infoEvent').textContent = '—';
+        document.getElementById('infoInning').textContent = '—';
+        document.getElementById('infoHomeWP').textContent = '—';
+        document.getElementById('infoAwayWP').textContent = '—';
+        document.getElementById('infoDiff').textContent = '—';
+        document.getElementById('infoBatter').textContent = '—';
+        document.getElementById('infoPitcher').textContent = '—';
+        document.getElementById('infoClass').textContent = '—';
+    }
+
+    // ============================================================
+    // KEYBOARD SHORTCUTS
+    // ============================================================
+    document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.key === 'Enter') {
+            e.preventDefault();
+            parseData();
+        }
+        if (e.ctrlKey && e.key === 'e') {
+            e.preventDefault();
+            exportJSON();
+        }
+        if (e.key === 'Enter' && document.activeElement === document.getElementById('noteInput')) {
+            saveNote();
+        }
+        if (e.key === 'Escape') {
+            if (pinMode) togglePinMode();
+        }
+    });
+
+    // ============================================================
+    // RESIZE HANDLER
+    // ============================================================
+    let resizeTimeout;
+    window.addEventListener('resize', function() {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(function() {
+            if (events.length > 0) {
+                renderChart(events);
+            }
+        }, 200);
+    });
+
+    console.log('⚾ Win Probability Tracker loaded');
+    console.log('📊 Click "Parse" to load data and render chart');
+    console.log('📍 Click "Pin" then click on the chart to add notes');
+    console.log('📝 Notes are saved and shown in the mini box');
+    console.log('💾 Ctrl+E to export JSON');
+    console.log('📌 Notes appear as 📌 markers on the chart');
+</script>
+
+</body>
+</html>

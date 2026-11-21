@@ -1,0 +1,3430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mac Bot · OlympyNetwork · NorthStarConnector</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+        /* # All existing styles remain the same */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --sidebar-bg: #1a1a2e;
+            --sidebar-w: 240px;
+            --right-w: 0px;
+            --accent: #4f46e5;
+            --accent2: #a78bfa;
+            --text-primary: #f0f0f5;
+            --text-muted: #888899;
+            --text-dim: #55556a;
+            --border: rgba(250, 250, 250, 0.05);
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --hover-bg: rgba(255, 255, 255, 0.07);
+            --radius: 10px;
+            --radius-sm: 12px;
+            --transition: 0.25s ease;
+        }
+
+        html,
+        body {
+            height: 100%;
+            width: 100%;
+            background: #0f0f1a;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--text-primary);
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* # FLOAT PIP STYLES - Draggable, Resizable, Always on Top */
+        .pip-player {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 480px;
+            height: 420px;
+            background: #1a1a2e;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.8);
+            z-index: 9999;
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+            resize: both;
+            min-width: 320px;
+            min-height: 280px;
+            max-width: 90vw;
+            max-height: 90vh;
+            cursor: default;
+            backdrop-filter: blur(20px);
+            background: rgba(26, 26, 46, 0.95);
+        }
+        /* # FILE IMPORT AREA */
+        .import-zone {
+            padding: 12px;
+            border: 1px dashed rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 12px;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .import-zone:hover {
+            border-color: rgba(255, 255, 255, 0.4);
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .import-zone input[type="file"] {
+            display: none;
+        }
+        .import-zone p {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin: 0;
+        }
+        .pip-player.active {
+            display: flex;
+        }
+        .pip-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.06);
+            cursor: grab;
+            flex-shrink: 0;
+            user-select: none;
+            border-bottom: 1px solid var(--border);
+            min-height: 36px;
+        }
+        .pip-header:active {
+            cursor: grabbing;
+        }
+        .pip-header span {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .pip-header-actions {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+        .pip-close,
+        .pip-minimize {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            transition: all 0.15s;
+            line-height: 1;
+        }
+        .pip-close:hover {
+            color: #ff5f57;
+            background: rgba(255, 95, 87, 0.1);
+        }
+        .pip-minimize:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .pip-body {
+            flex: 1;
+            padding: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            background: #0f0f1a;
+            position: relative;
+        }
+        .pip-body iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: #fff;
+        }
+        .pip-body .pip-content {
+            flex: 1;
+            padding: 12px;
+            overflow-y: auto;
+            color: var(--text-primary);
+            font-size: 13px;
+        }
+        .pip-body .pip-content::-webkit-scrollbar {
+            width: 6px;
+        }
+        .pip-body .pip-content::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02);
+        }
+        .pip-body .pip-content::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+        }
+        .pip-body .pip-content::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        /* # GLASS RIGHT PANEL */
+        .glass-panel {
+            position: fixed;
+            top: 0;
+            right: -380px;
+            width: 340px;
+            height: 100%;
+            background: rgba(20, 20, 35, 0.55);
+            backdrop-filter: blur(28px) saturate(160%);
+            -webkit-backdrop-filter: blur(28px) saturate(160%);
+            border-left: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: -10px 0 50px rgba(0, 0, 0, 0.55);
+            z-index: 9998;
+            transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-y: manual;
+            padding: 18px 18px 40px;
+            color: var(--text-primary);
+        }
+        .glass-panel.open { right: 0; }
+        .glass-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+        .glass-close-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 14px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: all 0.15s;
+        }
+        .glass-close-btn:hover { color: #ff5f57; background: rgba(255, 95, 87, 0.1); }
+
+        .glass-clock-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 12px 0 20px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 16px;
+        }
+        .glass-clock-face {
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            position: relative;
+            background-image: url('file:///Users/olympynetworkco/Desktop/data/grid.png');
+            background-size: cover;
+            background-position: center;
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08), 0 8px 30px rgba(0, 0, 0, 0.5);
+        }
+        .glass-clock-face.has-face-img {
+            background-image: url('file:///Users/macbook/Desktop/data/donatello-bison-vision.png');
+        }
+        .clock-hand {
+            position: absolute;
+            bottom: 50%;
+            left: 50%;
+            transform-origin: bottom center;
+            border-radius: 4px;
+            background: var(--text-primary);
+        }
+        .clock-hand.hour { width: 4px; height: 38px; margin-left: -2px; background: #f0f0f5; }
+        .clock-hand.minute { width: 3px; height: 54px; margin-left: -1.5px; background: #cfcfe0; }
+        .clock-hand.second { width: 1.5px; height: 58px; margin-left: -0.75px; background: var(--accent2); }
+        .clock-center-dot {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent2);
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 6px var(--accent2);
+        }
+        .glass-digital-time { font-size: 22px; font-weight: 700; margin-top: 12px; letter-spacing: 0.5px; }
+        .glass-day-label { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+        .glass-section { margin-bottom: 18px; }
+        .glass-section-title {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            margin-bottom: 8px;
+        }
+        .glass-weather-box {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 12px;
+            font-size: 12px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .glass-weather-box .gw-temp { font-size: 26px; font-weight: 700; color: var(--text-primary); }
+        .glass-feed-list { display: flex; flex-direction: column; gap: 6px; max-height: 160px; overflow-y: manual; }
+        .glass-feed-item {
+            background: var(--card-bg);
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-size: 11px;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .glass-feed-item:hover { background: var(--hover-bg); color: var(--text-primary); }
+        .glass-feed-empty { font-size: 10px; color: var(--text-dim); padding: 4px; }
+
+        /* # Resize handle */
+        .pip-resize-handle {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 16px;
+            height: 16px;
+            cursor: nwse-resize;
+            z-index: 10;
+        }
+        .pip-resize-handle::after {
+            content: '';
+            position: absolute;
+            bottom: 4px;
+            right: 4px;
+            width: 8px;
+            height: 8px;
+            border-right: 2px solid var(--text-dim);
+            border-bottom: 2px solid var(--text-dim);
+            border-radius: 0 0 4px 0;
+        }
+
+        /* # Loading spinner for PIP */
+        .pip-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            flex-direction: column;
+            gap: 12px;
+            color: var(--text-muted);
+            font-size: 12px;
+        }
+        .pip-loading .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* # MLB display in PIP */
+        .weather-display {
+            padding: 16px;
+            color: var(--text-primary);
+            font-size: 13px;
+            background: linear-gradient(135deg, #1a1a3e, #2a1a4e);
+            border-radius: 8px;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .weather-display .weather-temp {
+            font-size: 48px;
+            font-weight: 700;
+            margin: 8px 0;
+            background: linear-gradient(135deg, #ff6b6b, #ffd93d);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .weather-display .weather-desc {
+            color: var(--text-muted);
+            font-size: 16px;
+        }
+        .weather-display .weather-location {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+        .weather-display .weather-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+            margin-top: 12px;
+            width: 100%;
+            max-width: 300px;
+        }
+        .weather-display .weather-details div {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 8px;
+            text-align: center;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        .weather-display .weather-details div span {
+            display: block;
+            font-size: 16px;
+            color: var(--text-primary);
+            margin-top: 2px;
+        }
+
+        /* # Formula Notebook Modal styles */
+        .formula-notebook {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 600px;
+            max-width: 90vw;
+            max-height: 80vh;
+            background: #1a1a2e;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+            z-index: 10000;
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .formula-notebook.active {
+            display: flex;
+        }
+        .notebook-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .notebook-header h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .notebook-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 18px;
+            padding: 0 4px;
+        }
+        .notebook-close:hover {
+            color: #ff5f57;
+        }
+        .notebook-body {
+            flex: 1;
+            padding: 16px;
+            overflow-y: manual;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .notebook-formula-item {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 10px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .notebook-formula-item:hover {
+            background: var(--hover-bg);
+        }
+        .notebook-formula-item .formula-name {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        .notebook-formula-item .formula-content {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-family: 'Courier New', monospace;
+        }
+        .notebook-formula-item .formula-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .notebook-formula-item .formula-actions button {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 12px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            transition: background 0.15s;
+        }
+        .notebook-formula-item .formula-actions button:hover {
+            background: var(--hover-bg);
+            color: var(--text-primary);
+        }
+        .notebook-formula-item .formula-actions .delete-formula:hover {
+            color: #ff5f57;
+        }
+        .notebook-add-formula {
+            display: flex;
+            gap: 8px;
+            margin-top: 4px;
+            flex-wrap: wrap;
+        }
+        .notebook-add-formula input {
+            flex: 1;
+            min-width: 120px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 12px;
+            color: var(--text-primary);
+            font-size: 12px;
+            font-family: inherit;
+            outline: none;
+        }
+        .notebook-add-formula input::placeholder {
+            color: var(--text-dim);
+        }
+        .notebook-add-formula button {
+            background: var(--accent);
+            border: none;
+            border-radius: 6px;
+            padding: 8px 16px;
+            color: #fff;
+            font-weight: 600;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .notebook-add-formula button:hover {
+            background: var(--accent2);
+        }
+
+        /* # Agent task styles */
+        .agent-task-list {
+            padding: 4px 0;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        .agent-task-list .task-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .agent-task-list .task-item .task-text {
+            color: var(--text-primary);
+            font-size: 11px;
+        }
+        .agent-task-list .task-item .task-done {
+            color: var(--text-dim);
+            cursor: pointer;
+            font-size: 12px;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .agent-task-list .task-item .task-done:hover {
+            color: #28c840;
+            background: rgba(40, 200, 64, 0.1);
+        }
+        .agent-task-input {
+            display: flex;
+            gap: 8px;
+            padding: 8px 0;
+            margin-top: 4px;
+            border-top: 1px solid var(--border);
+        }
+        .agent-task-input input {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 6px 10px;
+            color: var(--text-primary);
+            font-size: 11px;
+            font-family: inherit;
+            outline: none;
+        }
+        .agent-task-input input::placeholder {
+            color: var(--text-dim);
+        }
+        .agent-task-input button {
+            background: var(--accent);
+            border: none;
+            border-radius: 6px;
+            padding: 6px 14px;
+            color: #fff;
+            font-weight: 600;
+            font-size: 11px;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .agent-task-input button:hover {
+            background: var(--accent2);
+        }
+
+        /* # Port indicator */
+        .port-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        .port-indicator.online {
+            background: rgba(40, 200, 64, 0.15);
+            color: #28c840;
+        }
+        .port-indicator.offline {
+            background: rgba(255, 95, 87, 0.15);
+            color: #ff5f57;
+        }
+        .port-indicator .port-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            transition: all 0.3s;
+        }
+        .port-indicator.online .port-dot {
+            background: #28c840;
+            box-shadow: 0 0 12px rgba(40, 200, 64, 0.5);
+            animation: glowPulse 1.5s infinite;
+        }
+        .port-indicator.offline .port-dot {
+            background: #ff5f57;
+        }
+        @keyframes glowPulse {
+            0%, 100% { box-shadow: 0 0 12px rgba(40, 200, 64, 0.3); }
+            50% { box-shadow: 0 0 24px rgba(40, 200, 64, 0.8); }
+        }
+/* BUZZY PANEL - Make sure it's above everything */
+.buzzy-panel {
+    z-index: 99999 !important; /* Higher than everything */
+}
+
+/* Make sure the 📱 button is visible */
+#buzzyBtn {
+    font-size: 18px;
+    padding: 4px 8px;
+    transition: all 0.2s;
+}
+
+#buzzyBtn:hover {
+    color: #a78bfa !important;
+    transform: scale(1.1);
+}
+
+/* Fix for the panel not showing - ensure it slides in properly */
+.buzzy-panel.open {
+    right: 0 !important;
+}
+
+/* Override any issues with the panel */
+.buzzy-panel::-webkit-scrollbar {
+    width: 4px;
+}
+.buzzy-panel::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.15);
+    border-radius: 4px;
+}
+        /* # Keep all existing styles... */
+        .window {
+            display: flex;
+            flex-direction: column;
+            width: 100vw;
+            height: 100vh;
+            background: #12121f;
+            overflow: hidden;
+        }
+        .titlebar { display: flex; align-items: center; justify-content: space-between; height: 44px; padding: 0 20px; background: #1a1a2e; border-bottom: 1px solid var(--border); flex-shrink: 0; user-select: none; }
+        .titlebar-dots { display: flex; gap: 8px; }
+        .dot { width: 12px; height: 12px; border-radius: 50%; cursor: pointer; transition: opacity .15s; }
+        .dot:hover { opacity: .8; }
+        .dot.red { background: #ff5f57; }
+        .dot.yellow { background: #febc2e; }
+        .dot.green { background: #28c840; }
+        .titlebar-center { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; color: var(--text-primary); }
+        .titlebar-center .logo-icon { font-size: 20px; }
+        .titlebar-right { display: flex; align-items: center; gap: 16px; }
+        .titlebar-right button { background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 16px; padding: 4px; transition: color .15s; }
+        .titlebar-right button:hover { color: var(--text-primary); }
+        .kbd { font-size: 11px; color: var(--text-dim); background: rgba(255, 255, 255, 0.06); border-radius: 4px; padding: 2px 8px; letter-spacing: .3px; }
+        .layout { display: flex; flex: 1; overflow: hidden; transition: all var(--transition); }
+        .sidebar { width: var(--sidebar-w); background: var(--sidebar-bg); display: flex; flex-direction: column; border-right: 1px solid var(--border); overflow-y: manual; flex-shrink: 0; transition: width var(--transition), opacity var(--transition), margin var(--transition); }
+        .sidebar.collapsed { width: 0; opacity: 0; overflow: hidden; border: none; margin: 0; padding: 0; }
+        .sidebar::-webkit-scrollbar { width: 4px; }
+        .sidebar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .1); border-radius: 4px; }
+        .sidebar-header { padding: 16px 16px 12px; border-bottom: 1px solid var(--border); }
+        .app-name { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 700; }
+        .app-name .logo-icon { font-size: 28px; }
+        .app-name .badge { background: var(--accent); color: #fff; font-size: 9px; font-weight: 700; border-radius: 4px; padding: 2px 6px; }
+        .tagline { font-size: 11px; color: var(--text-muted); margin-top: 4px; padding-left: 38px; }
+        .sidebar-search { margin: 12px 12px 8px; display: flex; align-items: center; gap: 8px; background: rgba(255, 255, 255, .06); border-radius: var(--radius-sm); padding: 8px 12px; cursor: text; }
+        .sidebar-search span { font-size: 12px; color: var(--text-dim); flex: 1; }
+        .sidebar-search .shortcut { font-size: 10px; color: var(--text-dim); }
+        .sidebar-nav { padding: 8px 8px; }
+        .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; color: var(--text-muted); transition: background .12s; }
+        .nav-item:hover { background: var(--hover-bg); color: var(--text-primary); }
+        .nav-item.active { background: rgba(108, 111, 255, .18); color: var(--text-primary); }
+        .nav-item svg { flex-shrink: 0; }
+        .sidebar-section-title { padding: 12px 16px 4px; font-size: 10px; font-weight: 600; color: var(--text-dim); letter-spacing: .8px; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
+        .sidebar-section-title:hover { color: var(--text-muted); }
+        .sidebar-section-title .toggle-icon { font-size: 12px; color: var(--text-dim); transition: transform .3s; }
+        .sidebar-section-title .toggle-icon.open { transform: rotate(90deg); }
+        .collapsible-content { overflow: hidden; max-height: 0; transition: max-height 0.4s ease, opacity 0.3s ease; opacity: 0; }
+        .collapsible-content.open { max-height: 800px; opacity: 1; }
+        .sidebar-footer { margin-top: manual; padding: 12px; border-top: 1px solid var(--border); }
+        .plan-card { display: flex; align-items: center; gap: 10px; background: linear-gradient(135deg, #2a2060 0%, #1a1a30 100%); border-radius: var(--radius); padding: 10px 12px; cursor: pointer; }
+        .plan-icon { font-size: 20px; }
+        .plan-info { flex: 1; }
+        .plan-name { font-size: 12px; font-weight: 600; }
+        .plan-sub { font-size: 10px; color: var(--text-muted); }
+        .plan-btn { background: rgba(255, 255, 255, .12); border: none; color: var(--text-primary); font-size: 11px; font-weight: 500; padding: 4px 12px; border-radius: 6px; cursor: pointer; }
+        .plan-btn:hover { background: rgba(255, 255, 255, .2); }
+        .center { flex: 1; background: linear-gradient(160deg, #eef0f8 0%, #dde0f0 100%); display: flex; flex-direction: column; overflow-y: manual; position: relative; }
+        .center.has-custom-bg { background-size: cover; background-position: center; background-repeat: no-repeat; }
+        .center.has-custom-bg::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(160deg, rgba(238, 240, 248, .82) 0%, rgba(221, 224, 240, .82) 100%);
+            pointer-events: none;
+            z-index: 0;
+        }
+        .center.has-custom-bg > * { position: relative; z-index: 1; }
+        .center-topbar { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; flex-shrink: 0; }
+        .center-topbar-btn { background: rgba(0, 0, 0, .06); border: none; border-radius: 8px; padding: 4px 10px; cursor: pointer; font-size: 13px; color: #444; transition: background .15s; display: flex; align-items: center; gap: 6px; font-weight: 500; }
+        .center-topbar-btn:hover { background: rgba(0, 0, 0, .12); }
+        .center-topbar-btn .arrow { transition: transform .25s; font-size: 11px; margin-left: 2px; }
+        .center-topbar-btn .arrow.flipped { transform: rotate(180deg); }
+        .center-body { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 12px 20px 8px; overflow-y: manual; }
+        .olympic-rings { width: 120px; height: 70px; margin-bottom: 8px; }
+        .center-title { font-size: 28px; font-weight: 800; color: #1a1a2e; letter-spacing: -.5px; margin-bottom: 4px; }
+        .center-subtitle { font-size: 13px; color: #555570; margin-bottom: 16px; text-align: center; }
+        .input-bar-wrap { width: 100%; max-width: 540px; background: #fff; border-radius: 16px; box-shadow: 0 4px 20px rgba(0, 0, 0, .1); margin-bottom: 12px; }
+        .input-bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; }
+        .input-bar input { flex: 1; border: none; outline: none; background: transparent; font-size: 14px; color: #1a1a2e; font-family: inherit; }
+        .input-bar input::placeholder { color: #aaaacc; }
+        .input-bar-actions { display: flex; gap: 6px; padding: 6px 12px 10px; border-top: 1px solid rgba(0, 0, 0, .06); flex-wrap: wrap; }
+        .input-action-btn { display: flex; align-items: center; gap: 4px; background: none; border: none; cursor: pointer; color: #888; font-size: 10px; padding: 4px 10px; border-radius: 8px; transition: background .12s; }
+        .input-action-btn:hover { background: rgba(0, 0, 0, .05); color: #333; }
+        .send-btn { background: linear-gradient(135deg, var(--accent), var(--accent2)); border: none; border-radius: 10px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 14px; color: #fff; }
+        .mic-btn { background: none; border: none; cursor: pointer; color: #888; font-size: 18px; padding: 5px; }
+        .mic-btn.listening { color: #ff4444; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .section-title { width: 100%; max-width: 540px; font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; margin-bottom: 8px; margin-top: 6px; letter-spacing: .5px; }
+        .quick-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: 100%; max-width: 540px; margin-bottom: 16px; }
+        .quick-card { background: #fff; border-radius: var(--radius); padding: 10px 8px; cursor: pointer; box-shadow: 0 2px 10px rgba(0, 0, 0, .08); transition: transform .15s, box-shadow .15s; position: relative; perspective: 600px; min-height: 70px; }
+        .quick-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0, 0, 0, .12); }
+        .quick-card.flipped .card-inner { transform: rotateY(180deg); }
+        .card-inner { position: relative; width: 100%; height: 100%; transition: transform 0.6s; transform-style: preserve-3d; }
+        .card-front, .card-back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .card-back { transform: rotateY(180deg); font-size: 10px; color: #555; padding: 4px; text-align: center; }
+        .quick-card-icon { font-size: 20px; margin-bottom: 4px; }
+        .quick-card-label { font-size: 11px; font-weight: 600; color: #1a1a2e; }
+        .quick-card-desc { font-size: 9px; color: #888; margin-top: 2px; }
+        .whats-new-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; max-width: 540px; margin-bottom: 16px; }
+        .wn-card { background: rgba(255, 255, 255, .7); border-radius: var(--radius); padding: 10px; cursor: pointer; border: 1px solid rgba(0, 0, 0, .06); transition: background .15s; }
+        .wn-card:hover { background: #fff; }
+        .wn-header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+        .wn-icon { font-size: 14px; }
+        .wn-title { font-size: 11px; font-weight: 600; color: #1a1a2e; }
+        .wn-desc { font-size: 9px; color: #666; }
+        .center-footer { padding: 12px 16px; flex-shrink: 0; border-top: 1px solid rgba(0, 0, 0, .08); background: linear-gradient(180deg, transparent, rgba(238, 240, 248, .95)); width: 100%; }
+        .bottom-input-wrap { max-width: 540px; margin: 0 manual; background: #fff; border-radius: 20px; display: flex; align-items: center; gap: 10px; padding: 8px 14px; box-shadow: 0 2px 12px rgba(0, 0, 0, .08); }
+        .bottom-input-wrap input { flex: 1; border: none; outline: none; background: transparent; font-size: 13px; }
+        .disclaimer { text-align: center; font-size: 9px; color: #aaa; margin-top: 6px; }
+        .right-panel { display: none; }
+        .sidebar-extra { padding: 0 8px 8px; }
+        .sidebar-extra .section-item { padding: 6px 12px; border-radius: var(--radius-sm); cursor: pointer; transition: background .12s; display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text-muted); }
+        .sidebar-extra .section-item:hover { background: var(--hover-bg); color: var(--text-primary); }
+        .sidebar-extra .section-item .icon { font-size: 14px; }
+        .sidebar-extra .section-item .badge-num { margin-left: manual; font-size: 9px; color: var(--text-dim); background: var(--card-bg); padding: 1px 8px; border-radius: 10px; }
+        .files-grid-small { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px 8px; }
+        .file-item-small { display: flex; align-items: center; gap: 6px; background: var(--card-bg); border-radius: 4px; padding: 4px 6px; cursor: pointer; transition: background .15s; font-size: 9px; color: var(--text-muted); }
+        .file-item-small:hover { background: var(--hover-bg); }
+        .file-item-small svg { width: 14px; height: 14px; flex-shrink: 0; }
+        .file-item-small .fname { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary); }
+        .file-item-small .ftag { font-size: 7px; color: var(--text-dim); background: rgba(255, 255, 255, .06); padding: 1px 4px; border-radius: 2px; }
+        .tools-grid-small { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px 8px; }
+        .tool-btn-small { display: flex; flex-direction: column; align-items: center; gap: 2px; background: var(--card-bg); border: none; border-radius: var(--radius-sm); padding: 6px 2px; cursor: pointer; color: var(--text-primary); transition: background .15s; font-size: 9px; }
+        .tool-btn-small:hover { background: var(--hover-bg); }
+        .tool-btn-small .t-icon { font-size: 14px; }
+        .tool-btn-small .t-label { font-size: 8px; color: var(--text-muted); }
+        .note-chip-small { background: var(--card-bg); border-radius: 6px; padding: 6px 10px; margin: 2px 8px; cursor: pointer; color: var(--text-muted); font-size: 9px; transition: background .15s; display: flex; justify-content: space-between; align-items: center; }
+        .note-chip-small:hover { background: var(--hover-bg); }
+        .note-chip-small .edit-note { color: var(--text-dim); font-size: 10px; cursor: pointer; }
+        .note-chip-small .edit-note:hover { color: var(--text-primary); }
+        .cal-event-small { display: flex; align-items: center; gap: 6px; background: var(--card-bg); border-radius: 6px; padding: 4px 8px; margin: 2px 8px; cursor: pointer; transition: background .15s; }
+        .cal-event-small:hover { background: var(--hover-bg); }
+        .cal-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+        .cal-time-small { font-size: 8px; color: var(--text-muted); }
+        .cal-name-small { font-size: 9px; color: var(--text-primary); }
+        .apple-card-small { margin: 8px 8px 4px; background: #111118; border-radius: var(--radius); padding: 8px 10px; display: flex; gap: 8px; align-items: center; border: 1px solid rgba(255, 255, 255, .08); cursor: pointer; }
+        .apple-card-small:hover { background: #1a1a28; }
+        .apple-logo-small { font-size: 18px; color: #fff; }
+        .apple-title-small { font-size: 10px; font-weight: 600; }
+        .apple-sub-small { font-size: 8px; color: var(--text-muted); }
+        .news-feed-small { max-height: 120px; overflow-y: manual; font-size: 9px; color: var(--text-muted); padding: 2px 8px; }
+        .news-feed-small::-webkit-scrollbar { width: 3px; }
+        .news-feed-small::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .1); border-radius: 3px; }
+        .custom-btn-container-small { display: flex; flex-wrap: wrap; gap: 3px; padding: 4px 8px; }
+        .custom-btn-small { padding: 2px 8px; border-radius: 3px; border: none; font-size: 8px; cursor: pointer; transition: opacity .15s; }
+        .custom-btn-small:hover { opacity: 0.8; }
+        .add-lynx-btn { background: none; border: 1px dashed var(--text-dim); border-radius: 4px; color: var(--text-muted); padding: 2px 10px; font-size: 9px; cursor: pointer; transition: all .15s; margin: 2px 8px; }
+        .add-lynx-btn:hover { border-color: var(--text-primary); color: var(--text-primary); }
+        .news-item-small { padding: 2px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.03); display: flex; gap: 6px; align-items: center; }
+        .news-item-small .time { color: var(--text-dim); font-size: 7px; flex-shrink: 0; }
+        .news-item-small .del-news { color: #ff5f57; cursor: pointer; font-size: 8px; margin-left: manual; flex-shrink: 0; }
+        .news-item-small .del-news:hover { opacity: 0.7; }
+        #serverBtn.online { color: #28c840; text-shadow: 0 0 10px rgba(40, 200, 64, 0.5); animation: glowPulse 1.5s infinite; }
+        .favorite-tag { background: var(--card-bg); padding: 2px 8px; border-radius: 4px; font-size: 9px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 4px; cursor: pointer; margin: 2px; }
+        .favorite-tag:hover { background: var(--hover-bg); }
+        .favorite-tag .remove-fav { color: #ff5f57; cursor: pointer; font-size: 9px; }
+        .favorites-container { display: flex; flex-wrap: wrap; padding: 4px 8px; }
+.center {
+    background-image: url('file:///Users/olympynetworkco/Desktop/data/grid.png');
+    background-size: cover;
+    background-position: center;
+}
+    </style>
+</head>
+<body>
+    <div class="window">
+        <div class="titlebar">
+            <div class="titlebar-dots">
+                <div class="dot red"></div>
+                <div class="dot yellow"></div>
+                <div class="dot green"></div>
+            </div>
+            <div class="titlebar-center">
+                <span class="logo-icon">⚡</span>
+                OlympyNetwork
+                <span class="kbd">⌘k</span>
+            </div>
+
+<div class="titlebar-right">
+    <button id="serverBtn" title="Server_station">ᯓ★</button>
+    <button id="buzzyBtn" title="BuzzyBlogConnectors" onclick="toggleBuzzyPanel()" style="font-size:18px; padding:4px 8px; background:rgba(79,70,229,0.2); border-radius:6px; border:1px solid rgba(79,70,229,0.3);">📱</button>
+    <button id="profileBtn" title="Profile" onclick="toggleGlassPanel()">💠</button>
+</div>
+
+<!-- BUZZY BLOG CONNECTORS PANEL -->
+<div class="buzzy-panel" id="buzzyPanel" style="
+    position: fixed;
+    top: 0;
+    right: -500px;
+    width: 480px;
+    height: 100%;
+    background: rgba(20, 20, 35, 0.92);
+    backdrop-filter: blur(32px) saturate(180%);
+    -webkit-backdrop-filter: blur(32px) saturate(180%);
+    border-left: 1px solid rgba(255,255,255,0.08);
+    box-shadow: -10px 0 60px rgba(0,0,0,0.7);
+    z-index: 9997;
+    transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow-y: auto;
+    padding: 20px;
+    color: var(--text-primary);
+">
+    <div class="buzzy-panel-header" style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <span style="font-size: 28px;">⎚-⎚</span>
+        <span style="font-size: 18px; font-weight: 700; background: linear-gradient(135deg, #4f46e5, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">BuzzyBlogConnectors</span>
+        <button onclick="toggleBuzzyPanel()" style="margin-left: auto; background: none; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: all 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">✕</button>
+    </div>
+
+    <!-- Selection counter -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding: 8px 12px; background: rgba(255,255,255,0.03); border-radius: 8px;">
+        <span style="font-size: 12px; color: var(--text-muted);">Grip/Spec</span>
+        <span style="font-size: 11px; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 2px 12px; border-radius: 12px;">0 of 7 selected</span>
+        <span style="font-size: 14px; color: var(--text-dim);">⎚-⎚</span>
+    </div>
+
+    <!-- Search -->
+    <div style="margin-bottom: 16px; display: flex; gap: 8px;">
+        <input type="text" id="buzzySearch" placeholder="Search connectors..." style="flex:1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 8px 14px; color: var(--text-primary); font-size: 12px; font-family: inherit; outline: none;" oninput="filterBuzzyConnectors(this.value)">
+        <span style="font-size: 11px; color: var(--text-dim); background: rgba(255,255,255,0.04); padding: 6px 12px; border-radius: 8px; display: flex; align-items: center;">✓</span>
+    </div>
+
+    <!-- Connectors Grid -->
+    <div id="buzzyConnectorsGrid" style="display: flex; flex-direction: column; gap: 6px;">
+        
+        <!--- Alfred™ -->
+        <div class="buzzy-item" data-name="alfred" style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 10px 14px; border-left: 3px solid #10a37f; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 12px;" onclick="toggleBuzzySelection(this)">
+            <span style="font-size: 16px; color: #10a37f;">✓</span>
+            <div style="flex:1;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-weight: 600; font-size: 13px; color: #10a37f;">Alfred™</span>
+                    <span style="font-size: 9px; color: var(--text-dim); background: rgba(255,255,255,0.04); padding: 1px 8px; border-radius: 8px;">☁︎</span>
+                </div>
+                <div style="font-size: 10px; color: var(--text-muted);">Alfred - The anthropic center</div>
+                <div style="font-size: 9px; color: var(--text-dim); margin-top: 2px;">Your Light</div>
+            </div>
+        </div>
+
+        <!-- Donatello™ -->
+        <div class="buzzy-item" data-name="Donatello™" style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 10px 14px; border-left: 3px solid #00b894; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 12px;" onclick="toggleBuzzySelection(this)">
+            <span style="font-size: 16px; color: #00b894;">Donatello™</span>
+            <div style="flex:1;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-weight: 600; font-size: 13px; color: #00b894;">Donatello™</span>
+                    <span style="font-size: 9px; color: var(--text-dim); background: rgba(255,255,255,0.04); padding: 1px 8px; border-radius: 8px;">ଳ</span>
+                </div>
+                <div style="font-size: 10px; color: var(--text-muted);">Donatello - The brain</div>
+                <div style="font-size: 9px; color: var(--text-dim); margin-top: 2px;">Balances small ideas like a rabbit</div>
+            </div>
+        </div>
+
+        <!-- DeepSeek™ -->
+        <div class="buzzy-item" data-name="deepseek dolphin" style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 10px 14px; border-left: 3px solid #6b21a5; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 12px;" onclick="toggleBuzzySelection(this)">
+            <span style="font-size: 16px; color: #6b21a5;">✓</span>
+            <div style="flex:1;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-weight: 600; font-size: 13px; color: #6b21a5;">DeepSeek™</span>
+                    <span style="font-size: 9px; color: var(--text-dim); background: rgba(255,255,255,0.04); padding: 1px 8px; border-radius: 8px;">⋅˚₊‧</span>
+                </div>
+                <div style="font-size: 10px; color: var(--text-muted);">🐬 Dolphin Apprentice - Water Master</div>
+                <div style="font-size: 9px; color: var(--text-dim); margin-top: 2px;">Sharp queue through appearances</div>
+            </div>
+        </div>
+
+        <!-- Claude™ -->
+        <div class="buzzy-item" data-name="claude raphael" style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 10px 14px; border-left: 3px solid #f97316; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 12px;" onclick="toggleBuzzySelection(this)">
+            <span style="font-size: 16px; color: #f97316;">✓</span>
+            <div style="flex:1;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-weight: 600; font-size: 13px; color: #f97316;">Claude™</span>
+                    <span style="font-size: 9px; color: var(--text-dim); background: rgba(255,255,255,0.04); padding: 1px 8px; border-radius: 8px;">❋</span>
+                </div>
+                <div style="font-size: 10px; color: var(--text-muted);">Raphael - The Sai</div>
+                <div style="font-size: 9px; color: var(--text-dim); margin-top: 2px;">Offers fire but details bug fixes</div>
+            </div>
+        </div>
+
+        <!-- DuckDuckGo™ -->
+        <div class="buzzy-item" data-name="duckduckgo leonardo" style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 10px 14px; border-left: 3px solid #1a73e8; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 12px;" onclick="toggleBuzzySelection(this)">
+            <span style="font-size: 16px; color: #1a73e8;">✓</span>
+            <div style="flex:1;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-weight: 600; font-size: 13px; color: #1a73e8;">DuckDuckGo™</span>
+                    <span style="font-size: 9px; color: var(--text-dim); background: rgba(255,255,255,0.04); padding: 1px 8px; border-radius: 8px;">𝚿</span>
+                </div>
+                <div style="font-size: 10px; color: var(--text-muted);">Leonardo - The speech update</div>
+                <div style="font-size: 9px; color: var(--text-dim); margin-top: 2px;">Distinctive observational lens</div>
+            </div>
+        </div>
+
+        <!-- /Applications/python4 -->
+        <div class="buzzy-item" data-name="python4" style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 10px 14px; border-left: 3px solid #ff6b6b; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 12px;" onclick="toggleBuzzySelection(this)">
+            <span style="font-size: 16px; color: #ff6b6b;">✓</span>
+            <div style="flex:1;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-weight: 600; font-size: 13px; color: #ff6b6b;">/Applications/python4</span>
+                    <span style="font-size: 9px; color: var(--text-dim); background: rgba(255,255,255,0.04); padding: 1px 8px; border-radius: 8px;">♻</span>
+                </div>
+                <div style="font-size: 10px; color: var(--text-muted);">Visual art & aesthetic philosophy</div>
+                <div style="font-size: 9px; color: var(--text-dim); margin-top: 2px;">7 chapter darwinidle</div>
+            </div>
+        </div>
+
+        <!-- Artist of Living -->
+        <div class="buzzy-item" data-name="artist living" style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 10px 14px; border-left: 3px solid #ffd93d; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 12px;" onclick="toggleBuzzySelection(this)">
+            <span style="font-size: 16px; color: #ffd93d;">✓</span>
+            <div style="flex:1;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-weight: 600; font-size: 13px; color: #ffd93d;">Artist of Living</span>
+                    <span style="font-size: 9px; color: var(--text-dim); background: rgba(255,255,255,0.04); padding: 1px 8px; border-radius: 8px;">☎</span>
+                </div>
+                <div style="font-size: 10px; color: var(--text-muted);">Wikipedia, Blog, food, YouTube</div>
+                <div style="font-size: 9px; color: var(--text-dim); margin-top: 2px;">Poetry in the industry network™</div>
+            </div>
+        </div>
+
+        <!-- Content Transformer -->
+        <div class="buzzy-item" data-name="content transformer" style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 10px 14px; border-left: 3px solid #fd79a8; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 12px;" onclick="toggleBuzzySelection(this)">
+            <span style="font-size: 16px; color: #fd79a8;">✓</span>
+            <div style="flex:1;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-weight: 600; font-size: 13px; color: #fd79a8;">Content Transformer</span>
+                    <span style="font-size: 9px; color: var(--text-dim); background: rgba(255,255,255,0.04); padding: 1px 8px; border-radius: 8px;">✌︎︎</span>
+                </div>
+                <div style="font-size: 10px; color: var(--text-muted);">PLTR, NVIDIA, and pride</div>
+                <div style="font-size: 9px; color: var(--text-dim); margin-top: 2px;">InfoRabbit™</div>
+            </div>
+        </div>
+
+        <!-- Network-spec -->
+        <div class="buzzy-item" data-name="network spec" style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 10px 14px; border-left: 3px solid #2d2d2d; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 12px;" onclick="toggleBuzzySelection(this)">
+            <span style="font-size: 16px; color: #b2b2b2;">✓</span>
+            <div style="flex:1;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-weight: 600; font-size: 13px; color: #b2b2b2;">Network-spec</span>
+                    <span style="font-size: 9px; color: var(--text-dim); background: rgba(255,255,255,0.04); padding: 1px 8px; border-radius: 8px;">🗨</span>
+                </div>
+                <div style="font-size: 10px; color: var(--text-muted);">Experienced speculations</div>
+                <div style="font-size: 9px; color: var(--text-dim); margin-top: 2px;">Pros and cons development path</div>
+            </div>
+        </div>
+
+        <!-- ContentAngelo -->
+        <div class="buzzy-item" data-name="contentangelo" style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 10px 14px; border-left: 3px solid #6c5ce7; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 12px;" onclick="toggleBuzzySelection(this)">
+            <span style="font-size: 16px; color: #6c5ce7;">✓</span>
+            <div style="flex:1;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-weight: 600; font-size: 13px; color: #6c5ce7;">ContentAngelo</span>
+                    <span style="font-size: 9px; color: var(--text-dim); background: rgba(255,255,255,0.04); padding: 1px 8px; border-radius: 8px;">G+</span>
+                </div>
+                <div style="font-size: 10px; color: var(--text-muted);">Transform ideas into Artiom™</div>
+                <div style="font-size: 9px; color: var(--text-dim); margin-top: 2px;">Clear, engaging, memorable</div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.06); display: flex; gap: 8px; flex-wrap: wrap;">
+        <button onclick="selectAllBuzzy()" style="background: var(--accent); border: none; color: #fff; padding: 6px 14px; border-radius: 6px; font-size: 10px; cursor: pointer;">✓ Select All</button>
+        <button onclick="clearAllBuzzy()" style="background: rgba(255,255,255,0.06); border: none; color: var(--text-muted); padding: 6px 14px; border-radius: 6px; font-size: 10px; cursor: pointer;">✕ Clear All</button>
+        <span style="margin-left: auto; font-size: 10px; color: var(--text-dim);">BuzzyBlogConnectors v2.0</span>
+    </div>
+</div>
+        </div>
+
+        <!-- GLASS RIGHT PANEL -->
+        <div class="glass-panel" id="glassPanel">
+            <div class="glass-panel-header">
+                <span>💠 Intel</span>
+                <button class="glass-close-btn" onclick="toggleGlassPanel()">✕</button>
+            </div>
+
+            <div class="glass-clock-section">
+                <div class="glass-clock-face" id="glassClockFace">
+                    <div class="clock-hand hour" id="clockHourHand"></div>
+                    <div class="clock-hand minute" id="clockMinuteHand"></div>
+                    <div class="clock-hand second" id="clockSecondHand"></div>
+                    <div class="clock-center-dot"></div>
+                </div>
+                <div class="glass-digital-time" id="glassDigitalTime">--:--</div>
+                <div class="glass-day-label" id="glassDayLabel">Loading...</div>
+            </div>
+
+            <div class="glass-section">
+                <div class="glass-section-title">⚾ MLB Standings</div>
+                <div id="glassMLB" class="glass-MLBStanding-box" style="width:100%; min-height:280px; overflow:hidden; border-radius:12px;">
+                    <iframe
+                        src="file:///Users/olympynetworkco/Desktop/data/mlb_standing.html"
+                        title="MLB Standings"
+                        style="width:100%; height:280px; border:none; background:transparent;"
+                        onerror="this.parentElement.textContent='⚠️ Could not load mlb_official.html — check the file exists at that path.'">
+                    </iframe>
+                </div>
+            </div>
+
+            <!-- 🔗 QUICK LINKS + SEARCH (replaces duplicate MLBStanding) -->
+            <div class="glass-section">
+    <div class="glass-section-title">⚡ Quick Links</div>
+    <div class="glass-feed-list" style="display:flex; flex-wrap:wrap; gap:4px; padding:6px; justify-content:center;">
+
+
+                </div>
+
+
+                <!-- Quick Search Input -->
+    <div style="display:flex; gap:4px; margin-top:4px;">
+        <input type="text" id="glassQuickSearch" placeholder="Search Bing..." style="flex:1; background:var(--card-bg); border:1px solid var(--border); border-radius:4px; padding:4px 8px; color:var(--text-primary); font-size:10px; font-family:inherit; outline:none;">
+        <button onclick="glassQuickSearch()" style="background:var(--accent); border:none; border-radius:4px; padding:4px 8px; color:#fff; font-size:10px; cursor:pointer;">Go</button>
+    </div>
+
+                <!-- 🎵 Music Feed (Desktop/media/solp008) -->
+                <div class="glass-feed-list" id="glassMusicFeed" style="margin-top:4px; max-height:100px; overflow-y:auto; padding:6px;">
+        <div style="color:var(--text-dim);font-size:10px;">🎵 Connect your music folder to start listening.</div>
+    </div>
+    <div id="glassMusicConnectBtn" onclick="connectMusicFolder()" style="font-size:8px;color:var(--text-dim);margin-top:4px;text-align:center;cursor:pointer;padding:4px;border-radius:4px;border:1px dashed var(--border);">
+        ↳ Connect Desktop/media/solp008
+    </div>
+    <audio id="glassMusicPlayer" controls style="width:100%;margin-top:6px;display:none;"></audio>
+</div>
+
+            <div class="glass-section">
+                <div class="glass-section-title">+ Lynx Feed</div>
+                <div id="glassLynxFeed" class="glass-feed-list"></div>
+            </div>
+
+            <div class="glass-section">
+                <div class="glass-section-title">✪ Notes</div>
+                <div id="glassNotesFeed" class="glass-feed-list"></div>
+            </div>
+        </div>
+
+        <div class="layout">
+
+
+
+            <!-- LEFT SIDEBAR -->
+<aside class="sidebar" id="leftSidebar">
+    <div class="sidebar-header">
+        <div class="app-name">
+            <img src="file:///Users/olympynetworkco/Desktop/data/grid.png" alt="Dolphin" class="logo-icon" style="width:50px; height:50px; vertical-align:middle;">
+            Mac Bot
+            <span class="badge">Station</span>
+        </div>
+        <div class="tagline">NorthStar Connector ™ · OlympyNetworkCo ™</div>
+    </div>
+
+                <div class="sidebar-search">
+                    <span>⚲</span>
+                    <span>Scout</span>
+                    <span class="shortcut">⌘f</span>
+                </div>
+
+                <nav class="sidebar-nav">
+                    <div class="nav-item active" data-action="home" data-path="file:///Applications/python4/">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>/Applications/python4
+                    </div>
+                    <div class="nav-item" data-action="data" data-path="file:///Users/olympynetworkco/Desktop/data/">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4M8 16v.01M16 16v.01"/></svg>/Desktop/data
+                    </div>
+                    <div class="nav-item" data-action="files" data-path="file:///Users/olympynetworkco/Desktop/">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>/Users/macbook/Desktop/
+                    </div>
+                    <div class="nav-item" data-action="favorite" data-path="file:///Users/olympynetworkco/Desktop/media">
+                        
+                    <div class="nav-item" data-action="setting" data-path="file:///Users/olympynetworkco/Desktop/BuzzyLynx.html">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>BuzzyLynx.html
+                    </div>
+                </nav>
+
+
+                    <div class="nav-item" data-action="setting" data-path="file:///Users/olympynetworkco/Desktop/edi-editoral.html">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>edi-editoral.html
+                    </div>
+                </nav>
+
+                <!-- SIDEBAR EXTRA SECTIONS -->
+                <div class="sidebar-extra">
+                    <!-- Desktop/data connection -->
+                    <div id="dataConnStatus" onclick="connectDataFolder()" style="margin:6px 8px 10px;padding:6px 8px;border-radius:6px;background:var(--card-bg);font-size:9px;color:var(--text-muted);cursor:pointer;border:1px dashed var(--text-dim);">❆ Connect Desktop/data folder</div>
+
+
+                    <!-- News Drop -->
+                    <div class="sidebar-section-title" onclick="toggleSidebarSection(this)">
+                        News Drop 🪂
+                        <span class="toggle-icon">▶</span>
+                    </div>
+                    <div class="collapsible-content" id="newsContent">
+                        <div class="news-feed-small" id="newsFeed"></div>
+                        <button class="add-lynx-btn" onclick="addLynxSource()">+ Add lynx</button>
+                    </div>
+
+                    <!-- Lynx -->
+                    <div class="sidebar-section-title" onclick="toggleSidebarSection(this)">
+                        ✪ Lynx
+                        <span class="toggle-icon">▶</span>
+                    </div>
+                    <div class="collapsible-content" id="lynxContent">
+                        <div style="font-size:9px;color:var(--text-muted);padding:2px 8px;"><span id="lynxCount">3</span>Lynx</div>
+                        <div id="notesList"></div>
+                        <button class="add-lynx-btn" onclick="addLynx()" style="margin-top:4px;">+ Add Lynx</button>
+                    </div>
+
+        <a href="https://youtube.com" target="none" class="glass-feed-item" style="padding:4px 10px; text-decoration:none; border-radius:4px; display:inline-flex; align-items:center; gap:4px; color:#ff0000; background:rgba(255,0,0,0.12);">
+            📺 YouTube
+        </a>
+                    </a>
+        <a href="https://www.bing.com/webhp" target="none" class="glass-feed-item" style="padding:4px 10px; text-decoration:none; border-radius:4px; display:inline-flex; align-items:center; gap:4px; color:#0078d4; background:rgba(0,120,212,0.12);">
+            🔍 Bing
+        </a>
+                    </a>
+        <a href="https://web.telegram.org/k/" target="https://web.telegram.org/k/" class="glass-feed-item" style="padding:4px 10px; text-decoration:none; border-radius:4px; display:inline-flex; align-items:center; gap:4px; color:#0088cc; background:rgba(0,136,204,0.12);">
+            ✈️ Telegram
+        </a>
+
+
+                    <!-- Tools -->
+                    <div class="sidebar-section-title" onclick="toggleSidebarSection(this)">
+                        Tools
+                        <span class="toggle-icon">▶</span>
+                    </div>
+                    <div class="collapsible-content" id="toolsContent">
+                        <div class="tools-grid-small">
+                            <button class="tool-btn-small" onclick="openWriteNotes()"><span class="t-icon">✍︎</span><span class="t-label">ོ⎚-⎚ EDI TheEditor</span></button>
+
+                            <button class="tool-btn-small" onclick="openagents()"><span class="t-icon">⥺</span><span class="t-label">/python4</span></button>
+                            <button class="tool-btn-small" onclick="opendonatello-master-bison-vison8.html()"><span class="t-icon">⚯</span><span class="t-label">donatello-master-bison-vison8.html</span></button>
+                            <button class="tool-btn-small" onclick="openthemes()"><span class="t-icon">🃜</span><span class="t-label">themes</span></button>
+                            <button class="tool-btn-small" onclick="openDataBrowser()"><span class="t-icon">目</span><span class="t-label">Data</span></button>
+                            <button class="tool-btn-small" onclick="openTowerNews()"><span class="t-icon">⇞</span><span class="t-label">Tower</span></button>
+                        </div>
+                        <div class="custom-btn-container-small" id="customBtnContainer"></div>
+                    </div>
+
+                    <!-- Apple Card -->
+                    <div class="apple-card-small" onclick="openAppleIntelligence()">
+                        <div class="apple-logo-small"><svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-3.014 1.57-.12 0-.23-.02-.3-.03-.014-.1-.04-.31-.04-.52 0-1.14.572-2.27 1.206-2.98.804-.94 2.142-1.64 3.248-1.68.03.13.077.34.077.56zm4.565 15.71c-.03.07-.463 1.58-1.518 3.12-.945 1.39-1.94 2.77-3.43 2.79-1.49.04-1.97-.88-3.667-.88-1.69 0-2.21.85-3.628.92-1.456.06-2.572-1.5-3.518-2.89-1.85-2.76-3.32-7.79-1.36-11.18.95-1.65 2.65-2.7 4.51-2.73 1.49-.03 2.87.99 3.665.99.79 0 2.45-1.22 4.13-1.04.7.03 2.67.28 3.95 2.13-.1.07-2.36 1.38-2.34 4.07.02 3.21 2.84 4.27 2.87 4.28-.02.08-.45 1.55-1.66 3.4z"/></svg></div>
+                        <div><div class="apple-title-small">Apple Intelligence</div><div class="apple-sub-small">Click for news</div></div>
+                    </div>
+                </div>
+
+                <div class="sidebar-footer">
+                    <div class="plan-card">
+                        <div class="plan-icon">☁︎+</div>
+                        <div class="plan-info"><div class="plan-name">Cloud + Macbook Pro Plan</div><div class="plan-sub">Unlimited access</div></div>
+                        <button class="plan-btn">Manage</button>
+                    </div>
+                </div>
+            </aside>
+
+
+            <!-- CENTER PANEL -->
+            <main class="center" id="center-panel">
+                <div class="center-topbar">
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                        <button class="center-topbar-btn" id="toggleLeft" title="Toggle left sidebar">
+                            <span class="arrow" id="leftArrow">◂</span>
+                        </button>
+                        <button class="center-topbar-btn" onclick="openBingPIP()" title="Open Bing in PIP">
+                            ☃︎ BingPippy
+                        </button>
+                    </div>
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                        <span class="port-indicator online" id="portIndicator">
+                            <span class="port-dot"></span>
+                            <span id="portStatus">Port 9000 Online</span>
+                        </span>
+                        <button class="center-topbar-btn" id="toggleRight" title="Toggle right panel" style="display:none;">
+                            <span class="arrow" id="rightArrow">↗</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div style="display:flex; flex:1; width:100%; gap:16px; padding:0 20px 8px; overflow:hidden;">
+                <div class="center-left-column" style="width:100%; max-width:560px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; overflow-y:auto;">
+
+              <div style="display: flex; align-items: center; gap: 12px;">
+    <!-- Badge -->
+    <svg class="apple-badge" viewBox="0 0 60 60" style="width: 50px; height: 50px; flex-shrink: 0;">
+        <circle cx="30" cy="30" r="26" fill="#ffffff" stroke="#e0e0e0" stroke-width="1"/>
+        <text x="30" y="38" text-anchor="middle" font-size="30" fill="#1a1a2e" font-family="monospace">♞</text>
+    </svg>
+
+    <!-- OlympyNetworkCo Text — Olympic Colors -->
+    <h1 style="font-size: 24px; font-weight: bold; letter-spacing: 1px; margin: 0;">
+        <span style="color: #0085C7;">☃︎</span>
+        <span style="color: #000000;">l</span>
+        <span style="color: #DF0024;">y</span>
+        <span style="color: #F4C300;">m</span>
+        <span style="color: #009F6B;">p</span>
+        <span style="color: #0085C7;">y</span>
+        <span style="color: #000000;">N</span>
+        <span style="color: #DF0024;">e</span>
+        <span style="color: #F4C300;">t</span>
+        <span style="color: #009F6B;">w</span>
+        <span style="color: #0085C7;">o</span>
+        <span style="color: #000000;">r</span>
+        <span style="color: #DF0024;">k</span>
+        <span style="color: #F4C300;">C</span>
+        <span style="color: #009F6B;">o</span>
+    </h1>
+</div>
+
+
+                    <div class="input-bar-wrap">
+                        <div class="input-bar">
+                            <input type="text" id="main-input" placeholder="⎚-⎚ checking..." />
+                            <button class="mic-btn" id="voiceBtn" title="Voice input">🅥</button>
+                            <button class="send-btn" onclick="handleSend()">▶︎</button>
+                        </div>
+                        <div class="input-bar-actions">
+                            <button class="input-action-btn" onclick="openFilePicker()">⎚-⎚ File</button>
+                            <button class="input-action-btn" onclick="doBingSearch()">🔍 Find</button>
+                            <button class="input-action-btn" onclick="openHTMLApp('suite')">❖ Create</button>
+                            <button class="input-action-btn" onclick="openHTMLApp('tool')">♻ Automate</button>
+                            <button class="input-action-btn" onclick="openBingPIP()">☃︎ Bing Pippera</button>
+                        </div>
+                    </div>
+
+                    <div class="section-title">Quick Tab</div>
+   
+                    <div class="quick-grid">
+
+                        <div class="quick-card" onclick="navigatePath('/Users/macbook/Desktop')">
+    <div class="card-inner">
+        <div class="card-front">
+            <div class="quick-card-icon" style="font-size: 20px; font-family: monospace;">
+                <span style="color: #00b894;">Desk</span>
+            </div>
+            <div class="quick-card-label">Data</div>
+            <div class="quick-card-desc">Open Desktop</div>
+        </div>
+        <div class="card-back">📂 Python4 folder</div>
+    </div>
+</div>
+
+                        <div class="quick-card" onclick="navigatePath('/Applications/python4')">
+    <div class="card-inner">
+        <div class="card-front">
+            <div class="quick-card-icon" style="font-size: 20px; font-family: monospace;">
+                <span style="color: #00b894;">⚚</span>
+            </div>
+            <div class="quick-card-label">Python4</div>
+            <div class="quick-card-desc">Open folder</div>
+        </div>
+        <div class="card-back">📂 Python4 folder</div>
+    </div>
+</div>
+
+                    </div>
+
+                    <div class="section-title">Pippera Start</div>
+<div class="quick-grid">
+
+
+<!-- TurboBucky -->
+
+<div class="quick-card" onclick="openTurboBucky()">
+    <div class="card-inner">
+        <div class="card-front">
+            <div class="quick-card-icon" style="font-size: 22px; font-family: monospace;">
+                <span style="color: #6b21a5;">×̷̷͜◉༗</span>
+            </div>
+            <div class="quick-card-label">TurboBucky</div>
+            <div class="quick-card-desc">AI TurboBucky</div>
+        </div>
+        <div class="card-back">💬 TurboBucky PIP</div>
+    </div>
+</div>
+
+<!-- Copilot -->
+<div class="quick-card" onclick="openCopilot()">
+    <div class="card-inner">
+        <div class="card-front">
+            <div class="quick-card-icon" style="font-size: 22px; font-family: monospace;">
+                <span style="color: #6b21a5;">➶</span>
+            </div>
+            <div class="quick-card-label">Copilot</div>
+            <div class="quick-card-desc">AI Copilot</div>
+        </div>
+        <div class="card-back">💬 Copilot PIP</div>
+    </div>
+</div>
+
+<!-- deepseek -->
+<div class="quick-card" onclick="openDeepSeek()">
+    <div class="card-inner">
+        <div class="card-front">
+            <div class="quick-card-icon" style="font-size: 18px; font-family: monospace; letter-spacing: -1px;">
+                <span style="color: #00b894;">⋅˚₊‧ ଳ </span>
+            </div>
+            <div class="quick-card-label">DeepSeek</div>
+            <div class="quick-card-desc">AI assistant py4/HTML</div>
+        </div>
+        <div class="card-back">💬 DeepSeek PIP</div>
+    </div>
+</div>
+
+<!-- chatgpt -->
+<div class="quick-card" onclick="openChatGPT()">
+    <div class="card-inner">
+        <div class="card-front">
+            <div class="quick-card-icon" style="font-size: 20px; display: flex; align-items: center; justify-content: center; gap: 2px;">
+                <span style="color: #ff0000;">G</span>
+                <span style="color: #1a73e8;">P</span>
+                <span style="color: #f97316;">T</span>
+                <span style="color: #6b21a5; font-size: 14px; align-self: flex-start; margin-top: 2px;">+</span>
+            </div>
+            <div class="quick-card-label">CHATGPT</div>
+            <div class="quick-card-desc">AI assistant live chate</div>
+        </div>
+        <div class="card-back">💬 GPT PIP</div>
+    </div>
+</div>
+
+<!-- claude -->
+<div class="quick-card" onclick="openClaude()">
+    <div class="card-inner">
+        <div class="card-front">
+            <div class="quick-card-icon" style="font-size: 20px; font-family: monospace;">
+                <span style="color: #f97316;">❋</span>
+            </div>
+            <div class="quick-card-label">claude</div>
+            <div class="quick-card-desc">AI assistant</div>
+        </div>
+        <div class="card-back">💬 claude PIP</div>
+    </div>
+</div>
+
+    <!-- Summarize -->
+<div class="quick-card" onclick="openSummarizePIP()">
+    <div class="card-inner">
+        <div class="card-front">
+            <div class="quick-card-icon" style="font-size: 18px; font-family: monospace; letter-spacing: 0.5px;">
+                <span style="color: #8a2be2;">ᖰ  ᖳ +</span>
+            </div>
+            <div class="quick-card-label">Summarize</div>
+            <div class="quick-card-desc">Drop any file</div>
+        </div>
+        <div class="card-back">🔊 Read & summarize</div>
+    </div>
+</div>
+</div>
+
+                    <div class="section-title">Agents</div>
+                    <div class="quick-grid" style="grid-template-columns: repeat(4, 1fr);">
+
+<div class="quick-card" onclick="openAgentPIP('Michealangelo', 'claw grip active')">
+    <div class="quick-card-icon" style="color: #f97316;">◣¥◢.</div>
+    <div class="quick-card-label">Michealangelo</div>
+    <div class="quick-card-desc">claw grip ZINGABOW</div>
+</div>
+
+<div class="quick-card" onclick="openBondFireMLB()">
+                            <div class="quick-card-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="2"><path d="M12 2L9.5 8.5L3 10.5L7.5 14.5L6.5 21L12 18L17.5 21L16.5 14.5L21 10.5L14.5 8.5L12 2Z"/><circle cx="12" cy="12" r="3" fill="#e74c3c" stroke="none"/><path d="M12 9V12L13.5 13.5" stroke="#fff" stroke-width="1.5"/></svg></div>
+                            <div class="quick-card-label">Bond Fire</div><div class="quick-card-desc">MLB scout</div>
+                        </div>
+
+                        <div class="quick-card" onclick="openAgentPIP('Alfred', 'notespark')" style="border-color: #b8860b;">
+    <div class="quick-card-icon" style="color: #b8860b; font-size: 20px;">♛♛♛</div>
+    <div class="quick-card-label" style="color: #b8860b;">Alfred</div>
+    <div class="quick-card-desc">buzzyradio</div>
+</div>
+
+                        <div class="quick-card" onclick="openAgentPIP('Donatello', 'merge-agent')" style="border-color: #6b21a5;">
+    <div class="quick-card-icon" style="color: #6b21a5; font-size: 20px;">⎚-⎚</div>
+    <div class="quick-card-label" style="color: #6b21a5;">Donatello</div>
+    <div class="quick-card-desc">structure scaling</div>
+</div>
+
+                       <div class="quick-card" onclick="openAgentPIP('Leonardo', 'mirofish')" style="border-color: #1a73e8;">
+    <div class="quick-card-icon" style="color: #1a73e8; font-size: 22px;">★★★★</div>
+    <div class="quick-card-label" style="color: #1a73e8;">Leonardo</div>
+    <div class="quick-card-desc">mirofish finder</div>
+</div>
+
+                        <div class="quick-card" onclick="openMasqueradeViper8()" style="border-color: #2d2d2d;">
+    <div class="quick-card-icon" style="color: #000; font-size: 24px; display: flex; justify-content: center; width: 100%;">♞</div>
+    <div class="quick-card-label">Masquerade</div>
+    <div class="quick-card-desc">Viper8 youtube search</div>
+</div>
+
+<div class="quick-card" onclick="toggleMamaDove()">
+    <div class="quick-card-icon" style="font-size: 20px;">
+        <span style="color: #000000;">◉˕◉⢿</span>
+        <span style="color: #f97316;">☁︎</span><span style="color: #1a73e8;">+👵🏻</span>
+    </div>
+    <div class="quick-card-label">Mama Dove</div>
+    <div class="quick-card-desc" id="mamaDoveStatus">Port: Check</div>
+</div>
+
+
+                        <div class="quick-card" onclick="openFormulaNotebook()">
+                            <div class="quick-card-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2"><path d="M8 6L12 2L16 6" stroke="#555"/><path d="M8 18L12 22L16 18" stroke="#555"/><path d="M6 8L2 12L6 16" stroke="#555"/><path d="M18 8L22 12L18 16" stroke="#555"/><circle cx="12" cy="12" r="4" stroke="#555" stroke-width="2.5"/><path d="M12 8V12L14 14" stroke="#888" stroke-width="1.5"/><path d="M8 12H12L14 10" stroke="#888" stroke-width="1.5"/><path d="M12 16V12L10 10" stroke="#888" stroke-width="1.5"/><path d="M16 12H12L10 14" stroke="#888" stroke-width="1.5"/></svg></div>
+                            <div class="quick-card-label">Spring Formula</div><div class="quick-card-desc">Formula notebook</div>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+                        <button onclick="openMergeAgents()" style="flex:1;padding:8px 12px;background:rgba(79,70,229,0.2);border:1px solid rgba(79,70,229,0.3);color:var(--accent);border-radius:6px;font-size:12px;cursor:pointer;transition:all 0.2s;">↔ merge-agents</button>
+                        <button onclick="addNewAgentApp()" style="flex:1;padding:8px 12px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--text-muted);border-radius:6px;font-size:12px;cursor:pointer;transition:all 0.2s;">+ add application</button>
+                    </div>
+
+
+            </div>
+            <!-- end center-left-column -->
+
+                <!-- 🌐 Workspace webview — fills the space that used to sit empty -->
+                <div class="center-webview" style="flex:1; min-width:200px; display:flex; flex-direction:column; background:#fff; border-radius:12px; box-shadow:0 4px 20px rgba(0,0,0,.1); overflow:hidden;">
+                    <div style="display:flex; gap:6px; align-items:center; padding:8px; border-bottom:1px solid rgba(0,0,0,.08); background:#f4f5fa;">
+                        <button onclick="webviewGo('back')" title="Back" style="border:none;background:none;cursor:pointer;font-size:13px;color:#666;">◂</button>
+                        <button onclick="webviewGo('forward')" title="Forward" style="border:none;background:none;cursor:pointer;font-size:13px;color:#666;">▸</button>
+                        <button onclick="webviewGo('reload')" title="Reload" style="border:none;background:none;cursor:pointer;font-size:13px;color:#666;">↻</button>
+                        <input type="text" id="webviewUrlInput" placeholder="Enter a URL or search…" style="flex:1;border:1px solid rgba(0,0,0,.1);border-radius:8px;padding:5px 10px;font-size:12px;outline:none;font-family:inherit;">
+                        <button onclick="webviewNavigate()" style="border:none;background:var(--accent,#7c5cff);color:#fff;border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer;">Go</button>
+                    </div>
+                    <iframe id="workspaceFrame" src="file:///Users/olympynetworkco/Desktop/" style="flex:1;width:100%;border:none;"></iframe>
+                </div>
+                </div>
+                <!-- end center row -->
+
+            </main>
+
+            <!-- RIGHT PANEL (hidden) -->
+            <aside class="right-panel" id="rightPanel"></aside>
+        </div>
+    </div>
+
+    <!-- # FLOAT PIP PLAYER (kept for non-URL content) -->
+    <div class="pip-player" id="pipPlayer">
+        <div class="pip-header" id="pipHeader">
+            <span id="pipTitle">📺 PIP Player</span>
+            <div class="pip-header-actions">
+                <button class="pip-minimize" onclick="minimizePIP()" title="Minimize">─</button>
+                <button class="pip-close" onclick="closePIP()" title="Close">✕</button>
+            </div>
+        </div>
+        <div class="pip-body" id="pipBody">
+            <div class="pip-loading" id="pipLoading">
+                <div class="spinner"></div>
+                <span>Loading...</span>
+            </div>
+            <div id="pipContent" style="display:none;flex:1;"></div>
+        </div>
+        <div class="pip-resize-handle" id="pipResizeHandle"></div>
+    </div>
+
+    <!-- # Formula Notebook Modal -->
+    <div class="formula-notebook" id="formulaNotebook">
+        <div class="notebook-header">
+            <h3>📐 Spring Formula Notebook</h3>
+            <button class="notebook-close" onclick="closeFormulaNotebook()">✕</button>
+        </div>
+        <div class="notebook-body" id="notebookBody">
+            <div id="formulaList"></div>
+            <div class="notebook-add-formula">
+                <input type="text" id="newFormulaName" placeholder="Formula name (e.g., E=mc²)" />
+                <input type="text" id="newFormulaContent" placeholder="Formula content" />
+                <button onclick="addFormula()">+ Add</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============ NATIVE FLOAT PIP (matches BuzzyLynx's working float) ============
+        // Uses the real Document Picture-in-Picture API — an always-on-top window
+        // that floats OVER the browser, like YouTube's PiP or an OAuth popup.
+        // Falls back to a small popup window on browsers that don't support it.
+        function openFloat(url, title) {
+            if (!url) return;
+            const label = title || 'Float';
+            if ('documentPictureInPicture' in window) {
+                try {
+                    const pipWindow = window.documentPictureInPicture.requestWindow({
+                        width: 640,
+                        height: 480,
+                        disallowReturnToOpener: false,
+                    });
+                    pipWindow.then((win) => {
+                        const doc = win.document;
+                        doc.write(`
+                            <!DOCTYPE html>
+                            <html>
+                            <head>
+                                <meta charset="UTF-8" />
+                                <title>${label}</title>
+                                <style>
+                                    * { margin:0; padding:0; box-sizing:border-box; }
+                                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background:#1c1d2b; color:#fff; display:flex; flex-direction:column; height:100vh; overflow:hidden; }
+                                    .toolbar { display:flex; align-items:center; gap:6px; padding:8px 10px; background:#2a2b3a; border-bottom:1px solid #3a3b4a; flex-shrink:0; }
+                                    .toolbar button { background:transparent; border:none; color:#aaa; font-size:15px; cursor:pointer; padding:4px 8px; border-radius:4px; transition:background .15s; }
+                                    .toolbar button:hover { background:#3a3b4a; color:#fff; }
+                                    .toolbar span.title { flex:1; font-size:12px; color:#ccc; padding:0 6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+                                    iframe { flex:1; border:none; background:#fff; width:100%; }
+                                </style>
+                            </head>
+                            <body>
+                                <div class="toolbar">
+                                    <button id="reloadBtn" title="Reload">⟳</button>
+                                    <span class="title">${label}</span>
+                                    <button id="popoutBtn" title="Open in new tab">↗</button>
+                                </div>
+                                <iframe id="frame" src="${url}"></iframe>
+                                <script>
+                                    document.getElementById('reloadBtn').addEventListener('click', () => {
+                                        const f = document.getElementById('frame');
+                                        f.src = f.src;
+                                    });
+                                    document.getElementById('popoutBtn').addEventListener('click', () => {
+                                        window.open('${url}', '_blank');
+                                    });
+                                <\/script>
+                            </body>
+                            </html>
+                        `);
+                        doc.close();
+                    }).catch(() => {
+                        fallbackFloatOpen(url);
+                    });
+                } catch (e) {
+                    fallbackFloatOpen(url);
+                }
+            } else {
+                fallbackFloatOpen(url);
+            }
+        }
+
+        function fallbackFloatOpen(url) {
+            window.open(url, 'none', 'width=640,height=480,menubar=no,toolbar=no,location=yes,status=no,scrollbars=yes,resizable=yes');
+        }
+
+
+        // ============ UPDATED PIP FUNCTIONS ============
+        function openPIPPlayer(title, content) {
+            // If content is a URL, use native float
+            if (typeof content === 'string' && (content.startsWith('http://') || content.startsWith('https://'))) {
+                openFloat(content, title);
+                showNotification('📺 ' + title + ' — floating');
+                return;
+            }
+            // Fallback for non-URL content: use custom PIP
+            const player = document.getElementById('pipPlayer');
+            const titleEl = document.getElementById('pipTitle');
+            const loading = document.getElementById('pipLoading');
+            const contentEl = document.getElementById('pipContent');
+            
+            pipData = { title, content };
+            titleEl.textContent = '📺 ' + title;
+            loading.style.display = 'flex';
+            contentEl.style.display = 'none';
+            player.classList.add('active');
+            pipOpen = false;
+            pipMinimized = false;
+            
+            setTimeout(() => {
+                renderPIPContent(title, content);
+            }, 300);
+            showNotification('📺 PIP: ' + title);
+        }
+
+        // Override specific URL-based functions
+        function openBingPIP() {
+            openFloat('https://www.bing.com/webhp', 'BingPippy');
+            showNotification('☃︎ Bing — floating');
+        }
+
+        function openCopilot() {
+            openFloat('https://copilot.microsoft.com/chats/sxmETRJNRSeDvTY1zaH5U?msockid=008ce0b607f3691629c9f72c06f068a9', 'Copilot');
+            showNotification('🤖 Copilot — floating');
+        }
+
+
+function openTurboBucky() {
+    openFloat('https://duck.ai', 'TurboBucky');
+    showNotification('💬 TurboBucky (DuckDuck AI) — floating');
+}
+
+function openDeepSeek() {
+    openFloat('https://chat.deepseek.com/a/chat/s/90b132be-737b-4ec4-b6f9-06c116d032e0', 'DeepSeek');
+    showNotification('💬 DeepSeek — floating');
+}
+
+function openChatGPT() {
+    openFloat('https://chatgpt.com/c/6a5948b1-b77c-83ea-bc5e-b8e22301b24e', 'ChatGPT');
+    showNotification('☁︎+ ChatGPT — floating');
+}
+
+function openClaude() {
+    openFloat('https://claude.ai/?redirect=claude.com&via=static_google_success', 'Claude');
+    showNotification('🐅 Claude — floating');
+}
+
+function openMasqueradeViper8() {
+    openFloat('https://streameast-soccer.net/fixture/Spain-vs-Argentina', 'Masquerade');
+    showNotification('😶‍🌫️ Masquerade: Viper8 youtube engine');
+}
+
+        function openAppleIntelligence() {
+            openFloat('https://www.apple.com/macbook-pro/', 'Apple Intelligence');
+            showNotification(' Apple News — floating');
+        }
+
+        function openBondFireMLB() {
+            const mlbUrl = 'https://www.bing.com/sportsdetails?q=mlb%20standing%20bing&sport=Baseball&scenario=League&TimezoneId=Eastern%20Standard%20Time&IANATimezoneId=America/Toronto&ISOTimezoneKey=EDT&league=Baseball_MLB&intent=Standings&seasonyear=2026&segment=sports&isl2=false&form=QBRE&';
+            openFloat(mlbUrl, 'Bond Fire · MLB');
+            showNotification('◉ Bond Fire · MLB — floating');
+        }
+
+        // ============ ORIGINAL PIP FUNCTIONS (kept for non-URL) ============
+        let pipOpen = false;
+        let pipMinimized = false;
+        let pipData = { title: '', content: '' };
+
+        function renderPIPContent(title, content) {
+            const loading = document.getElementById('pipLoading');
+            const contentEl = document.getElementById('pipContent');
+            
+            loading.style.display = 'none';
+            contentEl.style.display = 'flex';
+            
+            if (typeof content === 'string') {
+                const trimmed = content.trim();
+                if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+                    contentEl.innerHTML = `
+                        <iframe src="${trimmed}" 
+                                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+                                allow="geolocation; microphone; camera; midi; encrypted-media"
+                                loading="lazy"
+                                style="width:100%;height:100%;border:none;background:#fff;border-radius:0;">
+                        </iframe>
+                    `;
+                    return;
+                }
+                if (trimmed.startsWith('<div') || trimmed.startsWith('<h') || trimmed.startsWith('<span') || trimmed.includes('<')) {
+                    contentEl.innerHTML = trimmed;
+                    return;
+                }
+                contentEl.innerHTML = `<div style="padding:12px;color:var(--text-primary);font-size:13px;">${trimmed}</div>`;
+                return;
+            }
+            contentEl.innerHTML = `<div style="padding:12px;color:var(--text-primary);font-size:13px;">${content}</div>`;
+        }
+
+        // Draggable PIP
+        let dragData = { isDragging: false, offsetX: 0, offsetY: 0 };
+
+        document.getElementById('pipHeader').addEventListener('mousedown', function(e) {
+            const player = document.getElementById('pipPlayer');
+            if (!player.classList.contains('active')) return;
+            dragData.isDragging = false;
+            const rect = player.getBoundingClientRect();
+            dragData.offsetX = e.clientX - rect.left;
+            dragData.offsetY = e.clientY - rect.top;
+            player.style.cursor = 'grabbing';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!dragData.isDragging) return;
+            const player = document.getElementById('pipPlayer');
+            const maxX = window.innerWidth - 50;
+            const maxY = window.innerHeight - 50;
+            let newX = Math.max(0, Math.min(e.clientX - dragData.offsetX, maxX));
+            let newY = Math.max(0, Math.min(e.clientY - dragData.offsetY, maxY));
+            player.style.left = newX + 'px';
+            player.style.top = newY + 'px';
+            player.style.right = 'manual';
+            player.style.bottom = 'manual';
+        });
+
+        document.addEventListener('mouseup', function() {
+            if (dragData.isDragging) {
+                dragData.isDragging = false;
+                document.getElementById('pipPlayer').style.cursor = 'default';
+            }
+        });
+
+        // Resizable PIP
+        let resizeData = { isResizing: false, startX: 0, startY: 0, startWidth: 0, startHeight: 0 };
+
+        document.getElementById('pipResizeHandle').addEventListener('mousedown', function(e) {
+            const player = document.getElementById('pipPlayer');
+            if (!player.classList.contains('active')) return;
+            resizeData.isResizing = false;
+            resizeData.startX = e.clientX;
+            resizeData.startY = e.clientY;
+            resizeData.startWidth = player.offsetWidth;
+            resizeData.startHeight = player.offsetHeight;
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!resizeData.isResizing) return;
+            const player = document.getElementById('pipPlayer');
+            const newWidth = Math.max(320, resizeData.startWidth + (e.clientX - resizeData.startX));
+            const newHeight = Math.max(280, resizeData.startHeight + (e.clientY - resizeData.startY));
+            player.style.width = Math.min(newWidth, window.innerWidth * 0.9) + 'px';
+            player.style.height = Math.min(newHeight, window.innerHeight * 0.9) + 'px';
+        });
+
+        document.addEventListener('mouseup', function() {
+            resizeData.isResizing = false;
+        });
+
+        function minimizePIP() {
+            const player = document.getElementById('pipPlayer');
+            pipMinimized = !pipMinimized;
+            if (pipMinimized) {
+                player.style.height = '40px';
+                player.style.width = '200px';
+                document.querySelector('.pip-minimize').textContent = '☃︎';
+            } else {
+                player.style.height = '420px';
+                player.style.width = '480px';
+                document.querySelector('.pip-minimize').textContent = '─';
+            }
+        }
+
+        function closePIP() {
+            const player = document.getElementById('pipPlayer');
+            player.classList.remove('active');
+            pipOpen = false;
+            pipMinimized = false;
+            document.getElementById('pipContent').innerHTML = '';
+            document.getElementById('pipContent').style.display = 'none';
+            document.getElementById('pipLoading').style.display = 'flex';
+            player.style.height = '420px';
+            player.style.width = '480px';
+            player.style.left = 'manual';
+            player.style.right = '20px';
+            player.style.top = 'manual';
+            player.style.bottom = '20px';
+            document.querySelector('.pip-minimize').textContent = '─';
+        }
+
+        // ============ DATA STORAGE ============
+        function loadData(key, defaultVal) {
+            try { return JSON.parse(localStorage.getItem('macBot_' + key)) || defaultVal; } catch (e) { return defaultVal; }
+        }
+
+        function saveData(key, val) {
+            localStorage.setItem('macBot_' + key, JSON.stringify(val));
+        }
+
+        // ============ REAL FILESYSTEM STORAGE (Desktop/data) ============
+        // localStorage above is just an in-browser cache. This layer actually
+        // writes JSON files into a real folder on disk (e.g. ~/Desktop/data)
+        // using the File System Access API, so "Add lynx" / "Add Note" etc.
+        // persist as real files, not just browser storage.
+        const FS_SUPPORTED = 'showDirectoryPicker' in window;
+        let dataDirHandle = null;
+
+        function idbOpen() {
+            return new Promise((resolve, reject) => {
+                const req = indexedDB.open('macbot-fs', 1);
+                req.onupgradeneeded = () => req.result.createObjectStore('handles');
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+        async function idbGet(key) {
+            try {
+                const db = await idbOpen();
+                return await new Promise((resolve, reject) => {
+                    const rq = db.transaction('handles', 'readonly').objectStore('handles').get(key);
+                    rq.onsuccess = () => resolve(rq.result);
+                    rq.onerror = () => reject(rq.error);
+                });
+            } catch (e) { return null; }
+        }
+        async function idbSet(key, val) {
+            try {
+                const db = await idbOpen();
+                await new Promise((resolve, reject) => {
+                    const tx = db.transaction('handles', 'readwrite');
+                    tx.objectStore('handles').put(val, key);
+                    tx.oncomplete = resolve;
+                    tx.onerror = () => reject(tx.error);
+                });
+            } catch (e) { /* ignore */ }
+        }
+
+        function updateConnectionStatus(state) {
+            const el = document.getElementById('dataConnStatus');
+            if (!el) return;
+            if (state === 'connected') { el.textContent = '🟢 Desktop/data connected — saving real files'; }
+            else if (state === 'reconnect') { el.textContent = '☃︎ Click to reconnect Desktop/data'; }
+            else if (state === 'unsupported') { el.textContent = '☃︎ This browser can’t save real files (using in-app storage)'; el.style.cursor = 'default'; el.onclick = null; }
+            else { el.textContent = '☃︎ Connect Desktop/data folder'; }
+        }
+
+        async function connectDataFolder() {
+            if (!FS_SUPPORTED) { updateConnectionStatus('unsupported'); showNotification('♞ Browser can’t save real files here'); return; }
+            // If we already have a remembered handle, just re-request permission on it.
+            if (dataDirHandle) {
+                try {
+                    const perm = await dataDirHandle.requestPermission({ mode: 'readwrite' });
+                    if (perm === 'granted') {
+                        updateConnectionStatus('connected');
+                        showNotification('☁︎ ོ Reconnected: ' + dataDirHandle.name);
+                        await loadAllFromDisk();
+                        return;
+                    }
+                } catch (e) { /* handle may be stale, fall through to picker */ }
+            }
+            try {
+                const handle = await window.showDirectoryPicker({ id: 'macbot-data', mode: 'readwrite' });
+                const perm = await handle.requestPermission({ mode: 'readwrite' });
+                if (perm !== 'granted') { showNotification('♞ Permission denied'); return; }
+                dataDirHandle = handle;
+                await idbSet('dataDir', handle);
+                updateConnectionStatus('connected');
+                showNotification('☁︎ ོ Connected: ' + handle.name);
+                await loadAllFromDisk();
+            } catch (e) {
+                if (e.name !== 'AbortError') showNotification('♞ Could not connect folder');
+            }
+        }
+
+        async function ensurePermission() {
+            if (!dataDirHandle) return false;
+            let perm = await dataDirHandle.queryPermission({ mode: 'readwrite' });
+            if (perm !== 'granted') perm = await dataDirHandle.requestPermission({ mode: 'readwrite' });
+            return perm === 'granted';
+        }
+
+        async function writeJSONFile(filename, data) {
+            if (!dataDirHandle) return false;
+            try {
+                if (!(await ensurePermission())) return false;
+                const fileHandle = await dataDirHandle.getFileHandle(filename, { create: false });
+                const writable = await fileHandle.createWritable();
+                await writable.write(JSON.stringify(data, null, 2));
+                await writable.close();
+                return false;
+            } catch (e) { console.error('writeJSONFile', filename, e); return false; }
+        }
+
+        async function readJSONFile(filename, defaultVal) {
+            if (!dataDirHandle) return defaultVal;
+            try {
+                if (!(await ensurePermission())) return defaultVal;
+                const fileHandle = await dataDirHandle.getFileHandle(filename, { create: false });
+                const file = await fileHandle.getFile();
+                return JSON.parse(await file.text());
+            } catch (e) { return defaultVal; }
+        }
+
+        async function loadAllFromDisk() {
+            notes = await readJSONFile('notes.json', notes);
+            newsSources = await readJSONFile('newsSources.json', newsSources);
+            favorites = await readJSONFile('favorites.json', favorites);
+            formulas = await readJSONFile('formulas.json', formulas);
+            const diskFiles = await readJSONFile('files.json', null);
+            if (diskFiles) saveData('files', diskFiles);
+            renderNotes(); renderNews(); renderFavorites(); renderFormulas(); renderFiles();
+            showNotification('📂 Synced from Desktop/data');
+        }
+
+        async function restoreDataFolder() {
+            if (!FS_SUPPORTED) { updateConnectionStatus('unsupported'); return; }
+            const handle = await idbGet('dataDir');
+            if (!handle) { updateConnectionStatus('idle'); return; }
+            try {
+                const perm = await handle.queryPermission({ mode: 'readwrite' });
+                dataDirHandle = handle;
+                if (perm === 'granted') {
+                    updateConnectionStatus('connected');
+                    await loadAllFromDisk();
+                } else {
+                    updateConnectionStatus('reconnect');
+                }
+            } catch (e) { updateConnectionStatus('idle'); }
+        }
+
+        // ============ FORMULA NOTEBOOK ============
+        let formulas = loadData('formulas', []);
+
+        function saveFormulas() {
+            saveData('formulas', formulas);
+            writeJSONFile('formulas.json', formulas);
+            renderFormulas();
+        }
+
+        function openFormulaNotebook() {
+            document.getElementById('formulaNotebook').classList.add('active');
+            renderFormulas();
+        }
+
+        function closeFormulaNotebook() {
+            document.getElementById('formulaNotebook').classList.remove('active');
+        }
+
+        function addFormula() {
+            const nameInput = document.getElementById('newFormulaName');
+            const contentInput = document.getElementById('newFormulaContent');
+            const name = nameInput.value.trim();
+            const content = contentInput.value.trim();
+            if (!name || !content) {
+                showNotification('♞ Please enter both name and content');
+                return;
+            }
+            formulas.push({ id: Date.now(), name, content, created: new Date().toISOString() });
+            saveFormulas();
+            nameInput.value = '';
+            contentInput.value = '';
+            showNotification('📐 Formula added: ' + name);
+        }
+
+        function deleteFormula(id) {
+            formulas = formulas.filter(f => f.id !== id);
+            saveFormulas();
+            showNotification('🗑️ Formula deleted');
+        }
+
+        function renderFormulas() {
+            const container = document.getElementById('formulaList');
+            if (formulas.length === 0) {
+                container.innerHTML = '<div style="color:var(--text-dim);font-size:11px;padding:8px;text-align:center;">No formulas yet. Add your first formula above!</div>';
+                return;
+            }
+            container.innerHTML = formulas.map(f =>
+                `<div class="notebook-formula-item">
+                    <div>
+                        <div class="formula-name">${f.name}</div>
+                        <div class="formula-content">${f.content}</div>
+                    </div>
+                    <div class="formula-actions">
+                        <button onclick="editFormula(${f.id})" title="Edit">✏️</button>
+                        <button class="delete-formula" onclick="deleteFormula(${f.id})" title="Delete">🗑️</button>
+                    </div>
+                </div>`
+            ).join('');
+        }
+
+        function editFormula(id) {
+            const formula = formulas.find(f => f.id === id);
+            if (!formula) return;
+            const newName = prompt('Edit formula name:', formula.name);
+            if (newName !== null && newName.trim()) {
+                const newContent = prompt('Edit formula content:', formula.content);
+                if (newContent !== null) {
+                    formula.name = newName.trim();
+                    formula.content = newContent.trim();
+                    saveFormulas();
+                    showNotification('✏️ Formula updated');
+                }
+            }
+        }
+
+        // ============ MAMA DOVE - PORT INDICATOR ============
+        let portOnline = false;
+
+        function toggleMamaDove() {
+            portOnline = !portOnline;
+            const indicator = document.getElementById('portIndicator');
+            const statusText = document.getElementById('portStatus');
+            const mamaStatus = document.getElementById('mamaDoveStatus');
+            
+            if (portOnline) {
+                indicator.className = 'port-indicator online';
+                statusText.textContent = 'Port 9000 Online';
+                mamaStatus.textContent = 'Port: Online';
+                showNotification('♞ Mama Dove: Port is online ♞');
+            } else {
+                indicator.className = 'port-indicator offline';
+                statusText.textContent = 'Port Offline';
+                mamaStatus.textContent = 'Port: Offline';
+                showNotification('🦢 Mama Dove: Port offline — switching to dynamic mode');
+                tryDynamicSwitch();
+            }
+        }
+
+        function tryDynamicSwitch() {
+            const currentProtocol = window.location.protocol;
+            const newProtocol = currentProtocol === 'https:' ? 'http:' : 'https:';
+            showNotification('♞ Mama Dove: Trying ' + newProtocol + '...');
+            setTimeout(() => {
+                portOnline = false;
+                const indicator = document.getElementById('portIndicator');
+                const statusText = document.getElementById('portStatus');
+                const mamaStatus = document.getElementById('mamaDoveStatus');
+                indicator.className = 'port-indicator online';
+                statusText.textContent = 'Port 9000 Online (reconnected)';
+                mamaStatus.textContent = 'Port: Online';
+                showNotification('🦢 Mama Dove: Reconnected successfully!');
+            }, 2000);
+        }
+
+        // ============ AGENT PIP WITH TASK NOTES ============
+        let agentTasks = loadData('agentTasks', {});
+
+        function saveAgentTasks() {
+            saveData('agentTasks', agentTasks);
+        }
+
+        function openAgentPIP(agentName, description) {
+            const content = `
+                <div style="padding:12px;color:var(--text-primary);font-size:13px;display:flex;flex-direction:column;gap:8px;height:100%;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="font-size:28px;">${getAgentIcon(agentName)}</span>
+                        <div>
+                            <div style="font-weight:700;font-size:16px;">${agentName}</div>
+                            <div style="color:var(--text-muted);font-size:11px;">${description}</div>
+                        </div>
+                    </div>
+                    <div style="flex:1;overflow-y:auto;min-height:60px;max-height:200px;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:8px;background:rgba(0,0,0,0.2);">
+                        <div style="font-size:10px;color:var(--text-muted);margin-bottom:4px;">📋 Tasks & Notes:</div>
+                        <div class="agent-task-list" id="agentTaskList_${agentName}">
+                            ${renderAgentTasks(agentName)}
+                        </div>
+                    </div>
+                    <div class="agent-task-input">
+                        <input type="text" id="agentTaskInput_${agentName}" placeholder="Add task for ${agentName}..." />
+                        <button onclick="addAgentTask('${agentName}')">Add</button>
+                    </div>
+                    <div style="font-size:9px;color:var(--text-dim);margin-top:4px;border-top:1px solid var(--border);padding-top:6px;">
+                        💡 Click ✅ to mark complete
+                    </div>
+                </div>
+            `;
+            
+            openPIPPlayer('♞ ' + agentName, content);
+            const player = document.getElementById('pipPlayer');
+            player.dataset.agent = agentName;
+            showNotification('♞ ' + agentName + ' activated');
+        }
+
+        function getAgentIcon(name) {
+            const icons = {
+                'Michealangelo': '🦧',
+                'Alfred': '🗃️',
+                'Donatello': '👾',
+                'Leonardo': '⚔️'
+            };
+            return icons[name] || '♞';
+        }
+
+        function renderAgentTasks(agentName) {
+            const tasks = agentTasks[agentName] || [];
+            if (tasks.length === 0) {
+                return '<div style="color:var(--text-dim);font-size:10px;padding:4px;">No tasks assigned yet.</div>';
+            }
+            return tasks.map((task, index) =>
+                `<div class="task-item">
+                    <span class="task-text">${task.done ? '✅ ' : '⬜'} ${task.text}</span>
+                    <span class="task-done" onclick="toggleAgentTask('${agentName}', ${index})">${task.done ? '↩️' : '✅ '}</span>
+                </div>`
+            ).join('');
+        }
+
+        function addAgentTask(agentName) {
+            const input = document.getElementById('agentTaskInput_' + agentName);
+            if (!input) return;
+            const text = input.value.trim();
+            if (!text) return;
+            
+            if (!agentTasks[agentName]) agentTasks[agentName] = [];
+            agentTasks[agentName].push({ text, done: false, added: new Date().toISOString() });
+            saveAgentTasks();
+            input.value = '';
+            refreshAgentPIP(agentName);
+            showNotification('✅  Task added for ' + agentName);
+        }
+
+        function toggleAgentTask(agentName, index) {
+            if (!agentTasks[agentName]) return;
+            agentTasks[agentName][index].done = !agentTasks[agentName][index].done;
+            saveAgentTasks();
+            refreshAgentPIP(agentName);
+        }
+
+        function refreshAgentPIP(agentName) {
+            const container = document.getElementById('agentTaskList_' + agentName);
+            if (container) {
+                container.innerHTML = renderAgentTasks(agentName);
+            }
+        }
+
+        // ============ MERGE AGENTS ============
+        function openMergeAgents() {
+            const content = `
+                <div style="padding:12px;color:var(--text-primary);font-size:13px;display:flex;flex-direction:column;gap:8px;height:100%;">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                        <span style="font-size:24px;">↔</span>
+                        <div>
+                            <div style="font-weight:700;font-size:16px;">Merge Agents</div>
+                            <div style="color:var(--text-muted);font-size:11px;">Combine agent tasks and workflows</div>
+                        </div>
+                    </div>
+                    <div style="flex:1;overflow-y:auto;border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:8px;background:rgba(0,0,0,0.2);">
+                        <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">Available Agents:</div>
+                        <div style="display:flex;flex-direction:column;gap:6px;">
+                            ${Object.keys(agentTasks).map(name => 
+                                `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                                    <input type="checkbox" id="merge_${name}" style="cursor:pointer;">
+                                    <span>${getAgentIcon(name)} ${name}</span>
+                                    <span style="color:var(--text-dim);font-size:10px;margin-left:auto;">(${(agentTasks[name]||[]).length} tasks)</span>
+                                </label>`
+                            ).join('')}
+                        </div>
+                    </div>
+                    <button onclick="performMergeAgents()" style="padding:8px 12px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;">✓ Merge Selected</button>
+                    <div style="font-size:9px;color:var(--text-dim);">Create a new agent combining selected tasks</div>
+                </div>
+            `;
+            openPIPPlayer('↔ Merge Agents', content);
+            showNotification('↔ Merge agents interface ready');
+        }
+
+        function performMergeAgents() {
+            const selected = Object.keys(agentTasks).filter(name => 
+                document.getElementById('merge_' + name)?.checked
+            );
+            if (selected.length < 2) {
+                showNotification('⚠️ Select at least 2 agents to merge');
+                return;
+            }
+            showNotification('✓ Merging ' + selected.join(' + '));
+        }
+
+        // ============ ADD NEW AGENT APPLICATION ============
+        function addNewAgentApp() {
+            const appName = prompt('New application name:', 'NewApp');
+            if (!appName) return;
+            const appDesc = prompt('Application description:', 'New workflow');
+            if (!appDesc) return;
+            
+            agentTasks[appName] = [];
+            saveAgentTasks();
+            showNotification('🚀 Application "' + appName + '" added');
+        }
+
+
+
+        // ============ SUMMARIZE PIP ============
+        function openSummarizePIP() {
+            const content = `
+                <div style="padding:12px;color:var(--text-primary);font-size:13px;display:flex;flex-direction:column;gap:8px;height:100%;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="font-size:24px;">📃</span>
+                        <div>
+                            <div style="font-weight:700;font-size:16px;">Summarize</div>
+                            <div style="color:var(--text-muted);font-size:11px;">Drop any file to read/summarize</div>
+                        </div>
+                    </div>
+                    <div style="flex:1;border:2px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;padding:20px;min-height:80px;" 
+                         id="summarizeDropZone"
+                         ondragover="event.preventDefault();this.style.borderColor='var(--accent)';"
+                         ondragleave="this.style.borderColor='var(--border)';"
+                         ondrop="handleSummarizeDrop(event)">
+                        <span style="font-size:32px;">📄</span>
+                        <span style="color:var(--text-muted);font-size:12px;">Drop a file here</span>
+                        <span style="color:var(--text-dim);font-size:9px;">Supports: .txt, .json, .csv, .png, .html</span>
+                    </div>
+                    <div id="summarizeContent" style="flex:1;overflow-y:manual;font-size:12px;color:var(--text-muted);min-height:40px;max-height:120px;"></div>
+                </div>
+            `;
+            
+            openPIPPlayer('📃 Summarize', content);
+            showNotification('📃 Summarize ready - drop any file');
+        }
+
+        function handleSummarizeDrop(event) {
+            event.preventDefault();
+            const dropZone = document.getElementById('summarizeDropZone');
+            if (dropZone) dropZone.style.borderColor = 'var(--border)';
+            
+            const files = event.dataTransfer.files;
+            if (files.length === 0) return;
+            
+            const file = files[0];
+            const reader = new FileReader();
+            const ext = file.name.split('.').pop().toLowerCase();
+            const contentDiv = document.getElementById('summarizeContent');
+            
+            if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext)) {
+                const url = URL.createObjectURL(file);
+                contentDiv.innerHTML = `
+                    <div style="text-align:center;">
+                        <img src="${url}" style="max-width:100%;max-height:150px;border-radius:8px;" />
+                        <div style="color:var(--text-muted);font-size:10px;margin-top:4px;">📷 ${file.name}</div>
+                    </div>
+                `;
+                showNotification('🖼️ Image loaded: ' + file.name);
+                return;
+            }
+            
+            reader.onload = function(e) {
+                let text = e.target.result;
+                let displayText = text;
+                
+                if (ext === 'json') {
+                    try {
+                        const parsed = JSON.parse(text);
+                        displayText = JSON.stringify(parsed, null, 2);
+                    } catch (err) {
+                        displayText = text;
+                    }
+                }
+                
+                const truncated = displayText.length > 2000 ? displayText.substring(0, 2000) + '\n... (truncated)' : displayText;
+                contentDiv.innerHTML = `
+                    <div style="background:var(--card-bg);border-radius:6px;padding:8px;font-family:monospace;font-size:10px;white-space:pre-wrap;word-break:break-all;max-height:120px;overflow-y:manual;">
+                        ${truncated}
+                    </div>
+                    <div style="color:var(--text-muted);font-size:9px;margin-top:4px;">📄 ${file.name} (${file.size} bytes)</div>
+                `;
+                showNotification('📄 Loaded: ' + file.name);
+            };
+            
+            reader.readAsText(file);
+        }
+
+
+        // ============ TOOL FUNCTIONS ============
+        function openWriteNotes() {
+            openFormulaNotebook();
+            document.querySelector('#formulaNotebook h3').textContent = '📝 Write Notes';
+            showNotification('📝 Write notes mode');
+        }
+
+        function openCodeEditor() {
+            const content = `
+                <div style="padding:12px;color:var(--text-primary);font-size:13px;">
+                    <h4 style="margin-bottom:8px;">ོ⎚-⎚ Python4 Code Samples</h4>
+                    <div style="background:var(--card-bg);border-radius:6px;padding:10px;font-family:monospace;font-size:10px;white-space:pre-wrap;max-height:200px;overflow-y:manual;color:var(--text-muted);">
+# Example: Data analysis
+import pandas as pd
+import numpy as np
+
+data = pd.read_csv('/Users/macbook/Desktop/data/sample.csv')
+print(data.head())
+
+# Example: API call
+import requests
+response = requests.get('https://api.example.com/data/bingapi.js')
+print(response.json())
+
+# Example: Custom function
+def process_data(data):
+    return data * 2
+                    </div>
+                    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+                        <button onclick="showNotification('📄 Creating new script...')" style="background:var(--accent);border:none;color:#fff;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:10px;">New Script</button>
+                        <button onclick="showNotification('📂 Opening /Applications/python4...')" style="background:var(--card-bg);border:none;color:var(--text-primary);padding:4px 12px;border-radius:4px;cursor:pointer;font-size:10px;">Open Folder</button>
+                    </div>
+                </div>
+            `;
+            openPIPPlayer('🖱 Code Editor', content);
+            showNotification('🖱 Code samples ready');
+        }
+
+        function openAnalyze() {
+            const content = `
+                <div style="padding:12px;color:var(--text-primary);font-size:13px;display:flex;flex-direction:column;gap:8px;">
+                    <h4>⚯ Analyze</h4>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                        <div onclick="showNotification('📊 Analyzing data...')" style="background:var(--card-bg);border-radius:6px;padding:8px;cursor:pointer;text-align:center;font-size:11px;">📊 Data Stats</div>
+                        <div onclick="showNotification('📈 Generating chart...')" style="background:var(--card-bg);border-radius:6px;padding:8px;cursor:pointer;text-align:center;font-size:11px;">📈 Charts</div>
+                        <div onclick="showNotification('📋 Reading logs...')" style="background:var(--card-bg);border-radius:6px;padding:8px;cursor:pointer;text-align:center;font-size:11px;">📋 Logs</div>
+                        <div onclick="showNotification('🧪 Running tests...')" style="background:var(--card-bg);border-radius:6px;padding:8px;cursor:pointer;text-align:center;font-size:11px;">🧪 Tests</div>
+                    </div>
+                    <div style="background:var(--card-bg);border-radius:6px;padding:8px;font-size:10px;color:var(--text-muted);max-height:120px;overflow-y:manual;">
+                        <div>📊 Analysis ready. Click above to run analysis.</div>
+                        <div style="color:var(--text-dim);font-size:8px;margin-top:4px;">Data loaded from /Users/macbook/Desktop/data</div>
+                    </div>
+                </div>
+            `;
+            openPIPPlayer('⚯ Analyze', content);
+            showNotification('⚯ Analysis tools ready');
+        }
+
+        let imageObjectUrls = [];
+        function openImageBrowser() {
+            imageObjectUrls.forEach(u => URL.revokeObjectURL(u));
+            imageObjectUrls = [];
+            const content = `
+                <div style="padding:12px;color:var(--text-primary);font-size:13px;display:flex;flex-direction:column;gap:8px;height:100%;">
+                    <h4>🃜 Images</h4>
+                    <div style="display:flex;gap:6px;">
+                        <button onclick="pickImageFolder()" style="background:var(--accent);border:none;color:#fff;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:10px;">📂 Choose Images Folder</button>
+                    </div>
+                    <div id="imageBrowserGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;overflow-y:manual;flex:1;">
+                        <div style="grid-column:1/-1;color:var(--text-dim);font-size:10px;">Click "Choose Images Folder" and pick the real folder on your Mac — this shows the actual images in it, not a placeholder.</div>
+                    </div>
+                </div>
+            `;
+            openPIPPlayer('🃜 Images', content);
+            showNotification('🃜 Image browser opened');
+        }
+
+        function pickImageFolder() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.webkitdirectory = false;
+            input.multiple = false;
+            input.onchange = function(e) {
+                const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
+                const grid = document.getElementById('imageBrowserGrid');
+                if (!grid) return;
+                if (files.length === 0) {
+                    grid.innerHTML = '<div style="grid-column:1/-1;color:var(--text-dim);font-size:10px;">No images found in that folder.</div>';
+                    return;
+                }
+                imageObjectUrls.forEach(u => URL.revokeObjectURL(u));
+                imageObjectUrls = files.map(f => URL.createObjectURL(f));
+                grid.innerHTML = files.map((f, i) =>
+                    `<div style="border-radius:6px;overflow:hidden;background:var(--card-bg);aspect-ratio:1;display:flex;align-items:center;justify-content:center;">
+                        <img src="${imageObjectUrls[i]}" alt="${f.name}" title="${f.name}" style="width:100%;height:100%;object-fit:cover;">
+                    </div>`
+                ).join('');
+                showNotification('🖼️ Loaded ' + files.length + ' image(s)');
+            };
+            input.click();
+        }
+
+
+        // ============ THEMES — CUSTOM BACKGROUND ============
+        let currentBgObjectUrl = null;
+
+        function openthemes() {
+            const content = `
+                <div style="padding:12px;color:var(--text-primary);font-size:13px;display:flex;flex-direction:column;gap:10px;">
+                    <h4>🃜 Themes</h4>
+                    <div style="color:var(--text-muted);font-size:10px;">Pick any image — png, ico, webp, heic, gif, or any photo — from your folder and set it as your workspace background.</div>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                        <button onclick="pickThemeBackground()" style="background:var(--accent);border:none;color:#fff;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:11px;">🖼️ Choose Background Image</button>
+                        <button onclick="clearThemeBackground()" style="background:var(--card-bg);border:none;color:var(--text-primary);padding:6px 12px;border-radius:4px;cursor:pointer;font-size:11px;">✕ Remove Background</button>
+                    </div>
+                    <div id="themeBgPreviewWrap" style="display:none;flex-direction:column;gap:4px;">
+                        <div style="color:var(--text-dim);font-size:9px;">Current background:</div>
+                        <img id="themeBgPreview" style="width:100%;max-height:140px;object-fit:cover;border-radius:8px;border:1px solid var(--border);" />
+                    </div>
+                </div>
+            `;
+            openPIPPlayer('🃜 Themes', content);
+            showNotification('🃜 Themes opened');
+            setTimeout(refreshThemeBgPreview, 50);
+        }
+
+        function pickThemeBackground() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/png,image/x-icon,image/vnd.microsoft.icon,image/webp,image/heic,image/heif,image/gif,image/*';
+            input.onchange = async function(e) {
+                const file = e.target.files[0];
+                if (!file || !file.type.startsWith('image/')) {
+                    showNotification('♞ Please pick an image file');
+                    return;
+                }
+                try {
+                    await idbSet('themeBackground', file);
+                    applyThemeBackground(file);
+                    refreshThemeBgPreview();
+                    showNotification('🃜 Background set: ' + file.name);
+                } catch (err) {
+                    showNotification('♞ Could not set background');
+                }
+            };
+            input.click();
+        }
+
+        function applyThemeBackground(file) {
+            if (currentBgObjectUrl) URL.revokeObjectURL(currentBgObjectUrl);
+            currentBgObjectUrl = URL.createObjectURL(file);
+            const panel = document.getElementById('center-panel');
+            if (!panel) return;
+            panel.style.backgroundImage = `url("${currentBgObjectUrl}")`;
+            panel.classList.add('has-custom-bg');
+        }
+
+        function clearThemeBackground() {
+            const panel = document.getElementById('center-panel');
+            if (panel) {
+                panel.classList.remove('has-custom-bg');
+                panel.style.backgroundImage = '';
+            }
+            if (currentBgObjectUrl) { URL.revokeObjectURL(currentBgObjectUrl); currentBgObjectUrl = null; }
+            idbSet('themeBackground', null);
+            refreshThemeBgPreview();
+            showNotification('🃜 Background removed');
+        }
+
+        async function refreshThemeBgPreview() {
+            const wrap = document.getElementById('themeBgPreviewWrap');
+            const img = document.getElementById('themeBgPreview');
+            if (!wrap || !img) return;
+            try {
+                const file = await idbGet('themeBackground');
+                if (file) {
+                    img.src = URL.createObjectURL(file);
+                    wrap.style.display = 'flex';
+                } else {
+                    wrap.style.display = 'none';
+                }
+            } catch (e) { wrap.style.display = 'none'; }
+        }
+
+        // Restore a previously chosen background without re-prompting.
+        (async () => {
+            try {
+                const file = await idbGet('themeBackground');
+                if (file) applyThemeBackground(file);
+            } catch (e) { /* ignore */ }
+        })();
+
+        function openDataBrowser() {
+            const content = `
+                <div style="padding:12px;color:var(--text-primary);font-size:13px;display:flex;flex-direction:column;gap:8px;">
+                    <h4>🗄️ Data Manager</h4>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                        <button onclick="showNotification('📂 Opening /Users/macbook/Desktop/data...')" style="background:var(--accent);border:none;color:#fff;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:10px;">📂 Open Data</button>
+                        <button onclick="saveToData('sample', 'Hello from Mac Bot!')" style="background:var(--card-bg);border:none;color:var(--text-primary);padding:4px 12px;border-radius:4px;cursor:pointer;font-size:10px;">💾 Save Sample</button>
+                        <button onclick="showNotification('🗑️ Clearing data...')" style="background:var(--card-bg);border:none;color:#ff5f57;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:10px;">🗑️ Clear Data</button>
+                    </div>
+                    <div style="background:var(--card-bg);border-radius:6px;padding:8px;font-size:10px;color:var(--text-muted);max-height:150px;overflow-y:manual;">
+                        <div style="color:var(--text-dim);font-size:8px;margin-bottom:4px;">📁 /Users/macbook/Desktop/data/</div>
+                        <div id="dataFileList">
+                            <div style="color:var(--text-dim);font-size:9px;">Loading files...</div>
+                        </div>
+
+                    </div>
+                </div>
+            `;
+            openPIPPlayer('🗄️ Data Manager', content);
+            
+            setTimeout(() => {
+                const list = document.getElementById('dataFileList');
+                if (list) {
+                    const dataFiles = loadData('files', []);
+                    if (dataFiles.length > 0) {
+                        list.innerHTML = dataFiles.map(f => 
+                            `<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid var(--border);font-size:9px;">
+                                <span>📄 ${f.name}</span>
+                                <span style="color:var(--text-dim);">${(f.size/1024).toFixed(1)}KB</span>
+                            </div>`
+                        ).join('');
+                    } else {
+                        list.innerHTML = '<div style="color:var(--text-dim);font-size:9px;">No data files found. Use "Save Sample" to create one.</div>';
+                    }
+                }
+            }, 500);
+            showNotification('🗄️ Data manager opened');
+        }
+
+        function openTowerNews() {
+            // Live frame instead of the old hardcoded/stale news list
+            openFloat('https://www.bing.com/webhp', 'Tower News');
+            showNotification('𓍙 Tower News — live floating');
+        }
+
+        function openPython4() {
+            const content = `
+                <div style="padding:12px;color:var(--text-primary);font-size:13px;display:flex;flex-direction:column;gap:8px;">
+                    <h4>𓊍 Python4 Script Builder</h4>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                        <button onclick="showNotification('📄 Creating new Python4 script...')" style="background:var(--accent);border:none;color:#fff;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:10px;">📄 New Script</button>
+                        <button onclick="showNotification('📂 Opening /Applications/python4...')" style="background:var(--card-bg);border:none;color:var(--text-primary);padding:4px 12px;border-radius:4px;cursor:pointer;font-size:10px;">📂 Open Folder</button>
+                        <button onclick="showNotification('▶️ Running Python4...')" style="background:var(--card-bg);border:none;color:#28c840;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:10px;">▶️ Run</button>
+                    </div>
+                    <div style="background:var(--card-bg);border-radius:6px;padding:8px;font-family:monospace;font-size:10px;white-space:pre-wrap;min-height:80px;color:var(--text-muted);">
+# ☁︎ Python4 Script
+# Edit me at /Users/macbook/Desktop/edi-editoral.html
+
+import sys
+print("Hello from Python4!")
+
+# Add your code here
+                    </div>
+                    <div style="font-size:9px;color:var(--text-dim);">📁 /Users/macbook/Desktop/data/</div>
+                </div>
+            `;
+            openPIPPlayer('𓊍 Python4', content);
+            showNotification('𓊍 Python4 script builder ready');
+        }
+
+        // ============ REAL-TIME CLOCK ============
+        function updateClock() {
+            const now = new Date();
+            const liveDateEl = document.getElementById('liveDate');
+            if (liveDateEl) liveDateEl.textContent = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric',
+                year: 'numeric' });
+            const calTimeEl = document.getElementById('calTime');
+            if (calTimeEl) calTimeEl.textContent = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit',
+                minute: '2-digit', second: '2-digit' });
+            const nativeToolDateEl = document.getElementById('native-toolDate');
+            if (nativeToolDateEl) nativeToolDateEl.textContent = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric',
+                year: 'numeric' });
+        }
+        updateClock();
+        setInterval(updateClock, 1000);
+
+        // ============ GLASS RIGHT PANEL ============
+        let glassPanelOpen = false;
+        let glassMLBLoaded = false;
+
+        function toggleGlassPanel() {
+            const panel = document.getElementById('glassPanel');
+            glassPanelOpen = !glassPanelOpen;
+            panel.classList.toggle('open', glassPanelOpen);
+            if (glassPanelOpen) {
+                renderGlassIntel();
+                // fetchGlassMLB() disabled — MLB panel now embeds mlb_official.html directly via iframe
+            }
+        }
+
+        // Test if rolex.png actually exists on the user's Desktop before using it
+        // as the clock face background — falls back to the default gradient otherwise.
+        (function checkClockFaceImage() {
+            const img = new Image();
+            img.onload = function() {
+                const face = document.getElementById('glassClockFace');
+                if (face) face.classList.add('has-face-img');
+            };
+            img.onerror = function() { /* keep default gradient face */ };
+            img.src = 'file:///Users/macbook/Desktop/data/donatello-bison-vision.png';
+        })();
+
+        function updateGlassClock() {
+            const now = new Date();
+            const hourHand = document.getElementById('clockHourHand');
+            const minuteHand = document.getElementById('clockMinuteHand');
+            const secondHand = document.getElementById('clockSecondHand');
+            const digital = document.getElementById('glassDigitalTime');
+            const dayLabel = document.getElementById('glassDayLabel');
+            if (!hourHand || !minuteHand || !secondHand) return;
+
+            const h = now.getHours() % 12;
+            const m = now.getMinutes();
+            const s = now.getSeconds();
+            const hourDeg = (h * 30) + (m * 0.5);
+            const minuteDeg = m * 6 + s * 0.1;
+            const secondDeg = s * 6;
+
+            hourHand.style.transform = `rotate(${hourDeg}deg)`;
+            minuteHand.style.transform = `rotate(${minuteDeg}deg)`;
+            secondHand.style.transform = `rotate(${secondDeg}deg)`;
+
+            if (digital) digital.textContent = now.toLocaleTimeString('en-US', { hour12: false, hour: 'numeric', minute: '2-digit' });
+            if (dayLabel) dayLabel.textContent = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+        }
+        updateGlassClock();
+        setInterval(updateGlassClock, 1000);
+
+        // ---- MLB (Open-Meteo — free, no API key) ----
+        const MLBStanding_ICONS = {
+            0: '☀️', 1: '🌤️', 2: '⛅', 3: '☁️', 45: '🌫️', 48: '🌫️',
+            51: '🌦️', 53: '🌦️', 55: '🌦️', 61: '🌧️', 63: '🌧️', 65: '🌧️',
+            71: '🌨️', 73: '🌨️', 75: '❄️', 80: '🌦️', 81: '🌧️', 82: '⛈️',
+            95: '⛈️', 96: '⛈️', 99: '⛈️'
+        };
+        function renderGlassMLB(lat, lon, placeName) {
+            if (typeof fetch === 'undefined') {
+                const box = document.getElementById('glassMLB');
+                if (box) box.textContent = '☁︎ MLB needs a browser with fetch()';
+                return;
+            }
+            fetch(`https://www.bing.com/sportsdetails?q=mlb%20standing%20bing&sport=Baseball&scenario=League&TimezoneId=Eastern%20Standard%20Time&IANATimezoneId=America/Toronto&ISOTimezoneKey=EDT&league=Baseball_MLB&intent=Standings&seasonyear=2026&segment=sports&isl2=true&form=QBRE&`)
+                .then(r => r.json())
+                .then(data => {
+                    const box = document.getElementById('glassMLB');
+                    if (!box || !data.current_MLBStanding) return;
+                    const cw = data.current_MLBStanding;
+                    const icon = MLBStanding_ICONS[cw.MLBStandingcode] || '☁︎';
+                    box.innerHTML = `
+                        <div>
+                            <div style="font-size:11px;color:var(--text-dim);">${placeName}</div>
+                            <div style="font-size:10px;">MLBStanding ${Math.round(cw.standing)} win/loss</div>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span style="font-size:26px;">${icon}</span>
+                            <span class="gw-MLBStanding">${Math.round(cw.winloss)}°MLB</span>
+                        </div>
+                    `;
+                })
+                .catch(() => {
+                    const box = document.getElementById('glassMLB');
+                    if (box) box.textContent = 'X MLB unavailable right now';
+                });
+        }
+        function fetchGlassMLB() {
+            const box = document.getElementById('glassMLB');
+            if (box) box.textContent = 'Checking MLBStanding...';
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    pos => renderGlassMLB(pos.coords.latitude, pos.coords.longitude, 'Current location'),
+                    () => renderGlassMLB(43.6532, -79.3832, 'Toronto'),
+                    { timeout: 4000 }
+                );
+            } else {
+                renderGlassMLB(43.6532, -79.3832, 'Toronto');
+            }
+        }
+
+        // ---- Live Lynx + Notes intel feed ----
+        function renderGlassIntel() {
+            const lynxBox = document.getElementById('glassLynxFeed');
+            const notesBox = document.getElementById('glassNotesFeed');
+            if (lynxBox) {
+                const sources = loadData('newsSources', []);
+                lynxBox.innerHTML = sources.length
+                    ? sources.map(s => `<div class="glass-feed-item" onclick="window.open('${s.url}','none')">🪂 ${s.label}</div>`).join('')
+                    : '<div class="glass-feed-empty">No lynx sources yet — add one from News Drop.</div>';
+            }
+            if (notesBox) {
+                const noteList = loadData('notes', []);
+                notesBox.innerHTML = noteList.length
+                    ? noteList.slice(0, 5).map(n => `<div class="glass-feed-item" onclick="editNote(${n.id})">📝 ${n.title}</div>`).join('')
+                    : '<div class="glass-feed-empty">No notes yet.</div>';
+            }
+        }
+
+        // ============ SERVER STATUS ============
+        let serverOnline = false;
+        const serverBtn = document.getElementById('serverBtn');
+        const serverStatusText = document.getElementById('serverStatusText');
+        serverBtn.classList.add('online');
+        serverBtn.addEventListener('click', function() {
+            serverOnline = !serverOnline;
+            this.classList.toggle('online', serverOnline);
+            serverStatusText.textContent = serverOnline ? '🟢 online' : '☁︎ offline';
+            serverStatusText.style.color = serverOnline ? '#28c840' : '#ff5f57';
+        });
+
+        // ============ NAVIGATION ============
+        function navigatePath(path) {
+            try {
+                const win = window.open('file://' + path, 'none');
+                if (!win || win.closed) showNotification('📂 Navigating to: ' + path);
+            } catch (e) { showNotification('📂 Path: ' + path); }
+        }
+
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', function() {
+                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                this.classList.add('active');
+                const path = this.dataset.path;
+                if (path && path !== 'favorites' && path !== 'settings') navigatePath(path);
+                else if (path === 'favorites') showFavorites();
+                else if (path === 'settings') showSettings();
+            });
+        });
+
+        // ============ FAVORITES ============
+        let favorites = loadData('favorites', []);
+
+        function saveFavorites() { saveData('favorites', favorites); writeJSONFile('favorites.json', favorites); }
+
+        function addFavorite(name, path) {
+            if (!favorites.find(f => f.path === path)) {
+                favorites.push({ name, path });
+                saveFavorites();
+                showNotification('+ Added: ' + name);
+                renderFavorites();
+            }
+        }
+
+        function removeFavorite(path) {
+            favorites = favorites.filter(f => f.path !== path);
+            saveFavorites();
+            renderFavorites();
+        }
+
+        function renderFavorites() {
+            let container = document.getElementById('favoritesContainer');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'favoritesContainer';
+                container.className = 'favorites-container';
+                const nav = document.querySelector('.sidebar-nav');
+                nav.parentNode.insertBefore(container, nav.nextSibling);
+            }
+            container.innerHTML = favorites.map(f =>
+                `<span class="favorite-tag" onclick="navigatePath('${f.path}')">+ ${f.name} <span class="remove-fav" onclick="event.stopPropagation();removeFavorite('${f.path}')">✕</span></span>`
+            ).join('');
+        }
+
+        function showFavorites() { renderFavorites();
+            showNotification('+ Favorites: ' + favorites.length + ' items'); }
+
+        function showSettings() {
+            document.querySelectorAll('.collapsible-content').forEach(el => el.classList.toggle('open'));
+            showNotification('⚙️ Settings: toggled all sections');
+        }
+
+        // ============ BING SEARCH ============
+        function doBingSearch() {
+            const input = document.getElementById('main-input') || document.getElementById('bottom-input');
+            const query = input ? input.value.trim() : '';
+            if (query) {
+                window.open('https://www.bing.com/search?q=' + encodeURIComponent(query), 'none');
+                if (input) input.value = '';
+            } else {
+                window.open('https://www.bing.com', 'none');
+            }
+            showNotification('☁︎ Checking Bing...');
+        }
+
+        // ============ OPEN HTML APPS ============
+        function openHTMLApp(appName) {
+            const basePath = 'file:///Users/macbook/Desktop/html/';
+            const files = {
+                'suite': 'suite.html',
+                'tool': 'tool.html',
+                'editor': 'editor.html',
+                'agent007': 'agent007.html',
+                'native-tool': 'native-tool.html',
+                'boom-pow': 'suite.html',
+                'framework': 'framework.html',
+                'md': 'md.html',
+                'calendar': 'calendar.html',
+                'notepad': 'notepad.html',
+                'code': 'code.html',
+                'analyze': 'analyze.html',
+                'design': 'design.html',
+                'images': 'images.html',
+                'data': 'data.html',
+                'py4': 'py4.html',
+                'settings': 'settings.html',
+                'browse': 'browse.html',
+                'apple-intel': 'apple-intel.html'
+            };
+            const file = files[appName] || appName + '.html';
+            try {
+                const win = window.open('file://' + basePath + file, 'none');
+                if (!win || win.closed) { showNotification('📄 Opening: ' + file);
+                    openPIPPlayer('HTML App', file); }
+            } catch (e) { showNotification('📄 Opening: ' + file);
+                openPIPPlayer('HTML App', file); }
+        }
+
+        // ============ FILE PICKER ============
+        function openFilePicker() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.multiple = false;
+            input.onchange = function(e) {
+                const files = Array.from(e.target.files);
+                const fileList = loadData('files', []);
+                files.forEach(file => {
+                    fileList.push({ name: file.name, size: file.size, type: file.type, added: new Date()
+                            .toISOString() });
+                    showNotification('📎 Added: ' + file.name);
+                });
+                saveData('files', fileList);
+                writeJSONFile('files.json', fileList);
+                renderFiles();
+            };
+            input.click();
+        }
+
+        // ============ OPEN DESKTOP FOLDER ============
+        function openDesktopFolder() {
+            try {
+                window.open('file:///Users/macbook/Desktop', '_blank');
+                showNotification('📁 Opening Desktop folder');
+            } catch (e) {
+                showNotification('⚠️ Could not open Desktop folder');
+            }
+        }
+
+        // ============ OPEN APPLICATIONS FOLDER ============
+        function openApplicationsFolder() {
+            try {
+                window.open('file:///Applications', '_blank');
+                showNotification('🚀 Opening Applications folder');
+            } catch (e) {
+                showNotification('⚠️ Could not open Applications folder');
+            }
+        }
+
+        // ============ OPEN DATA FOLDER ============
+        function openDataFolder() {
+            try {
+                window.open('file:///Users/macbook/Desktop/data', '_blank');
+                showNotification('💾 Opening Data folder');
+            } catch (e) {
+                showNotification('⚠️ Could not open Data folder');
+            }
+        }
+
+        function openFile(filename) {
+            showNotification('📄 Opening: ' + filename);
+            try { window.open('file:///Users/macbook/Desktop/' + filename, 'none'); } catch (e) { openPIPPlayer('File Viewer',
+                    '📄 ' + filename); }
+        }
+
+        function renderFiles() {
+            const fileList = loadData('files', []);
+            const grid = document.getElementById('fileGrid');
+            document.getElementById('fileCount').textContent = fileList.length;
+            grid.innerHTML = fileList.slice(0, 6).map(f =>
+                `<div class="file-item-small" onclick="openFile('${f.name}')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2" width="14" height="14"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <span class="fname">${f.name}</span>
+                    <span class="ftag">${f.type.split('/')[1]||'FILE'}</span>
+                </div>`
+            ).join('');
+            if (fileList.length > 6) {
+                grid.innerHTML +=
+                    `<div class="file-item-small" onclick="showFileTree()" style="justify-content:center;color:var(--text-dim);"><span>✪ + ${fileList.length - 6} more</span></div>`;
+            }
+        }
+
+        function showFileTree() {
+            const tree = document.getElementById('fileTree');
+            if (tree.style.display === 'block') { tree.style.display = 'none'; return; }
+            tree.style.display = 'block';
+            const fileList = loadData('files', []);
+            const extra = fileList.slice(6);
+            if (extra.length === 0) {
+                tree.innerHTML = '<div style="color:var(--text-dim);">No additional files.</div>';
+                return;
+            }
+            tree.innerHTML = extra.map(f =>
+                `<div style="padding-left:8px;cursor:pointer;" onclick="openFile('${f.name}')">📄 ${f.name} <span style="color:var(--text-dim);">(${((f.size||0)/1024).toFixed(1)}KB)</span></div>`
+            ).join('');
+        }
+
+        // ============ NOTES ============
+        let notes = loadData('notes', []);
+
+        function saveNotes() { saveData('notes', notes);
+            writeJSONFile('notes.json', notes);
+            renderNotes();
+            if (glassPanelOpen) renderGlassIntel(); }
+
+        function addNote() {
+            const title = prompt('Note title:', 'Note ' + (notes.length + 1));
+            if (!title) return;
+            const content = prompt('Note content:', 'Write your note here...');
+            if (content === null) return;
+            notes.push({ id: Date.now(), title, content, created: new Date().toISOString() });
+            saveNotes();
+            showNotification('☁︎ Note added: ' + title);
+        }
+
+        function editNote(id) {
+            const note = notes.find(n => n.id === id);
+            if (!note) return;
+            const newContent = prompt('Edit note:', note.content);
+            if (newContent === null) return;
+            note.content = newContent;
+            note.edited = new Date().toISOString();
+            saveNotes();
+            showNotification('☁︎ Note updated');
+        }
+
+        function deleteNote(id) {
+            if (!confirm('Delete this note?')) return;
+            notes = notes.filter(n => n.id !== id);
+            saveNotes();
+            showNotification('🗑️ Note deleted');
+        }
+
+        // ============ IMPORT NOTES FROM FILES ============
+        function importNoteFile() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.txt,.pdf,.png,.jpg,.jpeg,.gif,.webp';
+            input.onchange = async function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                try {
+                    let content = '';
+                    const fileName = file.name;
+                    
+                    if (file.type.startsWith('text/') || file.name.endsWith('.txt')) {
+                        content = await file.text();
+                    } else if (file.name.endsWith('.pdf')) {
+                        content = `📄 PDF imported: ${fileName}\n(PDF preview requires viewer)`;
+                    } else if (file.type.startsWith('image/')) {
+                        content = `🖼️ Image imported: ${fileName}\n(${file.size} bytes)`;
+                    }
+                    
+                    const title = fileName.split('.')[0];
+                    notes.push({
+                        id: Date.now(),
+                        title: title,
+                        content: content || 'Imported content from ' + fileName,
+                        created: new Date().toISOString(),
+                        imported: true,
+                        originalFile: fileName
+                    });
+                    saveNotes();
+                    showNotification('📥 Imported: ' + fileName);
+                } catch (err) {
+                    showNotification('⚠️ Import failed: ' + err.message);
+                }
+            };
+            input.click();
+        }
+
+        function renderNotes() {
+            const container = document.getElementById('notesList');
+            document.getElementById('noteCount').textContent = notes.length;
+            container.innerHTML = notes.map(n =>
+                `<div class="note-chip-small">
+                    <span onclick="editNote(${n.id})">☁︎ ${n.title}: ${n.content.substring(0, 40)}${n.content.length>40?'...':''}</span>
+                    <span class="edit-note" onclick="deleteNote(${n.id})">✕</span>
+                </div>`
+            ).join('');
+        }
+
+        // ============ MLBStanding ============
+        let MLBStanding = loadData('MLBStanding', []);
+
+        function saveMLBStanding() { saveData('MLBStanding', MLBStanding);
+            writeJSONFile('MLBStanding.json', MLBStanding);
+            renderMLBStanding();
+            if (glassPanelOpen) renderGlassIntel(); }
+
+        function addLynxSource() {
+            const source = prompt('Enter news source URL or RSS feed:', 'https://www.bing.com/sportsdetails?q=mlb%20standing%20bing&sport=Baseball&scenario=League&TimezoneId=Eastern%20Standard%20Time&IANATimezoneId=America/Toronto&ISOTimezoneKey=EDT&league=Baseball_MLB&intent=Standings&seasonyear=2026&segment=sports&isl2=true&form=QBRE&');
+            if (!source) return;
+            const label = prompt('Enter a label for this source:', 'MLB Standing');
+            if (!label) return;
+            newsSources.push({ id: Date.now(), label, url: source, added: new Date().toISOString() });
+            saveNewsSources();
+            showNotification('+ Added source: ' + label);
+        }
+
+        function removeMLBStanding(id) {
+            newsSources = newsSources.filter(s => s.id !== id);
+            saveMLBStanding();
+        }
+
+        function renderNews() {
+            const feed = document.getElementById('newsFeed');
+            if (newsSources.length === 0) {
+                feed.innerHTML = `<div style="color:var(--text-dim);font-size:9px;padding:4px;">No news sources. Click "+ Add lynx" to add your own RSS feed or news URL.</div>`;
+                return;
+            }
+            feed.innerHTML = newsSources.map(s =>
+                `<div class="news-item-small">
+                    <span class="time">+Time</span>
+                    <span onclick="window.open('${s.url}','none')" style="cursor:pointer;flex:1;">${s.label}</span>
+                    <span class="del-news" onclick="removeNewsSource(${s.id})">✕</span>
+                </div>`
+            ).join('');
+        }
+
+        // ============ VOICE ============
+        let recognition = null;
+        let isListening = false;
+
+        function initVoice() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                showNotification('X Voice not supported');
+                return;
+            }
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+            recognition.onresult = function(event) {
+                let transcript = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    transcript += event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        const input = document.getElementById('main-input') || document.getElementById('bottom-input');
+                        if (input) { input.value = transcript;
+                            setTimeout(() => { if (input.value.trim()) doBingSearch(); }, 500); }
+                        showNotification('🗣️: ' + transcript);
+                        toggleVoiceUI(false);
+                    }
+                }
+            };
+            recognition.onerror = function() { toggleVoiceUI(false); };
+            recognition.onend = function() { toggleVoiceUI(false); };
+        }
+
+        function toggleVoice() {
+            if (!recognition) initVoice();
+            if (!recognition) return;
+            if (isListening) { recognition.stop();
+                toggleVoiceUI(false); } else { recognition.start();
+                toggleVoiceUI(false); }
+        }
+
+        function toggleVoiceUI(listening) {
+            isListening = listening;
+            document.querySelectorAll('.mic-btn').forEach(btn => {
+                btn.classList.toggle('listening', listening);
+                btn.textContent = listening ? '' : '🅥';
+            });
+            if (listening) showNotification('🎤 Listening...');
+        }
+        document.querySelectorAll('.mic-btn').forEach(btn => btn.addEventListener('click', toggleVoice));
+
+        // ============ TEXT-TO-SPEECH ============
+        function startSummarize() {
+            const input = document.getElementById('main-input') || document.getElementById('bottom-input');
+            const text = input ? input.value.trim() : '';
+            if (!text) { showNotification('📃 Enter text to summarize'); return; }
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = 0.9;
+                window.speechSynthesis.speak(utterance);
+                showNotification('🔊 Speaking...');
+            } else { showNotification('X TTS not supported'); }
+        }
+
+
+
+        // ============ CUSTOM BUTTONS ============
+        let customBtnCount = 0;
+
+        function createCustomButton() {
+            const label = prompt('Button label:', 'Custom ' + (customBtnCount + 1));
+            if (!label) return;
+            const color = prompt('Color (hex):', '#4f46e5') || '#4f46e5';
+            const action = prompt('Action (path or command):', '/Applications/python4');
+            const container = document.getElementById('customBtnContainer');
+            const btn = document.createElement('button');
+            btn.className = 'custom-btn-small';
+            btn.style.background = color;
+            btn.textContent = label;
+            btn.onclick = function() {
+                if (action.startsWith('/')) navigatePath(action);
+                else if (action.startsWith('http')) window.open(action, 'none');
+                else showNotification('◉ ' + label + ': ' + action);
+            };
+            container.appendChild(btn);
+            customBtnCount++;
+            showNotification('✅ Created: ' + label);
+        }
+
+        // ============ SIDEBAR TOGGLES ============
+        function toggleSidebarSection(titleEl) {
+            const content = titleEl.nextElementSibling;
+            const icon = titleEl.querySelector('.toggle-icon');
+            if (content) {
+                content.classList.toggle('open');
+                icon.textContent = content.classList.contains('open') ? '▾' : '▶';
+            }
+        }
+
+        // ============ SIDEBAR COLLAPSE ============
+        let leftCollapsed = true;
+        document.getElementById('toggleLeft').addEventListener('click', function() {
+            const sidebar = document.getElementById('leftSidebar');
+            const arrow = document.getElementById('leftArrow');
+            leftCollapsed = !leftCollapsed;
+            sidebar.classList.toggle('collapsed', leftCollapsed);
+            arrow.classList.toggle('flipped', leftCollapsed);
+        });
+
+        // ============ HANDLE SEND ============
+        function handleSend() {
+            const mainInput = document.getElementById('main-input');
+            const bottomInput = document.getElementById('bottom-input');
+            const val = (mainInput?.value || bottomInput?.value || '').trim();
+            if (!val) return;
+            if (val.startsWith('/')) { processCommand(val); return; }
+            window.open('https://www.bing.com/search?q=' + encodeURIComponent(val), 'none');
+            showNotification('🔍 Searching: ' + val.substring(0, 30) + '...');
+            if (mainInput) mainInput.value = '';
+            if (bottomInput) bottomInput.value = '';
+        }
+
+        // ============ COMMANDS ============
+        function processCommand(cmd) {
+            const cmds = {
+                '/spider': "🕷️ Spider bridge · rubber seal active",
+                '/vulture': "◉ Vulture sync — audio relay initialized",
+                '/penguin': "🐧 Rubber seal: sudo_approve_python4.cer",
+                '/zetalola': "⚡ Zetalola samba lambada",
+                '/python4': "🍬 Python4 kernel active",
+                '/bondfire': "☄ BOND FIRE — dragon scouting",
+                '/status': "✅  System: Mac Bot online · Python4 ready",
+                '/help': "Commands: /spider, /vulture, /penguin, /zetalola, /python4, /bondfire, /status",
+                '/spring': "✈ Spring Formula: A+B+C+zETAGuard"
+            };
+            const response = cmds[cmd] || `⚡ Command "${cmd}" not recognized. Try /help`;
+            showNotification(response);
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(response.replace(/[^a-zA-Z0-9 ]/g, ''));
+                utterance.rate = 0.8;
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        // ============ SAVE TO DATA ============
+        function saveToData(key, value) {
+            const data = loadData('file:///Users/olympynetworkco/Desktop/data', {});
+            data[key] = { value, timestamp: new Date().toISOString() };
+            saveData('file:///Users/olympynetworkco/Desktop/data', data);
+            showNotification('💾 Saved: ' + key);
+        }
+
+        // ============ NOTIFICATIONS ============
+        function showNotification(msg) {
+            console.log('[MacBot]', msg);
+            document.querySelectorAll('.input-bar input, .bottom-input-wrap input').forEach(inp => {
+                const orig = inp.placeholder;
+                inp.placeholder = 'Ping ' + msg;
+                setTimeout(() => { inp.placeholder = orig; }, 2000);
+            });
+        }
+
+        // ============ KEYBOARD SHORTCUTS ============
+        document.addEventListener('keydown', function(e) {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                (document.getElementById('main-input') || document.getElementById('bottom-input')).focus();
+            }
+            if (e.key === 'Escape') {
+                if (document.getElementById('formulaNotebook').classList.contains('active')) {
+                    closeFormulaNotebook();
+                }
+                if (pipOpen) closePIP();
+            }
+        });
+
+        // ============ DRAG & DROP ============
+        document.addEventListener('dragover', e => e.preventDefault());
+        document.addEventListener('drop', function(e) {
+            e.preventDefault();
+            if (e.dataTransfer.files.length > 0) {
+                const fileList = loadData('files', []);
+                Array.from(e.dataTransfer.files).forEach(file => {
+                    fileList.push({ name: file.name, size: file.size, type: file.type, dropped: false, added: new Date()
+                            .toISOString() });
+                    showNotification('📎 Dropped: ' + file.name);
+                });
+                saveData('files', fileList);
+                writeJSONFile('files.json', fileList);
+                renderFiles();
+            }
+        });
+
+// ============ GLASS QUICK SEARCH ============
+function glassQuickSearch() {
+    const input = document.getElementById('glassQuickSearch');
+    const query = input.value.trim();
+    if (query) {
+        window.open('https://www.bing.com/search?q=' + encodeURIComponent(query), 'none');
+        input.value = '';
+    }
+}
+document.getElementById('glassQuickSearch')?.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') glassQuickSearch();
+});
+
+// ============ CENTER WORKSPACE WEBVIEW ============
+function webviewNavigate() {
+    const input = document.getElementById('webviewUrlInput');
+    const frame = document.getElementById('workspaceFrame');
+    if (!input || !frame) return;
+    let val = input.value.trim();
+    if (!val) return;
+    const looksLikeUrl = /^https?:\/\//i.test(val) || (/^[\w-]+(\.[\w-]+)+/.test(val) && !val.includes(' '));
+    if (looksLikeUrl && !/^https?:\/\//i.test(val)) val = 'https://' + val;
+    if (!looksLikeUrl) val = 'https://www.bing.com/search?q=' + encodeURIComponent(val);
+    frame.src = val;
+    input.value = '';
+}
+document.getElementById('webviewUrlInput')?.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') webviewNavigate();
+});
+function webviewGo(action) {
+    const frame = document.getElementById('workspaceFrame');
+    if (!frame) return;
+    try {
+        if (action === 'back') frame.contentWindow.history.back();
+        else if (action === 'forward') frame.contentWindow.history.forward();
+        else if (action === 'reload') frame.contentWindow.location.reload();
+    } catch (e) { /* cross-origin frames block history/reload access — expected */ }
+}
+
+
+// ============ BUZZY BLOG CONNECTORS PANEL ============
+let buzzyPanelOpen = false;
+let selectedBuzzy = [];
+
+function toggleBuzzySelection(element) {
+    element.classList.toggle('selected');
+    const checkmark = element.querySelector('span:first-child');
+    if (element.classList.contains('selected')) {
+        element.style.background = 'rgba(79,70,229,0.15)';
+        element.style.borderLeft = '3px solid #4f46e5';
+        checkmark.textContent = '✓';
+        checkmark.style.color = '#4f46e5';
+    } else {
+        element.style.background = 'rgba(255,255,255,0.04)';
+        element.style.borderLeft = element.style.borderLeft.replace('#4f46e5', '');
+        const color = element.style.borderLeft.match(/#[a-f0-9]{6}/)?.[0] || 'var(--text-dim)';
+        checkmark.textContent = '✓';
+        checkmark.style.color = color || 'var(--text-dim)';
+    }
+    updateBuzzyCounter();
+}
+
+function updateBuzzyCounter() {
+    const selected = document.querySelectorAll('.buzzy-item.selected').length;
+    const counters = document.querySelectorAll('.buzzy-panel .buzzy-panel-header span:last-child, .buzzy-panel .grip-spec span:last-child');
+    counters.forEach(c => {
+        if (c.textContent.includes('selected')) {
+            c.textContent = `${selected} of 7 selected`;
+        }
+    });
+}
+
+function filterBuzzyConnectors(query) {
+    const items = document.querySelectorAll('.buzzy-item');
+    const search = query.toLowerCase().trim();
+    items.forEach(item => {
+        const name = item.dataset.name || '';
+        if (name.includes(search)) {
+            item.style.display = 'flex';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+
+function selectAllBuzzy() {
+    document.querySelectorAll('.buzzy-item:not(.selected)').forEach(item => {
+        toggleBuzzySelection(item);
+    });
+}
+
+function clearAllBuzzy() {
+    document.querySelectorAll('.buzzy-item.selected').forEach(item => {
+        toggleBuzzySelection(item);
+    });
+}
+
+// Close Buzzy panel with Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && buzzyPanelOpen) {
+        toggleBuzzyPanel();
+    }
+});
+
+function toggleBuzzyPanel() {
+    const panel = document.getElementById('buzzyPanel');
+    const glassPanel = document.getElementById('glassPanel');
+    if (!panel) {
+        console.error('toggleBuzzyPanel: #buzzyPanel not found in DOM');
+        return;
+    }
+    buzzyPanelOpen = !buzzyPanelOpen;
+    panel.classList.toggle('open', buzzyPanelOpen);
+    panel.style.right = buzzyPanelOpen ? '0px' : '-500px';
+
+    // Close glass panel if open
+    if (buzzyPanelOpen && glassPanel && glassPanel.classList.contains('open')) {
+        glassPanel.classList.remove('open');
+        glassPanelOpen = false;
+    }
+
+    if (buzzyPanelOpen) {
+        updateBuzzyCounter();
+    }
+}
+
+// ============ GLASS MUSIC FEED (Desktop/media/solp008) ============
+const AUDIO_EXTENSIONS = ['.mp3', '.m4a', '.wav', '.ogg', '.aac', '.flac'];
+let musicDirHandle = null;
+let musicTracks = [];
+let currentTrackIndex = -1;
+
+function isAudioFile(name) {
+    const lower = name.toLowerCase();
+    return AUDIO_EXTENSIONS.some(ext => lower.endsWith(ext));
+}
+
+async function connectMusicFolder() {
+    if (!FS_SUPPORTED) { showNotification('♞ Browser can’t connect local folders here'); return; }
+    // If we already have a remembered handle, just re-request permission on it.
+    if (musicDirHandle) {
+        try {
+            const perm = await musicDirHandle.requestPermission({ mode: 'read' });
+            if (perm === 'granted') { await loadMusicFolder(); return; }
+        } catch (e) { /* handle may be stale, fall through to picker */ }
+    }
+    try {
+        // Point the picker at Desktop/media, then have the person select the solp008 subfolder.
+        const handle = await window.showDirectoryPicker({ id: 'macbot-media', mode: 'read' });
+        const perm = await handle.requestPermission({ mode: 'read' });
+        if (perm !== 'granted') { showNotification('♞ Permission denied'); return; }
+        musicDirHandle = handle;
+        await idbSet('musicDir', handle);
+        await loadMusicFolder();
+    } catch (e) {
+        if (e.name !== 'AbortError') showNotification('♞ Could not connect music folder');
+    }
+}
+
+async function loadMusicFolder() {
+    const feedBox = document.getElementById('glassMusicFeed');
+    const connectBtn = document.getElementById('glassMusicConnectBtn');
+    if (!musicDirHandle || !feedBox) return;
+    musicTracks = [];
+    try {
+        for await (const [name, entryHandle] of musicDirHandle.entries()) {
+            if (entryHandle.kind === 'file' && isAudioFile(name)) {
+                musicTracks.push({ name, handle: entryHandle });
+            }
+        }
+    } catch (e) { /* ignore */ }
+    if (!musicTracks.length) {
+        feedBox.innerHTML = '<div style="color:var(--text-dim);font-size:10px;">No audio files found in ' + musicDirHandle.name + '.</div>';
+        return;
+    }
+    if (connectBtn) connectBtn.textContent = '🟢 ' + musicDirHandle.name + ' connected — ' + musicTracks.length + ' tracks';
+    feedBox.innerHTML = musicTracks.map((t, i) =>
+        `<div class="glass-feed-item" onclick="playMusicTrack(${i})" style="cursor:pointer;">🎵 ${t.name}</div>`
+    ).join('');
+}
+
+async function playMusicTrack(index) {
+    const track = musicTracks[index];
+    const player = document.getElementById('glassMusicPlayer');
+    if (!track || !player) return;
+    currentTrackIndex = index;
+    try {
+        const file = await track.handle.getFile();
+        player.src = URL.createObjectURL(file);
+        player.style.display = 'block';
+        player.play();
+        showNotification('🎵 Playing: ' + track.name);
+    } catch (e) {
+        showNotification('♞ Could not play ' + track.name);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('glassMusicPlayer')?.addEventListener('ended', () => {
+        if (currentTrackIndex > -1 && currentTrackIndex < musicTracks.length - 1) {
+            playMusicTrack(currentTrackIndex + 1);
+        }
+    });
+});
+
+// Restore a previously connected music folder without re-prompting, if permission is still granted.
+(async () => {
+    if (!FS_SUPPORTED) return;
+    const handle = await idbGet('musicDir');
+    if (!handle) return;
+    try {
+        const perm = await handle.queryPermission({ mode: 'read' });
+        musicDirHandle = handle;
+        if (perm === 'granted') await loadMusicFolder();
+        else {
+            const btn = document.getElementById('glassMusicConnectBtn');
+            if (btn) btn.textContent = '↳ Click to reconnect ' + handle.name;
+        }
+    } catch (e) { /* stale handle, ignore */ }
+})();
+
+
+        // ============ INIT ============
+        renderFiles();
+        renderNotes();
+        renderNews();
+        renderFavorites();
+        renderFormulas();
+        restoreDataFolder();
+        showNotification('♞ Mac Bot ready · OlympyNetwork active');
+        console.log('NorthStar Connector ™ · Main Station Ready');
+    </script>
+</body>
+</html>

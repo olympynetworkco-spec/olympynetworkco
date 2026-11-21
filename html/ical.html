@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title> 
+iCal PiP
+ </title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90' fill='%23FF8C00'%3E%3C/text%3E%3C/svg%3E" />
+    <style>
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+            padding: 40px;
+            transition: all 0.6s ease;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f5f5f7;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            position: relative;
+        }
+        body::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0);
+            transition: background 0.6s ease;
+            pointer-events: none;
+            z-index: 0;
+        }
+        body.has-bg::before {
+            background: rgba(0,0,0,0.3);
+        }
+        body.has-bg.light-bg::before {
+            background: rgba(255,255,255,0.15);
+        }
+        body.video-bg { overflow: hidden; }
+        body.video-bg video {
+            position: fixed;
+            top: 50%; left: 50%;
+            min-width: 100%; min-height: 100%;
+            width: auto; height: auto;
+            transform: translateX(-50%) translateY(-50%);
+            z-index: -1;
+            object-fit: cover;
+        }
+
+        .container {
+            max-width: 500px;
+            width: 100%;
+            margin: 0 auto;
+            background: rgba(255,255,255,0.92);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: all 0.4s ease;
+            position: relative;
+            z-index: 1;
+        }
+        .container.dark-glass {
+            background: rgba(20,20,30,0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-color: rgba(255,255,255,0.08);
+            color: #f5f5f7;
+        }
+        .container.dark-glass input,
+        .container.dark-glass .apple-header h2,
+        .container.dark-glass .footer {
+            color: #f5f5f7;
+        }
+        .container.dark-glass input {
+            background: rgba(255,255,255,0.06);
+            color: #f5f5f7;
+            border-color: rgba(255,255,255,0.1);
+        }
+        .container.dark-glass input:focus {
+            border-color: #007aff;
+            box-shadow: 0 0 0 3px rgba(0,122,255,0.2);
+        }
+
+        .apple-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid rgba(0,0,0,0.06);
+            transition: border-color 0.4s ease;
+        }
+        .container.dark-glass .apple-header {
+            border-bottom-color: rgba(255,255,255,0.08);
+        }
+        .apple-logo {
+            font-size: 32px;
+            font-weight: 400;
+            color: #555;
+            transition: color 0.4s ease;
+        }
+        .container.dark-glass .apple-logo { color: #999; }
+        .apple-header h2 { font-size: 24px; font-weight: 600; margin: 0; }
+        .apple-header h2 span { color: #007aff; }
+        .container.dark-glass .apple-header h2 span { color: #4fc3f7; }
+        .mlb-badge {
+            display: inline-block;
+            background: #1a3a5c;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            margin-left: auto;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .mlb-badge:hover {
+            transform: scale(1.05);
+            background: #2a4a6c;
+        }
+        .container.dark-glass .mlb-badge { background: #2a4a6c; }
+
+        input, button {
+            display: block;
+            width: 100%;
+            padding: 14px 16px;
+            margin: 10px 0;
+            font-size: 16px;
+            border-radius: 10px;
+            border: 1px solid rgba(0,0,0,0.08);
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            transition: all 0.3s ease;
+            box-sizing: border-box;
+            background: rgba(255,255,255,0.9);
+            color: #1a1a1a;
+        }
+        input:focus {
+            outline: none;
+            border-color: #007aff;
+            box-shadow: 0 0 0 3px rgba(0,122,255,0.15);
+        }
+        input[type="date"], input[type="time"] {
+            background: rgba(248,248,250,0.8);
+        }
+
+        .btn-primary {
+            background: #007aff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 17px;
+            letter-spacing: 0.3px;
+            transition: all 0.2s ease;
+        }
+        .btn-primary:hover {
+            background: #005bbf;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,122,255,0.3);
+        }
+        .btn-secondary {
+            background: rgba(0,0,0,0.04);
+            color: #333;
+            border: 1px solid rgba(0,0,0,0.08);
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 17px;
+            transition: background 0.2s ease;
+        }
+        .btn-secondary:hover { background: rgba(0,0,0,0.08); }
+
+        .btn-pip {
+            background: #1a1a2e;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 17px;
+            letter-spacing: 0.3px;
+            transition: all 0.2s ease;
+        }
+        .btn-pip:hover {
+            background: #2a2a3e;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(26,26,46,0.3);
+        }
+        .container.dark-glass .btn-pip {
+            background: #3a3a4e;
+            color: #fff;
+        }
+        .container.dark-glass .btn-pip:hover {
+            background: #4a4a5e;
+        }
+
+        .file-input-wrapper {
+            display: flex;
+            gap: 8px;
+            margin: 10px 0;
+            flex-wrap: wrap;
+        }
+        .file-input-wrapper input[type="file"] {
+            flex: 1;
+            padding: 10px;
+            font-size: 13px;
+            background: rgba(0,0,0,0.02);
+            border: 2px dashed rgba(0,0,0,0.08);
+            border-radius: 10px;
+            cursor: pointer;
+            color: #666;
+            min-width: 200px;
+        }
+        .file-input-wrapper input[type="file"]::-webkit-file-upload-button {
+            background: #007aff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .file-input-wrapper input[type="file"]::-webkit-file-upload-button:hover {
+            background: #005bbf;
+        }
+        .container.dark-glass .file-input-wrapper input[type="file"] {
+            border-color: rgba(255,255,255,0.1);
+            color: #999;
+        }
+        .container.dark-glass .file-input-wrapper input[type="file"]::-webkit-file-upload-button {
+            background: #4fc3f7;
+        }
+
+        .file-type-label {
+            font-size: 11px;
+            color: #999;
+            padding: 4px 10px;
+            background: rgba(0,0,0,0.03);
+            border-radius: 20px;
+            display: inline-block;
+            margin: 4px;
+        }
+        .container.dark-glass .file-type-label { color: #666; }
+
+        .theme-picker {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+            background: rgba(255,255,255,0.92);
+            backdrop-filter: blur(12px);
+            padding: 10px 16px;
+            border-radius: 40px;
+            border: 1px solid rgba(0,0,0,0.08);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            transition: all 0.3s ease;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 90vw;
+        }
+        .theme-btn {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            border: 2px solid rgba(0,0,0,0.08);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            color: #333;
+        }
+        .theme-btn:hover { transform: scale(1.15); border-color: #007aff; }
+        .theme-btn.active { border-color: #007aff; box-shadow: 0 0 0 3px rgba(0,122,255,0.2); }
+
+        .theme-btn[data-theme="light"] { background: #f5f5f7; color: #1a1a1a; }
+        .theme-btn[data-theme="dark"] { background: #1a1a1a; color: #f5f5f7; }
+        .theme-btn[data-theme="image"] {
+            background: linear-gradient(135deg, #ff6b6b, #feca57, #48dbfb, #a29bfe);
+            color: #fff;
+            font-size: 12px;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(0,0,0,0.05);
+            font-size: 12px;
+            color: #999;
+        }
+        .footer span { color: #007aff; }
+        .container.dark-glass .footer {
+            color: rgba(255,255,255,0.3);
+            border-top-color: rgba(255,255,255,0.05);
+        }
+        .container.dark-glass .footer span { color: #4fc3f7; }
+
+        .pdf-viewer, .html-iframe, .html-iframe iframe {
+            width: 100%;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: -1;
+            border: none;
+        }
+        .html-iframe { z-index: -1; }
+        .html-iframe iframe {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            border: none;
+        }
+
+        /* ─── PIP OVERLAY INDICATOR ─── */
+        .pip-indicator {
+            display: none;
+            position: fixed;
+            bottom: 100px;
+            right: 30px;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(12px);
+            padding: 8px 16px;
+            border-radius: 20px;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 600;
+            z-index: 99;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .pip-indicator.show { display: block; }
+
+        @media (max-width: 600px) {
+            body { padding: 20px; }
+            .container { padding: 20px; }
+            .theme-picker { bottom: 20px; right: 20px; padding: 8px 12px; gap: 6px; }
+            .theme-btn { width: 28px; height: 28px; font-size: 12px; }
+            .apple-header h2 { font-size: 18px; }
+            .apple-logo { font-size: 24px; }
+            .file-input-wrapper { flex-direction: column; }
+            .pip-indicator { bottom: 80px; right: 20px; font-size: 10px; padding: 6px 12px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ─── PIP INDICATOR ─── -->
+<div class="pip-indicator" id="pipIndicator">📹 PiP Active</div>
+
+<div class="container" id="mainContainer">
+    <div class="apple-header">
+        <span class="apple-logo"></span>
+        <h2><span>iCal</span> PiP</h2>
+        <span class="mlb-badge" id="badge" onclick="openBackgroundInPip()" title="Click to open background in PiP">⚾ MLB</span>
+    </div>
+
+    <input type="date" id="eventDate" value="2026-07-22" />
+    <input type="time" id="eventTime" value="19:00" />
+    <input type="text" id="eventTitle" placeholder="Event Title" value="⚾ MLB Game" />
+    <input type="text" id="eventLocation" placeholder="Location" value="Rogers Centre" />
+
+    <div class="file-input-wrapper">
+        <input type="file" id="bgFileInput" accept="image/*,.pdf,.txt,.html,.mov,.mp4,.webm,.heic,.ico" onchange="loadCustomBackground(event)" />
+    </div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px;">
+        <span class="file-type-label">📷 PNG/JPG/HEIC</span>
+        <span class="file-type-label">📄 PDF</span>
+        <span class="file-type-label">📝 TXT</span>
+        <span class="file-type-label">🌐 HTML</span>
+        <span class="file-type-label">🎬 MOV/MP4</span>
+    </div>
+
+    <button class="btn-pip" onclick="openBackgroundInPip()" id="pipButton">📹 Open Background in PiP</button>
+    <button class="btn-primary" onclick="downloadICS()">📥 Download .ics → Open in Calendar</button>
+    <button class="btn-secondary" onclick="openWithApplescript()">🍎 Open Calendar (AppleScript)</button>
+    <button class="btn-secondary" onclick="clearBackground()" style="margin-top:0;">🗑️ Remove Background</button>
+
+    <div class="footer">
+        Made with ❤️ for Apple ·  · ⚾ MLB 2026
+    </div>
+</div>
+
+<!-- ─── THEME PICKER ─── -->
+<div class="theme-picker">
+    <button class="theme-btn active" data-theme="light" onclick="setTheme('light')" title="Light">☀️</button>
+    <button class="theme-btn" data-theme="dark" onclick="setTheme('dark')" title="Dark Glass">🌙</button>
+    <button class="theme-btn" data-theme="image" onclick="document.getElementById('bgFileInput').click()" title="Custom File">🖼️</button>
+</div>
+
+<script>
+// ─── STATE ───
+let currentBackground = null;
+let currentBackgroundType = null;
+
+// ─── THEME SYSTEM ───
+function setTheme(theme) {
+    const container = document.getElementById('mainContainer');
+    const body = document.body;
+    container.className = 'container';
+    body.className = '';
+
+    const oldVideo = document.querySelector('video');
+    if (oldVideo) oldVideo.remove();
+    const oldPdf = document.querySelector('.pdf-viewer');
+    if (oldPdf) oldPdf.remove();
+    const oldIframe = document.querySelector('.html-iframe');
+    if (oldIframe) oldIframe.remove();
+
+    if (theme === 'dark') {
+        container.classList.add('dark-glass');
+        body.style.background = '#1a1a1a';
+        body.style.backgroundImage = 'none';
+    } else if (theme === 'light') {
+        body.style.background = '#f5f5f7';
+        body.style.backgroundImage = 'none';
+        body.classList.remove('has-bg', 'light-bg');
+    } else if (theme === 'image') {
+        document.getElementById('bgFileInput').click();
+        return;
+    }
+
+    document.querySelectorAll('.theme-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.theme === theme);
+    });
+    localStorage.setItem('iCalTheme', theme);
+}
+
+// ─── LOAD ANY FILE ───
+function loadCustomBackground(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const container = document.getElementById('mainContainer');
+    const body = document.body;
+    const badge = document.getElementById('badge');
+
+    const oldVideo = document.querySelector('video');
+    if (oldVideo) oldVideo.remove();
+    const oldPdf = document.querySelector('.pdf-viewer');
+    if (oldPdf) oldPdf.remove();
+    const oldIframe = document.querySelector('.html-iframe');
+    if (oldIframe) oldIframe.remove();
+
+    body.style.backgroundImage = 'none';
+    body.classList.remove('video-bg');
+
+    const fileType = file.type;
+    const fileExt = file.name.split('.').pop().toLowerCase();
+
+    // Store for PiP
+    currentBackground = file;
+    currentBackgroundType = 'file';
+
+    // ─── IMAGES ───
+    if (fileType.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'ico', 'bmp', 'svg'].includes(fileExt)) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const dataUrl = e.target.result;
+            currentBackground = dataUrl;
+            currentBackgroundType = 'image';
+            body.style.backgroundImage = `url(${dataUrl})`;
+            body.style.backgroundSize = 'cover';
+            body.style.backgroundPosition = 'center';
+            body.classList.add('has-bg');
+
+            const img = new Image();
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const data = imageData.data;
+                let brightness = 0;
+                for (let i = 0; i < data.length; i += 4) {
+                    brightness += (data[i] + data[i+1] + data[i+2]) / 3;
+                }
+                brightness /= (data.length / 4);
+
+                if (brightness > 128) {
+                    body.classList.add('light-bg');
+                    container.classList.remove('dark-glass');
+                    container.style.background = 'rgba(255,255,255,0.85)';
+                } else {
+                    body.classList.remove('light-bg');
+                    container.classList.add('dark-glass');
+                    container.style.background = 'rgba(20,20,30,0.85)';
+                }
+
+                badge.textContent = `📷 ${file.name}`;
+                try {
+                    localStorage.setItem('iCalBackground', dataUrl);
+                    localStorage.setItem('iCalTheme', 'image');
+                } catch(e) {}
+            };
+            img.src = dataUrl;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    // ─── PDF ───
+    else if (fileType === 'application/pdf' || fileExt === 'pdf') {
+        const url = URL.createObjectURL(file);
+        currentBackground = url;
+        currentBackgroundType = 'pdf';
+        const pdfViewer = document.createElement('iframe');
+        pdfViewer.className = 'pdf-viewer';
+        pdfViewer.src = url + '#toolbar=0';
+        document.body.prepend(pdfViewer);
+        body.classList.add('has-bg');
+        container.classList.add('dark-glass');
+        container.style.background = 'rgba(20,20,30,0.7)';
+        badge.textContent = `📄 ${file.name}`;
+        try {
+            localStorage.setItem('iCalPdf', url);
+            localStorage.setItem('iCalTheme', 'image');
+        } catch(e) {}
+    }
+
+    // ─── HTML ───
+    else if (fileType === 'text/html' || fileExt === 'html' || fileExt === 'htm') {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const htmlContent = e.target.result;
+            currentBackground = htmlContent;
+            currentBackgroundType = 'html';
+            const wrapper = document.createElement('div');
+            wrapper.className = 'html-iframe';
+            const iframe = document.createElement('iframe');
+            iframe.srcdoc = htmlContent;
+            iframe.style.cssText = 'width:100%;height:100%;border:none;';
+            wrapper.appendChild(iframe);
+            document.body.prepend(wrapper);
+            body.classList.add('has-bg');
+            container.classList.add('dark-glass');
+            container.style.background = 'rgba(20,20,30,0.7)';
+            badge.textContent = `🌐 ${file.name}`;
+        };
+        reader.readAsText(file);
+    }
+
+    // ─── TEXT ───
+    else if (fileType === 'text/plain' || fileExt === 'txt') {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const text = e.target.result;
+            currentBackground = text;
+            currentBackgroundType = 'text';
+            body.style.background = '#0a0a12';
+            body.style.color = '#f5f5f7';
+            const textOverlay = document.createElement('div');
+            textOverlay.style.cssText = `
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                z-index: -1; padding: 60px; overflow-y: auto;
+                font-family: 'Courier New', monospace; font-size: 14px;
+                color: rgba(255,255,255,0.6); white-space: pre-wrap;
+                background: #0a0a12;
+            `;
+            textOverlay.textContent = text;
+            document.body.prepend(textOverlay);
+            body.classList.add('has-bg');
+            container.classList.add('dark-glass');
+            container.style.background = 'rgba(20,20,30,0.7)';
+            badge.textContent = `📝 ${file.name}`;
+        };
+        reader.readAsText(file);
+    }
+
+    // ─── VIDEO ───
+    else if (fileType.startsWith('video/') || ['mov', 'mp4', 'webm', 'avi', 'mkv'].includes(fileExt)) {
+        const url = URL.createObjectURL(file);
+        currentBackground = url;
+        currentBackgroundType = 'video';
+        const video = document.createElement('video');
+        video.src = url;
+        video.autoplay = true;
+        video.loop = true;
+        video.muted = true;
+        video.playsInline = true;
+        video.style.cssText = `
+            position: fixed; top: 50%; left: 50%;
+            min-width: 100%; min-height: 100%;
+            width: auto; height: auto;
+            transform: translateX(-50%) translateY(-50%);
+            z-index: -1; object-fit: cover; pointer-events: none;
+        `;
+        document.body.prepend(video);
+        body.classList.add('video-bg');
+        body.classList.add('has-bg');
+        container.classList.add('dark-glass');
+        container.style.background = 'rgba(20,20,30,0.7)';
+        badge.textContent = `🎬 ${file.name}`;
+        try {
+            localStorage.setItem('iCalVideo', url);
+            localStorage.setItem('iCalTheme', 'image');
+        } catch(e) {}
+    }
+
+    else {
+        badge.textContent = `❓ ${file.name} (unsupported)`;
+        alert(`File type "${fileType}" not supported as background. Try: images, PDF, HTML, TXT, or video files.`);
+    }
+
+    document.querySelectorAll('.theme-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.theme === 'image');
+    });
+
+    event.target.value = '';
+}
+
+// ─── OPEN BACKGROUND IN PIP ───
+function openBackgroundInPip() {
+    if (!currentBackground) {
+        alert('Please load a background file first!');
+        return;
+    }
+
+    const pipIndicator = document.getElementById('pipIndicator');
+
+    if ('documentPictureInPicture' in window) {
+        try {
+            const pipWindow = window.documentPictureInPicture.requestWindow({
+                width: 480,
+                height: 360,
+                disallowReturnToOpener: false,
+            });
+
+            pipWindow.then((win) => {
+                const doc = win.document;
+                let contentHTML = '';
+
+                if (currentBackgroundType === 'image') {
+                    contentHTML = `
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <meta charset="UTF-8">
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                            <title> PiP · Image</title>
+                            <style>
+                                * { margin:0; padding:0; box-sizing:border-box; }
+                                body {
+                                    width: 100vw; height: 100vh;
+                                    background: #0a0a12;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    overflow: hidden;
+                                }
+                                img {
+                                    width: 100%;
+                                    height: 100%;
+                                    object-fit: contain;
+                                }
+                            </style>
+                        </head>
+                        <body>
+                            <img src="${currentBackground}" />
+                        </body>
+                        </html>
+                    `;
+                } else if (currentBackgroundType === 'pdf') {
+                    contentHTML = `
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <meta charset="UTF-8">
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                            <title> PiP · PDF</title>
+                            <style>
+                                * { margin:0; padding:0; box-sizing:border-box; }
+                                body { width: 100vw; height: 100vh; background: #0a0a12; }
+                                iframe { width: 100%; height: 100%; border: none; }
+                            </style>
+                        </head>
+                        <body>
+                            <iframe src="${currentBackground}#toolbar=0"></iframe>
+                        </body>
+                        </html>
+                    `;
+                } else if (currentBackgroundType === 'html') {
+                    contentHTML = `
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <meta charset="UTF-8">
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                            <title> PiP · HTML</title>
+                            <style>
+                                * { margin:0; padding:0; box-sizing:border-box; }
+                                body { width: 100vw; height: 100vh; background: #0a0a12; }
+                                iframe { width: 100%; height: 100%; border: none; }
+                            </style>
+                        </head>
+                        <body>
+                            <iframe srcdoc="${encodeURIComponent(currentBackground)}"></iframe>
+                        </body>
+                        </html>
+                    `;
+                } else if (currentBackgroundType === 'text') {
+                    contentHTML = `
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <meta charset="UTF-8">
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                            <title> PiP · Text</title>
+                            <style>
+                                * { margin:0; padding:0; box-sizing:border-box; }
+                                body {
+                                    width: 100vw; height: 100vh;
+                                    background: #0a0a12;
+                                    color: rgba(255,255,255,0.8);
+                                    font-family: 'Courier New', monospace;
+                                    font-size: 14px;
+                                    padding: 20px;
+                                    overflow-y: auto;
+                                    white-space: pre-wrap;
+                                }
+                            </style>
+                        </head>
+                        <body>${encodeURIComponent(currentBackground)}</body>
+                        </html>
+                    `;
+                } else if (currentBackgroundType === 'video') {
+                    contentHTML = `
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <meta charset="UTF-8">
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                            <title> PiP · Video</title>
+                            <style>
+                                * { margin:0; padding:0; box-sizing:border-box; }
+                                body { width: 100vw; height: 100vh; background: #0a0a12; overflow: hidden; }
+                                video {
+                                    width: 100%; height: 100%;
+                                    object-fit: cover;
+                                }
+                            </style>
+                        </head>
+                        <body>
+                            <video src="${currentBackground}" autoplay loop muted playsinline></video>
+                        </body>
+                        </html>
+                    `;
+                } else if (currentBackgroundType === 'file') {
+                    // For raw files, try to open directly
+                    const url = URL.createObjectURL(currentBackground);
+                    win.location.href = url;
+                    setTimeout(() => URL.revokeObjectURL(url), 5000);
+                    return;
+                }
+
+                doc.write(contentHTML);
+                doc.close();
+
+                pipIndicator.classList.add('show');
+                setTimeout(() => pipIndicator.classList.remove('show'), 3000);
+
+                // Close indicator when PiP closes
+                win.addEventListener('pagehide', () => {
+                    pipIndicator.classList.remove('show');
+                });
+
+            }).catch((err) => {
+                console.warn('PiP API error:', err);
+                fallbackOpen(currentBackground);
+            });
+        } catch (e) {
+            fallbackOpen(currentBackground);
+        }
+    } else {
+        fallbackOpen(currentBackground);
+    }
+}
+
+function fallbackOpen(content) {
+    const win = window.open(
+        '',
+        '_blank',
+        'width=480,height=360,menubar=no,toolbar=no,location=no,status=no,scrollbars=yes,resizable=yes'
+    );
+    if (win) {
+        let html = '';
+        if (currentBackgroundType === 'image') {
+            html = `<img src="${content}" style="width:100%;height:100%;object-fit:contain;" />`;
+        } else if (currentBackgroundType === 'pdf') {
+            html = `<iframe src="${content}#toolbar=0" style="width:100%;height:100%;border:none;"></iframe>`;
+        } else if (currentBackgroundType === 'html') {
+            html = `<iframe srcdoc="${encodeURIComponent(content)}" style="width:100%;height:100%;border:none;"></iframe>`;
+        } else if (currentBackgroundType === 'text') {
+            html = `<pre style="padding:20px;font-family:'Courier New',monospace;color:#fff;background:#0a0a12;height:100vh;overflow-y:auto;white-space:pre-wrap;">${encodeURIComponent(content)}</pre>`;
+        } else if (currentBackgroundType === 'video') {
+            html = `<video src="${content}" autoplay loop muted playsinline style="width:100%;height:100%;object-fit:cover;"></video>`;
+        } else {
+            win.location.href = content;
+            return;
+        }
+        win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title> PiP</title><style>*{margin:0;padding:0;box-sizing:border-box;}body{width:100vw;height:100vh;background:#0a0a12;overflow:hidden;}</style></head><body>${html}</body></html>`);
+        win.document.close();
+        const indicator = document.getElementById('pipIndicator');
+        indicator.classList.add('show');
+        setTimeout(() => indicator.classList.remove('show'), 3000);
+    } else {
+        alert('Popup blocked. Please allow popups for this site.');
+    }
+}
+
+// ─── CLEAR BACKGROUND ───
+function clearBackground() {
+    const body = document.body;
+    const container = document.getElementById('mainContainer');
+    const badge = document.getElementById('badge');
+
+    body.style.backgroundImage = 'none';
+    body.style.background = '#f5f5f7';
+    body.classList.remove('has-bg', 'light-bg', 'video-bg');
+    container.classList.remove('dark-glass');
+    container.style.background = '';
+
+    document.querySelector('video')?.remove();
+    document.querySelector('.pdf-viewer')?.remove();
+    document.querySelector('.html-iframe')?.remove();
+    document.querySelector('div[style*="position: fixed"]')?.remove();
+
+    currentBackground = null;
+    currentBackgroundType = null;
+
+    badge.textContent = '⚾ MLB';
+    localStorage.removeItem('iCalBackground');
+    localStorage.removeItem('iCalPdf');
+    localStorage.removeItem('iCalVideo');
+    setTheme('light');
+}
+
+// ─── ICS GENERATOR ───
+function generateICS() {
+    const date = document.getElementById('eventDate').value;
+    const time = document.getElementById('eventTime').value;
+    const title = document.getElementById('eventTitle').value || 'Event';
+    const location = document.getElementById('eventLocation').value || '';
+
+    const start = date.replace(/-/g, '') + 'T' + time.replace(/:/g, '') + '00';
+    const hour = parseInt(time.split(':')[0]) + 1;
+    const endTime = hour.toString().padStart(2, '0') + time.slice(2).replace(/:/g, '');
+    const end = date.replace(/-/g, '') + 'T' + endTime + '00';
+
+    return `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-// iCal//EN
+CALSCALE:GREGORIAN
+BEGIN:VEVENT
+SUMMARY:${title}
+DTSTART:${start}
+DTEND:${end}
+LOCATION:${location}
+END:VEVENT
+END:VCALENDAR`;
+}
+
+function downloadICS() {
+    const ics = generateICS();
+    const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'event.ics';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+    setTimeout(() => {
+        if (confirm('📅 Download complete! Open in Calendar app?')) {
+            window.location.href = url;
+        }
+    }, 500);
+}
+
+function openWithApplescript() {
+    const ics = generateICS();
+    const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    window.location.href = url;
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+// ─── LOAD SAVED ───
+const savedTheme = localStorage.getItem('iCalTheme');
+if (savedTheme === 'image') {
+    const savedBg = localStorage.getItem('iCalBackground');
+    const savedPdf = localStorage.getItem('iCalPdf');
+    const savedVideo = localStorage.getItem('iCalVideo');
+    if (savedBg) {
+        const body = document.body;
+        body.style.backgroundImage = `url(${savedBg})`;
+        body.style.backgroundSize = 'cover';
+        body.style.backgroundPosition = 'center';
+        body.classList.add('has-bg');
+        currentBackground = savedBg;
+        currentBackgroundType = 'image';
+    } else if (savedPdf) {
+        currentBackground = savedPdf;
+        currentBackgroundType = 'pdf';
+    } else if (savedVideo) {
+        currentBackground = savedVideo;
+        currentBackgroundType = 'video';
+    }
+} else {
+    setTheme(savedTheme || 'light');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,1054 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>fly brain · cipher (2D)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #030305;
+      --ink: #f1efe8;
+      --blue: #7db3ff;
+      --yel: #d8f04a;
+      --pink: #f08cc8;
+      --mut: #7d7d88;
+      box-sizing: border-box;
+    }
+    html {
+      background: var(--bg);
+      height: 100%;
+      overflow: hidden;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+    }
+    #gl {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+      cursor: grab;
+      background: #030305;
+    }
+    #gl:active {
+      cursor: grabbing;
+    }
+    .serif {
+      font-family: 'Instrument Serif', Georgia, serif;
+      font-weight: 400;
+    }
+    .mono {
+      font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+    }
+    .ui {
+      position: fixed;
+      pointer-events: none;
+      margin: 0;
+      z-index: 10;
+    }
+    #caps {
+      left: 16px;
+      right: 16px;
+      top: calc(env(safe-area-inset-top, 0px) + 12vh);
+      pointer-events: none;
+    }
+    .cap {
+      position: absolute;
+      left: 0;
+      top: 0;
+      opacity: 0;
+      transition: opacity 0.6s;
+      font-size: clamp(26px, 7.4vw, 46px);
+      line-height: 1.1;
+      font-family: 'Instrument Serif', Georgia, serif;
+      font-weight: 400;
+    }
+    .cap.on {
+      opacity: 1;
+    }
+    .cap .b {
+      color: var(--blue);
+    }
+    .cap .y {
+      color: var(--yel);
+      font-style: italic;
+    }
+    .cap .p {
+      color: var(--pink);
+      font-style: italic;
+      font-size: 1.5em;
+      display: block;
+      margin-top: 0.2em;
+    }
+    .cap .m {
+      display: block;
+      margin-top: 0.9em;
+      font-size: 12px;
+      line-height: 1.7;
+      color: var(--ink);
+    }
+    .cap .d {
+      color: var(--mut);
+    }
+    .lab {
+      font-size: 11px;
+      white-space: nowrap;
+      opacity: 0;
+      transition: opacity 0.5s;
+      transform: translate(-100%, -50%);
+      text-align: right;
+      line-height: 1.4;
+      pointer-events: none;
+      z-index: 20;
+    }
+    .lab.on {
+      opacity: 1;
+    }
+    #l1 {
+      color: var(--blue);
+    }
+    #l2 {
+      color: var(--yel);
+    }
+    #l2 span {
+      color: var(--ink);
+    }
+    #ctr {
+      right: 16px;
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 104px);
+      font-size: 11px;
+      opacity: 0;
+      transition: opacity 0.5s;
+      z-index: 20;
+    }
+    #ctr.on {
+      opacity: 1;
+    }
+    #hint {
+      left: 0;
+      right: 0;
+      text-align: center;
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 70px);
+      font-size: 11px;
+      color: var(--mut);
+      transition: opacity 0.5s;
+      z-index: 20;
+    }
+    #cred {
+      right: 16px;
+      top: calc(env(safe-area-inset-top, 0px) + 12px);
+      font-size: 10px;
+      color: var(--mut);
+      z-index: 20;
+    }
+    #bar {
+      position: fixed;
+      left: 12px;
+      right: 12px;
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+      align-items: center;
+      z-index: 30;
+      pointer-events: auto;
+    }
+    #bar button {
+      font: 11px 'JetBrains Mono', ui-monospace, Menlo, monospace;
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 999px;
+      padding: 8px 13px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #bar button:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+    #bar button:focus-visible {
+      outline: 2px solid var(--blue);
+    }
+    #bar i {
+      width: 1px;
+      height: 18px;
+      background: rgba(255, 255, 255, 0.2);
+      margin: 0 4px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gl"></canvas>
+  <div id="bar">
+    <button data-v="all">whole fly</button>
+    <button data-v="brain">brain</button>
+    <button data-v="neck">neck</button>
+    <button data-v="wings">wings</button>
+    <i></i>
+    <button id="pp">pause</button>
+    <button id="rp">replay</button>
+    <button id="sl">slow-mo</button>
+  </div>
+  <p class="ui mono" id="cred">fly brain · 2D demo</p>
+  <div class="ui serif" id="caps">
+    <div class="cap on">a fly brain,<br>drawn from its wiring.</div>
+    <div class="cap"><span class="b" id="c1"></span></div>
+    <div class="cap"><span class="y">wing motor neurons</span><br>fire first.</div>
+    <div class="cap"><span id="c4"></span><span class="p">i sing.</span></div>
+    <div class="cap">nobody wrote that song.<br><span class="y" id="c5"></span><span class="m mono">the picture is drawn. the spikes are not.<br>feed me: your_run.json</span></div>
+  </div>
+  <p class="ui mono lab" id="l1"></p>
+  <p class="ui mono lab" id="l2"></p>
+  <p class="ui mono" id="ctr"></p>
+  <p class="ui mono" id="hint">drag to orbit · pinch to zoom · two fingers to pan</p>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script>
+    /* ---- REPLACE WITH REAL DATA ---- (or call window.setRun({...})) */
+    const RUN = { stimulus: 'pIP10', nStim: 2, firstWingSpikeMs: 11.2, wingHz: 12, totalMs: 71 };
+
+    const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const E = id => document.getElementById(id);
+    function rng(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296 } }
+    const R = rng(7), g = () => R() + R() + R() - 1.5;
+
+    /* ---------- 2D canvas rendering ---------- */
+    const canvas = E('gl');
+    const ctx = canvas.getContext('2d');
+    let width, height, dpr;
+
+    function resize() {
+      dpr = Math.min(devicePixelRatio || 1, 2);
+      width = innerWidth;
+      height = innerHeight;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      canvas.style.width = width + 'px';
+      canvas.style.height = height + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    resize();
+    addEventListener('resize', resize);
+
+    /* ---------- fixed 2D layout data ---------- */
+    // We'll build a 2D "neural sheet" with neurons, connections, glows.
+    // Camera controls will pan/zoom a virtual 2D world.
+
+    // World coordinates: x [-5..5], y [-4..4]
+    // We'll map through a simple transform.
+
+    let camera2D = { x: 0, y: 0, zoom: 1.0 };
+    const defaultCam = { x: 0, y: 0, zoom: 1.0 };
+    const views = {
+      all: { x: 0, y: 0, zoom: 1.0 },
+      brain: { x: 0, y: 1.8, zoom: 2.2 },
+      neck: { x: 0, y: -0.2, zoom: 1.6 },
+      wings: { x: 0, y: -2.2, zoom: 2.0 },
+    };
+
+    // Neuron data: 48 neurons, first 2 are stimulated (blue)
+    const neurons = [];
+    for (let i = 0; i < 48; i++) {
+      const isStim = i < 2;
+      const angle = (i / 48) * Math.PI * 2 + R() * 0.5;
+      const radius = isStim ? 0.7 : 1.6 + R() * 1.8;
+      const x = Math.cos(angle) * radius * 0.9 + (isStim ? -0.3 : 0);
+      const y = Math.sin(angle) * radius * 0.7 + (isStim ? 0.6 : 0);
+      // slight vertical offset for depth illusion
+      const z = R() * 0.5 - 0.25;
+      const hue = isStim ? 212 : [190, 205, 165, 45, 28, 265, 330][i % 7];
+      const sat = isStim ? 1 : 0.85;
+      const light = isStim ? 0.74 : 0.66;
+      neurons.push({
+        x, y, z,
+        isStim,
+        color: `hsl(${hue}, ${sat * 100}%, ${light * 100}%)`,
+        colorRaw: { h: hue, s: sat, l: light },
+        // activation timing (fake)
+        delay: isStim ? 0 : 1.5 + R() * 3.5,
+        dur: 8 + R() * 2.5,
+        // random phase for idle pulsing
+        phase: R() * Math.PI * 2,
+      });
+    }
+
+    // Connections (edges): generate some between nearby neurons
+    const edges = [];
+    for (let i = 0; i < neurons.length; i++) {
+      for (let j = i + 1; j < neurons.length; j++) {
+        const a = neurons[i], b = neurons[j];
+        const dx = a.x - b.x, dy = a.y - b.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 1.1 && R() < 0.35) {
+          edges.push({ i, j, dist });
+        }
+      }
+    }
+    // ensure stimulated pair connected
+    edges.push({ i: 0, j: 1, dist: Math.hypot(neurons[0].x - neurons[1].x, neurons[0].y - neurons[1].y) });
+
+    // Wing motor neurons (cluster at bottom)
+    const wingNeurons = [];
+    for (let i = 0; i < 46; i++) {
+      const angle = R() * Math.PI * 2;
+      const r = R() * 1.2;
+      wingNeurons.push({
+        x: Math.cos(angle) * r * 0.8,
+        y: -2.4 + Math.sin(angle) * r * 0.5,
+        z: R() * 0.3,
+        phase: R() * Math.PI * 2,
+      });
+    }
+
+    // Background particles (stars / haze)
+    const bgParticles = [];
+    for (let i = 0; i < 1800; i++) {
+      bgParticles.push({
+        x: (R() - 0.5) * 20,
+        y: (R() - 0.5) * 16,
+        z: R() * 10,
+        size: 0.02 + R() * 0.06,
+        color: ['#ff3b3b', '#4d7cff', '#ff9a2e', '#a45cff'][(R() * 4) | 0],
+        phase: R() * Math.PI * 2,
+        freq: 0.3 + R() * 0.8,
+      });
+    }
+
+    // Glow particles that drift
+    const glowParticles = [];
+    for (let i = 0; i < 400; i++) {
+      glowParticles.push({
+        x: (R() - 0.5) * 12,
+        y: (R() - 0.5) * 10,
+        z: R() * 5,
+        size: 0.05 + R() * 0.15,
+        color: ['#ff3b3b', '#4d7cff', '#ff9a2e', '#a45cff'][(R() * 4) | 0],
+        phase: R() * Math.PI * 2,
+        freq: 0.4 + R() * 1.2,
+      });
+    }
+
+    /* ---------- animation state (GSAP timeline) ---------- */
+    const st = { beam: 0, sim: 0, az: 0, el: 0, dist: 1 };
+    const tl = gsap.timeline({ repeat: -1, repeatDelay: 4 });
+    tl.fromTo(st, { beam: 0, sim: 0 }, { beam: 1, duration: 0.5, ease: 'power1.out' }, 1.1)
+      .to(st, { sim: 1, duration: 6, ease: 'none' }, 1.6)
+      .to(st, { beam: 0, duration: 0.5, ease: 'power1.in' }, 5);
+
+    /* ---------- interaction (pan/zoom) ---------- */
+    let isDragging = false, lastX = 0, lastY = 0, spin = true;
+    let lastPinchDist = 0, lastPinchCenter = null;
+    const pointers = new Map();
+
+    canvas.addEventListener('pointerdown', e => {
+      canvas.setPointerCapture(e.pointerId);
+      pointers.set(e.pointerId, [e.clientX, e.clientY]);
+      isDragging = true;
+      spin = false;
+      stopCamTweens();
+      E('hint').style.opacity = 0;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      if (pointers.size === 2) {
+        const [a, b] = [...pointers.values()];
+        lastPinchDist = Math.hypot(a[0] - b[0], a[1] - b[1]);
+        lastPinchCenter = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      }
+    });
+
+    canvas.addEventListener('pointermove', e => {
+      const p = pointers.get(e.pointerId);
+      if (!p) return;
+      const dx = e.clientX - p[0];
+      const dy = e.clientY - p[1];
+      pointers.set(e.pointerId, [e.clientX, e.clientY]);
+
+      if (pointers.size === 1) {
+        if (e.shiftKey || e.buttons === 2) {
+          // pan
+          camera2D.x -= dx / camera2D.zoom * 0.01;
+          camera2D.y -= dy / camera2D.zoom * 0.01;
+        } else {
+          // orbit-ish: rotate the 2D view? Since 2D, we can tilt/rotate the whole scene
+          // We'll implement a pseudo-3D rotation by rotating the coordinate system.
+          // Actually for 2D modal, simpler: just pan. But "orbit" hint – we'll do a subtle rotate.
+          // To keep it simple and robust, we'll rotate the scene around center.
+          // Use az as rotation angle (in radians).
+          st.az -= dx * 0.006;
+          st.el = Math.max(-0.8, Math.min(0.8, st.el + dy * 0.006));
+        }
+      } else if (pointers.size === 2) {
+        const [a, b] = [...pointers.values()];
+        const dist = Math.hypot(a[0] - b[0], a[1] - b[1]);
+        const center = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+        if (lastPinchDist) {
+          const scale = dist / lastPinchDist;
+          camera2D.zoom = Math.max(0.3, Math.min(5, camera2D.zoom * scale));
+        }
+        if (lastPinchCenter) {
+          const cdx = center[0] - lastPinchCenter[0];
+          const cdy = center[1] - lastPinchCenter[1];
+          camera2D.x -= cdx / camera2D.zoom * 0.01;
+          camera2D.y -= cdy / camera2D.zoom * 0.01;
+        }
+        lastPinchDist = dist;
+        lastPinchCenter = center;
+      }
+    });
+
+    const up = e => {
+      pointers.delete(e.pointerId);
+      if (pointers.size < 2) {
+        lastPinchDist = 0;
+        lastPinchCenter = null;
+      }
+      if (pointers.size === 0) isDragging = false;
+    };
+    canvas.addEventListener('pointerup', up);
+    canvas.addEventListener('pointercancel', up);
+    canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+    canvas.addEventListener('wheel', e => {
+      e.preventDefault();
+      spin = false;
+      stopCamTweens();
+      E('hint').style.opacity = 0;
+      const delta = e.deltaY > 0 ? 0.95 : 1.05;
+      camera2D.zoom = Math.max(0.3, Math.min(5, camera2D.zoom * delta));
+    }, { passive: false });
+
+    function stopCamTweens() {
+      gsap.killTweensOf(camera2D);
+      gsap.killTweensOf(st);
+    }
+
+    // view buttons
+    document.querySelectorAll('[data-v]').forEach(b => {
+      b.onclick = () => {
+        spin = false;
+        stopCamTweens();
+        const v = views[b.dataset.v];
+        gsap.to(camera2D, { ...v, duration: 1.2, ease: 'power2.inOut' });
+        gsap.to(st, { az: 0, el: 0, duration: 1.2, ease: 'power2.inOut' });
+      };
+    });
+
+    E('pp').onclick = e => {
+      tl.paused(!tl.paused());
+      e.target.textContent = tl.paused() ? 'play' : 'pause';
+    };
+    E('rp').onclick = () => tl.restart();
+    E('sl').onclick = e => {
+      const s = tl.timeScale() === 1;
+      tl.timeScale(s ? 0.2 : 1);
+      e.target.textContent = s ? 'normal' : 'slow-mo';
+    };
+
+    /* ---------- labels ---------- */
+    const caps = [...document.querySelectorAll('.cap')];
+    function labels() {
+      E('c1').textContent = `light on ${RUN.nStim} of them.`;
+      E('c4').textContent = `the wings answer at ${RUN.wingHz} Hz.`;
+      E('c5').textContent = `${RUN.nStim} neurons, a real run.`;
+      E('l1').textContent = `${RUN.stimulus} · ${RUN.nStim} neurons`;
+      E('l2').innerHTML = `wing motor neurons<br><span>first spike ${RUN.firstWingSpikeMs} ms</span>`;
+    }
+    window.setRun = o => { Object.assign(RUN, o); labels(); };
+    labels();
+
+    // project world coords to screen
+    function project(x, y, z = 0) {
+      // simple rotation based on st.az, st.el
+      const cosAz = Math.cos(st.az || 0);
+      const sinAz = Math.sin(st.az || 0);
+      const cosEl = Math.cos(st.el || 0);
+      const sinEl = Math.sin(st.el || 0);
+      // rotate around Y (az)
+      let rx = x * cosAz - z * sinAz;
+      let rz = x * sinAz + z * cosAz;
+      // rotate around X (el)
+      let ry = y * cosEl - rz * sinEl;
+      rz = y * sinEl + rz * cosEl;
+
+      // apply camera zoom and pan
+      const scale = 100 * camera2D.zoom;
+      const cx = width / 2 + camera2D.x * 80;
+      const cy = height / 2 + camera2D.y * 80;
+      return {
+        x: cx + rx * scale,
+        y: cy - ry * scale,
+        z: rz,
+        scale
+      };
+    }
+
+    // helper to place labels
+    const V = new THREE.Vector3();
+    function place(el, x, y, z, on) {
+      const p = project(x, y, z);
+      let px = p.x - 8;
+      px = Math.max(px, el.offsetWidth + 8);
+      el.style.left = px + 'px';
+      el.style.top = (p.y - 20) + 'px';
+      el.classList.toggle('on', on && p.z < 1.5);
+    }
+
+    /* ---------- render loop ---------- */
+    let lastTime = 0;
+    function frame(now) {
+      requestAnimationFrame(frame);
+      const t = now / 1000;
+      const bm = st.sim * RUN.totalMs;
+      const wingActive = bm >= RUN.firstWingSpikeMs;
+
+      // update camera rotation if spin
+      if (spin) {
+        st.az += 0.0025;
+      }
+
+      // clear
+      ctx.clearRect(0, 0, width, height);
+
+      // draw background gradient
+      const grad = ctx.createRadialGradient(width * 0.5, height * 0.5, 50, width * 0.5, height * 0.5, Math.max(width, height) * 0.8);
+      grad.addColorStop(0, '#0a0a12');
+      grad.addColorStop(1, '#030305');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, width, height);
+
+      // draw starfield / bg particles
+      ctx.globalCompositeOperation = 'lighter';
+      for (const p of bgParticles) {
+        const pp = project(p.x, p.y, p.z);
+        const alpha = 0.15 + 0.1 * Math.sin(t * p.freq + p.phase);
+        ctx.beginPath();
+        ctx.arc(pp.x, pp.y, p.size * pp.scale * 0.5, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = alpha;
+        ctx.fill();
+      }
+      // glow particles
+      for (const p of glowParticles) {
+        const pp = project(p.x, p.y, p.z);
+        const alpha = 0.2 + 0.15 * Math.sin(t * p.freq + p.phase);
+        ctx.beginPath();
+        ctx.arc(pp.x, pp.y, p.size * pp.scale * 0.8, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = alpha * 0.6;
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+
+      // draw edges between neurons
+      ctx.lineWidth = 1.2;
+      ctx.globalCompositeOperation = 'lighter';
+      for (const e of edges) {
+        const a = neurons[e.i], b = neurons[e.j];
+        const pa = project(a.x, a.y, a.z);
+        const pb = project(b.x, b.y, b.z);
+        const actA = getActivation(a, bm, wingActive, t);
+        const actB = getActivation(b, bm, wingActive, t);
+        const act = Math.max(actA, actB);
+        const alpha = 0.08 + act * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(pa.x, pa.y);
+        ctx.lineTo(pb.x, pb.y);
+        ctx.strokeStyle = a.color;
+        ctx.globalAlpha = alpha;
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+
+      // draw neurons
+      for (const n of neurons) {
+        const p = project(n.x, n.y, n.z);
+        const act = getActivation(n, bm, wingActive, t);
+        const size = 3 + act * 6;
+        const alpha = 0.4 + act * 0.6;
+
+        // glow
+        const glowSize = size * 3.5;
+        const gGrad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, glowSize);
+        gGrad.addColorStop(0, n.color);
+        gGrad.addColorStop(1, 'transparent');
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, glowSize, 0, Math.PI * 2);
+        ctx.fillStyle = gGrad;
+        ctx.globalAlpha = 0.15 + act * 0.35;
+        ctx.fill();
+
+        // core
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
+        ctx.fillStyle = n.color;
+        ctx.globalAlpha = alpha;
+        ctx.fill();
+
+        // white highlight
+        ctx.beginPath();
+        ctx.arc(p.x - size * 0.2, p.y - size * 0.2, size * 0.4, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.globalAlpha = alpha * 0.5;
+        ctx.fill();
+      }
+
+      // wing motor neurons (cluster)
+      for (const w of wingNeurons) {
+        const p = project(w.x, w.y, w.z);
+        const pulse = wingActive ? (0.8 + 0.2 * Math.sin(t * RUN.wingHz * 6.2832)) : 0.2;
+        const alpha = wingActive ? 0.8 * pulse : 0.12;
+        const size = 2 + (wingActive ? 3 * pulse : 0);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
+        ctx.fillStyle = '#d8f04a';
+        ctx.globalAlpha = alpha;
+        ctx.fill();
+        // glow
+        const gGrad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, size * 3);
+        gGrad.addColorStop(0, '#d8f04a');
+        gGrad.addColorStop(1, 'transparent');
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, size * 3, 0, Math.PI * 2);
+        ctx.fillStyle = gGrad;
+        ctx.globalAlpha = alpha * 0.4;
+        ctx.fill();
+      }
+
+      // beam (stimulus) - a vertical glow at stimulated pair position
+      if (st.beam > 0.01) {
+        const n1 = neurons[0], n2 = neurons[1];
+        const p1 = project(n1.x, n1.y, n1.z);
+        const p2 = project(n2.x, n2.y, n2.z);
+        const midX = (p1.x + p2.x) / 2;
+        const midY = (p1.y + p2.y) / 2;
+        const beamGrad = ctx.createRadialGradient(midX, midY, 5, midX, midY, 80 * st.beam);
+        beamGrad.addColorStop(0, '#7db3ff');
+        beamGrad.addColorStop(1, 'transparent');
+        ctx.beginPath();
+        ctx.arc(midX, midY, 80 * st.beam, 0, Math.PI * 2);
+        ctx.fillStyle = beamGrad;
+        ctx.globalAlpha = 0.3 * st.beam;
+        ctx.fill();
+      }
+
+      // ring pulse when wing spikes start
+      const q = (bm - RUN.firstWingSpikeMs) / 9;
+      if (q > 0 && q < 1) {
+        const ringAlpha = (1 - q) * 0.6;
+        const ringRad = 20 + q * 120;
+        const center = project(0, -2.4, 0);
+        ctx.beginPath();
+        ctx.arc(center.x, center.y, ringRad, 0, Math.PI * 2);
+        ctx.strokeStyle = '#e8ff7a';
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = ringAlpha;
+        ctx.stroke();
+      }
+
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+
+      // update captions
+      const tt = tl.time();
+      const ci = tt < 1.1 ? 0 : tt < 2.5 ? 1 : tt < 3.8 ? 2 : tt < tl.duration() - 0.01 ? 3 : 4;
+      caps.forEach((c, i) => c.classList.toggle('on', i === ci));
+
+      // place labels
+      place(E('l1'), -0.7, 1.85, 0, st.beam > 0.6);
+      place(E('l2'), -0.2, -2.4, 0, wingActive);
+      const ctr = E('ctr');
+      ctr.textContent = `${Math.round(bm)} MS OF BRAIN TIME`;
+      ctr.classList.toggle('on', bm > 0.5);
+    }
+
+    function getActivation(n, bm, wingActive, t) {
+      const u = (bm - n.delay) / n.dur;
+      if (n.isStim) {
+        // stimulated neurons always somewhat active
+        return 0.5 + 0.3 * Math.sin(t * 3 + n.phase);
+      }
+      if (u > 0 && u < 1) return 0.9;
+      if (u >= 1) {
+        const base = 0.3;
+        return base + (wingActive ? 0.4 * Math.sin(t * RUN.wingHz * 6.2832) : 0.1);
+      }
+      return 0.05 + 0.05 * Math.sin(t * 1.5 + n.phase);
+    }
+
+    // start
+    requestAnimationFrame(frame);
+
+    // initial camera tween for intro
+    gsap.fromTo(camera2D, { zoom: 0.5 }, { zoom: 1.0, duration: 1.8, ease: 'power2.out' });
+  </script>
+<style>
+#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:5}
+#cards{position:fixed;inset:0;pointer-events:none;z-index:40}
+.card{position:absolute;width:min(310px,calc(100vw - 24px));pointer-events:auto;border-radius:14px;background:linear-gradient(135deg,rgba(255,255,255,.11),rgba(255,255,255,.03));-webkit-backdrop-filter:blur(16px) saturate(140%);backdrop-filter:blur(16px) saturate(140%);border:1px solid rgba(255,255,255,.16);box-shadow:0 12px 40px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.2);font:11px/1.55 'JetBrains Mono',ui-monospace,Menlo,monospace;color:var(--ink);animation:pop .35s ease-out}
+@keyframes pop{from{opacity:0;transform:translateY(8px) scale(.97)}}
+.card header{display:flex;gap:8px;align-items:center;padding:9px 12px;cursor:grab;border-bottom:1px solid rgba(255,255,255,.14);touch-action:none;user-select:none;-webkit-user-select:none}
+.card header:active{cursor:grabbing}
+.card header b{flex:1;color:var(--yel);font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card header u{text-decoration:none;font-size:9px;color:var(--blue);border:1px solid rgba(125,179,255,.4);border-radius:99px;padding:0 7px}
+.card .x{cursor:pointer;color:var(--mut);background:none;border:0;font:inherit;padding:0 2px}
+.card .x:hover{color:var(--ink)}
+.card .intel{padding:7px 12px;color:var(--pink);font-size:10px;border-bottom:1px solid rgba(255,255,255,.1)}
+.card .body{max-height:230px;overflow:auto;padding:2px 12px 8px;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.25) transparent}
+.sec{padding:8px 0;border-bottom:1px solid rgba(255,255,255,.1)}
+.sec:last-child{border:0}
+.sec h4{margin:0 0 4px;font-weight:400;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--blue)}
+.sub{margin:4px 0 2px 8px;padding-left:8px;border-left:1px solid rgba(255,255,255,.14)}
+.sub h5{margin:0;font-weight:400;color:var(--mut)}
+.row{display:flex;justify-content:space-between;gap:10px}
+.row span:first-child{color:var(--mut);flex:none}
+.row span:last-child{text-align:right;word-break:break-word}
+#drop{position:fixed;inset:14px;z-index:60;border:1.5px dashed rgba(216,240,74,.7);border-radius:22px;background:rgba(216,240,74,.05);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;font:italic 34px 'Instrument Serif',Georgia,serif;color:var(--yel);pointer-events:none}
+#drop.on{display:flex}
+.txt{white-space:pre-wrap;word-break:break-word;padding:2px 0}
+.txt .mdh{color:var(--yel);margin:6px 0 2px}
+.txt .li{padding-left:4px}
+.txt .gap{height:6px}
+.txt em{color:var(--mut)}
+.txt code{color:var(--pink)}
+.txt .code{margin:4px 0;padding:6px 8px;background:rgba(0,0,0,.35);border-radius:8px;white-space:pre-wrap;color:var(--pink)}
+</style>
+<canvas id="fx"></canvas>
+<div id="cards"></div>
+<div id="drop">drop your files here</div>
+<input type="file" id="pick" accept=".json,.jsonl,.ndjson,.csv,.tsv,.yaml,.yml,.toml,.md,.markdown,.txt,.log,.html,.htm,.rtf,.pdf,text/*,application/json,application/pdf" multiple hidden>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+  /* ================= glass json cards ================= */
+  const RUNKEYS = ['stimulus', 'nStim', 'firstWingSpikeMs', 'wingHz', 'totalMs'];
+  const isP = v => v === null || typeof v !== 'object';
+  function rows(o, d) {
+    let h = '';
+    for (const [k, v] of Object.entries(o)) {
+      if (isP(v)) { h += `<div class="row"><span>${esc(k)}</span><span>${esc(v)}</span></div>`; continue; }
+      const A = Array.isArray(v), n = A ? v.length : Object.keys(v).length;
+      if (d >= 2) h += `<div class="row"><span>${esc(k)}</span><span>${A ? '[' + n + ']' : '{' + n + '}'}</span></div>`;
+      else if (A && v.every(isP)) h += `<div class="row"><span>${esc(k)} [${n}]</span><span>${esc(v.slice(0, 6).join(', '))}${n > 6 ? ' …' : ''}</span></div>`;
+      else h += `<div class="sub"><h5>${esc(k)}${A ? ' [' + n + ']' : ''}</h5>${rows(A ? Object.fromEntries(v.slice(0, 5).map((x, i) => ['#' + i, x])) : v, d + 1)}${A && n > 5 ? `<div class="row"><span>… +${n - 5} more</span></div>` : ''}</div>`;
+    }
+    return h;
+  }
+  function sections(data) {
+    if (isP(data)) return `<div class="sec">${esc(data)}</div>`;
+    if (Array.isArray(data)) data = { items: data };
+    const sc = {}, out = [];
+    for (const [k, v] of Object.entries(data)) isP(v) ? sc[k] = v : out.push([k, v]);
+    let h = Object.keys(sc).length ? `<div class="sec"><h4>root</h4>${rows(sc, 0)}</div>` : '';
+    for (const [k, v] of out) h += `<div class="sec"><h4>${esc(k)}</h4>${rows(Array.isArray(v) ? Object.fromEntries(v.slice(0, 8).map((x, i) => ['#' + i, x])) : v, 1)}${Array.isArray(v) && v.length > 8 ? `<div class="row"><span>… +${v.length - 8} more</span></div>` : ''}</div>`;
+    return h;
+  }
+  function scramble(el, txt) {
+    const G = '01ABCDEF#%$Ξ'; let i = 0;
+    const id = setInterval(() => {
+      el.textContent = txt.split('').map((c, j) => j < i ? c : G[Math.random() * G.length | 0]).join('');
+      if ((i += 1.2) > txt.length) { el.textContent = txt; clearInterval(id); }
+    }, 35);
+  }
+  let zc = 1, nCards = 0;
+  function addCard(name, data, bytes, o = {}) {
+    const root = o.feed || (data && !Array.isArray(data) && typeof data === 'object') ? (data.run && typeof data.run === 'object' ? data.run : data) : {};
+    const hit = RUNKEYS.filter(k => k in root);
+    if (hit.length) { const o = {}; hit.forEach(k => o[k] = root[k]); window.setRun(o); }
+    const keys = isP(data) ? 0 : Object.keys(data).length;
+    const c = document.createElement('div'); c.className = 'card';
+    c.innerHTML = `<header><b></b><u>${o.kind || (Array.isArray(data) ? 'array' : typeof data)}</u><button class="x" aria-label="close">✕</button></header>
+      <div class="intel">${o.intel || keys + ' keys'} · ${(bytes / 1024).toFixed(1)} kB${hit.length ? ` · ↳ fed to brain: ${hit.join(', ')}` : ' · no brain fields found'}</div>
+      <div class="body">${o.html || sections(data)}</div>`;
+    const k = nCards++ % 6, narrow = innerWidth < 700;
+    c.style.left = (narrow ? 12 + k * 8 : Math.max(12, innerWidth - 340 - k * 22)) + 'px';
+    c.style.top = (narrow ? 60 + k * 26 : 56 + k * 30) + 'px';
+    c.style.zIndex = ++zc;
+    $('cards').appendChild(c);
+    scramble(c.querySelector('b'), name);
+    c.querySelector('.x').onclick = () => c.remove();
+    const h = c.querySelector('header'); let ox, oy, drag = false;
+    h.addEventListener('pointerdown', e => { if (e.target.closest('.x')) return; drag = true; h.setPointerCapture(e.pointerId); ox = e.clientX - c.offsetLeft; oy = e.clientY - c.offsetTop; c.style.zIndex = ++zc; });
+    h.addEventListener('pointermove', e => { if (!drag) return; c.style.left = Math.max(0, Math.min(innerWidth - 60, e.clientX - ox)) + 'px'; c.style.top = Math.max(0, Math.min(innerHeight - 40, e.clientY - oy)) + 'px'; });
+    h.addEventListener('pointerup', () => drag = false);
+    c.addEventListener('pointerdown', () => c.style.zIndex = ++zc);
+  }
+  /* ================= universal reader ================= */
+  const CDN = 'https://cdnjs.cloudflare.com/ajax/libs/';
+  const LIBS = { yaml: CDN + 'js-yaml/4.1.0/js-yaml.min.js', pdf: CDN + 'pdf.js/3.11.174/pdf.min.js', pdfw: CDN + 'pdf.js/3.11.174/pdf.worker.min.js' };
+  const loaded = {};
+  const loadScript = src => loaded[src] || (loaded[src] = new Promise((ok, no) => {
+    const s = document.createElement('script'); s.src = src; s.onload = ok;
+    s.onerror = () => no(new Error('could not load ' + src.split('/')[5])); document.head.appendChild(s);
+  }));
+  const num = v => (typeof v === 'string' && v.trim() !== '' && isFinite(v)) ? +v : v;
+  const scal = s => {
+    s = s.trim();
+    if (/^(true|false)$/i.test(s)) return s.toLowerCase() === 'true';
+    if (/^(null|~)$/i.test(s)) return null;
+    if (/^(".*"|'.*')$/.test(s)) return s.slice(1, -1);
+    return num(s);
+  };
+  // pull known run fields out of any prose ("wingHz: 18", "totalMs = 90")
+  const scan = t => {
+    const o = {};
+    for (const k of RUNKEYS) { const m = t.match(new RegExp('["\']?\\b' + k + '["\']?\\s*[:=]\\s*["\']?([^\\s,;"\'}\\]]+)', 'i')); if (m) o[k] = num(m[1]); }
+    return o;
+  };
+
+  function csv(text, d) {
+    const rows = []; let row = [], f = '', q = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (q) { if (ch === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += ch; }
+      else if (ch === '"') q = true;
+      else if (ch === d) { row.push(f); f = ''; }
+      else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(f); f = ''; rows.push(row); row = []; }
+      else f += ch;
+    }
+    if (f !== '' || row.length) { row.push(f); rows.push(row); }
+    return rows.filter(r => r.some(x => x !== ''));
+  }
+
+  function toml(text) {
+    const root = {}; let cur = root;
+    const parts = s => s.split('.').map(x => x.trim().replace(/^["']|["']$/g, ''));
+    const walk = (o, ks) => { for (const k of ks) { o = o[k] ??= {}; if (Array.isArray(o)) o = o[o.length - 1]; } return o; };
+    const nostr = s => { let q = '', out = ''; for (const ch of s) { if (q) { if (ch === q) q = ''; out += ch === q ? '' : ' '; } else if (ch === '"' || ch === "'") { q = ch; out += ' '; } else out += ch; } return out; };
+    const stripC = s => { let q = ''; for (let i = 0; i < s.length; i++) { const ch = s[i]; if (q) { if (ch === q) q = ''; } else if (ch === '"' || ch === "'") q = ch; else if (ch === '#') return s.slice(0, i); } return s; };
+    const split = s => { const out = []; let d = 0, q = '', b = ''; for (const ch of s) { if (q) { if (ch === q) q = ''; } else if (ch === '"' || ch === "'") q = ch; else if (ch === '[' || ch === '{') d++; else if (ch === ']' || ch === '}') d--; if (ch === ',' && !d && !q) { out.push(b); b = ''; } else b += ch; } if (b.trim()) out.push(b); return out; };
+    const val = s => {
+      s = s.trim();
+      if (s[0] === '[') return split(s.slice(1, s.lastIndexOf(']'))).map(val);
+      if (s[0] === '{') { const o = {}; split(s.slice(1, s.lastIndexOf('}'))).forEach(p => { const i = p.indexOf('='); if (i > 0) o[parts(p.slice(0, i))[0]] = val(p.slice(i + 1)); }); return o; }
+      return scal(s);
+    };
+    const depth = s => { const t = nostr(s); return (t.match(/[\[{]/g) || []).length - (t.match(/[\]}]/g) || []).length; };
+    const lines = text.split(/\r?\n/); let buf = '';
+    for (let raw of lines) {
+      let l = stripC(raw).trim(); if (!l && !buf) continue;
+      if (buf) { buf += ' ' + l; if (depth(buf) > 0) continue; l = buf; buf = ''; }
+      else if (/^[^\[=]+=/.test(l) && depth(l.slice(l.indexOf('=') + 1)) > 0) { buf = l; continue; }
+      let m;
+      if ((m = l.match(/^\[\[(.+)\]\]$/))) { const ks = parts(m[1]), p = walk(root, ks.slice(0, -1)); (p[ks[ks.length - 1]] ??= []).push(cur = {}); }
+      else if ((m = l.match(/^\[(.+)\]$/))) cur = walk(root, parts(m[1]));
+      else if ((m = l.match(/^([^=]+?)\s*=\s*(.*)$/))) { const ks = parts(m[1]); walk(cur, ks.slice(0, -1))[ks[ks.length - 1]] = val(m[2]); }
+    }
+    return root;
+  }
+
+  function rtf(s) {
+    let out = '', depth = 0, skip = -1, i = 0;
+    while (i < s.length) {
+      const ch = s[i];
+      if (ch === '{') { depth++; if (skip < 0 && /^\{(\\\*|\\(fonttbl|colortbl|stylesheet|info|pict|header|footer)\b)/.test(s.slice(i, i + 24))) skip = depth; i++; }
+      else if (ch === '}') { if (skip === depth) skip = -1; depth--; i++; }
+      else if (ch === '\\') {
+        const n = s[i + 1];
+        if (n === "'") { if (skip < 0) out += String.fromCharCode(parseInt(s.substr(i + 2, 2), 16)); i += 4; }
+        else if (/[\\{}]/.test(n)) { if (skip < 0) out += n; i += 2; }
+        else if (n === '~') { if (skip < 0) out += ' '; i += 2; }
+        else {
+          const m = s.slice(i + 1).match(/^([a-zA-Z]+)(-?\d+)?( ?)/);
+          if (!m) { i += 2; continue; }
+          i += 1 + m[0].length;
+          if (skip >= 0) continue;
+          if (m[1] === 'par' || m[1] === 'line') out += '\n';
+          else if (m[1] === 'tab') out += '\t';
+          else if (m[1] === 'u') { const c = +m[2]; out += String.fromCharCode(c < 0 ? c + 65536 : c); i++; }
+        }
+      }
+      else { if (skip < 0 && ch !== '\r' && ch !== '\n') out += ch; i++; }
+    }
+    return out.replace(/\n{3,}/g, '\n\n').trim();
+  }
+
+  function md(src) {
+    const out = []; let code = false;
+    const inl = l => esc(l).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/(^|[\s(])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>').replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1');
+    for (const raw of src.split(/\r?\n/).slice(0, 400)) {
+      if (/^```/.test(raw)) { out.push(code ? '</div>' : '<div class="code">'); code = !code; continue; }
+      if (code) { out.push(esc(raw) + '\n'); continue; }
+      let m;
+      if ((m = raw.match(/^#{1,6}\s+(.*)/))) out.push(`<div class="mdh">${inl(m[1])}</div>`);
+      else if ((m = raw.match(/^\s*(?:[-*+]|\d+\.)\s+(.*)/))) out.push(`<div class="li">• ${inl(m[1])}</div>`);
+      else if ((m = raw.match(/^>\s?(.*)/))) out.push(`<div class="li"><em>${inl(m[1])}</em></div>`);
+      else if (/^\s*([-*_]\s*){3,}$/.test(raw)) out.push('<div class="gap"></div>');
+      else if (!raw.trim()) out.push('<div class="gap"></div>');
+      else out.push(`<div>${inl(raw)}</div>`);
+    }
+    if (code) out.push('</div>');
+    return out.join('');
+  }
+
+  async function yaml(text) {
+    try { await loadScript(LIBS.yaml); const all = window.jsyaml.loadAll(text); return all.length > 1 ? all : all[0]; }
+    catch (e) { if (/could not load/.test(e.message)) { const o = {}; text.split(/\r?\n/).forEach(l => { const m = l.match(/^([\w.-]+):\s*(.+)$/); if (m) o[m[1]] = scal(m[2]); }); return o; } throw e; }
+  }
+
+  async function pdf(buf) {
+    await loadScript(LIBS.pdf);
+    const L = window.pdfjsLib;
+    if (!L.GlobalWorkerOptions.workerSrc) L.GlobalWorkerOptions.workerSrc = URL.createObjectURL(new Blob([await (await fetch(LIBS.pdfw)).text()], { type: 'text/javascript' }));
+    const doc = await L.getDocument({ data: new Uint8Array(buf) }).promise;
+    const N = Math.min(doc.numPages, 12); let text = '';
+    for (let p = 1; p <= N; p++) { const tc = await (await doc.getPage(p)).getTextContent(); text += tc.items.map(x => x.str + (x.hasEOL ? '\n' : ' ')).join('') + '\n\n'; }
+    const info = (await doc.getMetadata().catch(() => ({}))).info || {};
+    return { pages: doc.numPages, shown: N, title: info.Title, author: info.Author, text: text.replace(/[ \t]+\n/g, '\n').trim() };
+  }
+
+  function htmlText(src) {
+    const d = new DOMParser().parseFromString(src, 'text/html');
+    d.querySelectorAll('script,style,noscript,template').forEach(n => n.remove());
+    d.querySelectorAll('p,div,br,li,tr,h1,h2,h3,h4,h5,h6,section,article').forEach(n => n.insertAdjacentText('afterend', '\n'));
+    return { title: d.title, text: (d.body ? d.body.textContent : '').replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n\n').trim() };
+  }
+
+  const EXT = { json: 'json', jsonl: 'jsonl', ndjson: 'jsonl', csv: 'csv', tsv: 'csv', yaml: 'yaml', yml: 'yaml', toml: 'toml', md: 'md', markdown: 'md', txt: 'txt', text: 'txt', log: 'log', html: 'html', htm: 'html', rtf: 'rtf', pdf: 'pdf' };
+  const clip = (t, n) => t.length > n ? t.slice(0, n) + '\n…' : t;
+  const plain = t => `<div class="txt">${esc(t)}</div>`;
+  const doc = (meta, body) => { const m = {}; for (const [k, v] of Object.entries(meta)) if (v !== undefined && v !== '') m[k] = v; return (Object.keys(m).length ? `<div class="sec"><h4>info</h4>${rows(m, 0)}</div>` : '') + `<div class="sec">${body}</div>`; };
+  const wc = t => (t.match(/\S+/g) || []).length;
+
+  async function readFile(f) {
+    let kind = EXT[(f.name.split('.').pop() || '').toLowerCase()];
+    if (!kind && f.type === 'application/pdf') kind = 'pdf';
+    try {
+      if (kind === 'pdf') {
+        const p = await pdf(await f.arrayBuffer()), found = scan(p.text);
+        return addCard(f.name, found, f.size, { kind: 'pdf', feed: found, intel: `${p.pages} pages · ${wc(p.text)} words`,
+          html: doc({ title: p.title, author: p.author, pages: p.pages }, plain(clip(p.text, 6000)) + (p.pages > p.shown ? `<div class="row"><span>… first ${p.shown} of ${p.pages} pages</span></div>` : '')) });
+      }
+      const text = (await f.text()).replace(/^\uFEFF/, '');
+      if (!kind) { if (text.includes('\u0000')) return addCard(f.name, { error: 'binary file', detail: 'try json csv yaml toml md txt log html rtf pdf' }, f.size, { kind: 'error' }); try { JSON.parse(text); kind = 'json'; } catch { kind = 'txt'; } }
+      if (kind === 'json') return addCard(f.name, JSON.parse(text), f.size);
+      if (kind === 'jsonl') { const a = text.split(/\r?\n/).filter(Boolean).map(l => JSON.parse(l)); return addCard(f.name, a, f.size, { kind: 'jsonl' }); }
+      if (kind === 'csv') {
+        const first = text.split(/\r?\n/)[0] || '', d = [',', ';', '\t'].sort((a, b) => first.split(b).length - first.split(a).length)[0];
+        const R = csv(text, d), head = (R[0] || []).map((h, i) => h.trim() || 'col' + i);
+        const objs = R.slice(1).map(r => Object.fromEntries(head.map((h, i) => [h, num(r[i] ?? '')])));
+        const feed = head.some(h => RUNKEYS.includes(h)) && objs[0] ? objs[0] : undefined;
+        return addCard(f.name, { columns: head, rowCount: objs.length, rows: objs }, f.size, { kind: 'csv', feed, intel: `${objs.length} rows × ${head.length} cols` });
+      }
+      if (kind === 'yaml') return addCard(f.name, await yaml(text), f.size, { kind: 'yaml' });
+      if (kind === 'toml') return addCard(f.name, toml(text), f.size, { kind: 'toml' });
+      let body, meta = {}, plainTxt = text, data;
+      if (kind === 'md') {
+        const fm = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+        if (fm) { try { data = await yaml(fm[1]); } catch { } plainTxt = text.slice(fm[0].length); }
+        body = md(plainTxt);
+        if (data && typeof data === 'object' && !Array.isArray(data)) return addCard(f.name, data, f.size, { kind: 'md', feed: { ...scan(plainTxt), ...data }, intel: `front matter · ${wc(plainTxt)} words`, html: sections(data) + `<div class="sec"><div class="txt">${body}</div></div>` });
+        body = `<div class="txt">${body}</div>`;
+      } else if (kind === 'html') { const h = htmlText(text); plainTxt = h.text; meta = { title: h.title }; body = plain(clip(h.text, 6000)); }
+      else if (kind === 'rtf') { plainTxt = rtf(text); body = plain(clip(plainTxt, 6000)); }
+      else if (kind === 'log') { const L = text.split(/\r?\n/), tail = L.slice(-60); body = plain(tail.join('\n')) + (L.length > 60 ? `<div class="row"><span>… last 60 of ${L.length} lines</span></div>` : ''); }
+      else body = plain(clip(text, 6000));
+      const found = scan(plainTxt);
+      addCard(f.name, found, f.size, { kind, feed: found, intel: `${plainTxt.split(/\r?\n/).length} lines · ${wc(plainTxt)} words`, html: doc(meta, body) });
+    } catch (e) { addCard(f.name, { error: `not valid ${kind || 'file'}`, detail: String(e.message).slice(0, 80) }, f.size, { kind: 'error' }); }
+  }
+  let dc = 0;
+  addEventListener('dragenter', e => { e.preventDefault(); dc++; $('drop').classList.add('on'); });
+  addEventListener('dragleave', () => { if (--dc <= 0) { dc = 0; $('drop').classList.remove('on'); } });
+  addEventListener('dragover', e => e.preventDefault());
+  addEventListener('drop', e => {
+    e.preventDefault(); dc = 0; $('drop').classList.remove('on');
+    const it = [...(e.dataTransfer.items || [])];
+    if (!it.length) return [...e.dataTransfer.files].forEach(readFile);
+    for (const x of it) {
+      const en = x.webkitGetAsEntry && x.webkitGetAsEntry();
+      if (en && en.isDirectory) addCard(en.name, { error: 'folder dropped', detail: /\.rtfd$/i.test(en.name) ? 'rtfd is a bundle: drop the TXT.rtf inside it' : 'drop files, not folders' }, 0, { kind: 'error' });
+      else { const f = x.getAsFile(); if (f) readFile(f); }
+    }
+  });
+  $('pick').onchange = e => { [...e.target.files].forEach(readFile); e.target.value = ''; };
+
+  const DEMO = { stimulus: 'pIP10', nStim: 2, firstWingSpikeMs: 11.2, wingHz: 12, totalMs: 71,
+    meta: { source: 'flywire (demo)', model: 'LIF, 0.1 ms step', seed: 7 },
+    motor_neurons: [{ id: 'MN1', side: 'L', spikes: 9 }, { id: 'MN2', side: 'R', spikes: 8 }, { id: 'MN3', side: 'L', spikes: 7 }],
+    notes: ['picture is drawn', 'spikes are not', 'feed me real runs'] };
+  const bar = $('bar'), mk = (t, fn) => { const b = document.createElement('button'); b.textContent = t; b.onclick = fn; bar.appendChild(b); return b; };
+  bar.appendChild(document.createElement('i'));
+  mk('+ file', () => $('pick').click());
+  mk('demo card', () => addCard('demo_run.json', DEMO, JSON.stringify(DEMO).length));
+  let cipher = true; mk('cipher', e => { cipher = !cipher; e.target.style.opacity = cipher ? 1 : .45; });
+
+  /* ================= neck wires + cipher layer ================= */
+  const fx = $('fx'), c = fx.getContext('2d');
+  const fit = () => { const d = Math.min(devicePixelRatio || 1, 2); fx.width = innerWidth * d; fx.height = innerHeight * d; c.setTransform(d, 0, 0, d, 0, 0); };
+  fit(); addEventListener('resize', fit);
+  const NW = 16, NECK = 0.4, Y0 = 0.9, Y1 = -1.9;
+  const wires = [...Array(NW)].map((_, i) => ({ u: i / (NW - 1) - .5, ph: Math.random(), sp: .22 + Math.random() * .25, w: Math.random() * 6.28 }));
+  const wp = (w, s, t) => {
+    const wd = .06 + 1.1 * Math.pow(Math.abs(s - NECK) / .6, 1.5);
+    return project(w.u * 2 * wd + .05 * Math.sin(s * 9 + w.w + t * .6) * Math.min(1, s * 3), Y0 + (Y1 - Y0) * s, 0);
+  };
+  const GL = '01ABCDEF9Ξ·ΛΨ:'.split('');
+  const hex = i => '0x' + ((i * 2654435761 >>> 0) & 0xfff).toString(16).toUpperCase().padStart(3, '0');
+  function draw(now) {
+    requestAnimationFrame(draw);
+    const t = now / 1000, bm = st.sim * RUN.totalMs, wing = bm >= RUN.firstWingSpikeMs, live = st.beam > .05 || bm > 0;
+    c.clearRect(0, 0, innerWidth, innerHeight);
+    c.globalCompositeOperation = 'lighter';
+    const col = wing ? '216,240,74' : '125,179,255';
+
+    // wires
+    c.lineWidth = 1;
+    for (const w of wires) {
+      c.beginPath();
+      for (let k = 0; k <= 28; k++) { const p = wp(w, k / 28, t); k ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y); }
+      c.strokeStyle = `rgba(${col},${.16 + (live ? .12 : 0)})`; c.stroke();
+      const s = (t * w.sp * (live ? 1 : .35) + w.ph) % 1, p = wp(w, s, t);
+      const g = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, 9);
+      g.addColorStop(0, `rgba(${col},.95)`); g.addColorStop(1, `rgba(${col},0)`);
+      c.fillStyle = g; c.beginPath(); c.arc(p.x, p.y, 9, 0, 6.2832); c.fill();
+    }
+    // neck collar
+    const a = project(-.22, Y0 + (Y1 - Y0) * NECK + .02, 0), b = project(.22, Y0 + (Y1 - Y0) * NECK + .02, 0);
+    c.strokeStyle = `rgba(${col},.55)`; c.setLineDash([3, 4]);
+    c.beginPath(); c.ellipse((a.x + b.x) / 2, a.y, (b.x - a.x) / 2, (b.x - a.x) / 6, 0, 0, 6.2832); c.stroke(); c.setLineDash([]);
+    c.globalCompositeOperation = 'source-over';
+    c.font = '10px "JetBrains Mono",monospace'; c.fillStyle = 'rgba(241,239,232,.7)'; c.textAlign = 'left';
+    c.fillText(`NECK · ${NW} AXONS ↓`, b.x + 14, a.y + 3);
+    c.fillStyle = `rgba(${col},.5)`; c.fillText('descending → wing motor', b.x + 14, a.y + 16);
+
+    if (!cipher) return;
+    // glyph ring
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    const N = 72, head = (t * .35) % 1;
+    for (let k = 0; k < N; k++) {
+      const u = k / N, an = u * 6.2832 + t * .04;
+      const p = project(Math.cos(an) * 3.9, .2 + Math.sin(an) * 3.1, 0);
+      const d = ((head - u) % 1 + 1) % 1, glow = d < .12 ? 1 - d / .12 : 0;
+      c.fillStyle = glow > .01 ? `rgba(216,240,74,${.25 + glow * .75})` : 'rgba(125,179,255,.3)';
+      c.font = (glow > .5 ? 13 : 10) + 'px "JetBrains Mono",monospace';
+      c.fillText(GL[(k * 7 + (t * 3 | 0) * (k % 3 === 0 ? 1 : 0)) % GL.length], p.x, p.y);
+      if (k % 6 === 0) { const q = project(Math.cos(an) * 4.2, .2 + Math.sin(an) * 3.4, 0); c.strokeStyle = 'rgba(125,179,255,.25)'; c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(q.x, q.y); c.stroke(); }
+    }
+    // hex tags on neurons
+    c.font = '8px "JetBrains Mono",monospace'; c.textAlign = 'left';
+    neurons.forEach((n, i) => {
+      const p = project(n.x, n.y, n.z), act = getActivation(n, bm, wing, t);
+      c.fillStyle = `rgba(241,239,232,${.12 + act * .6})`;
+      c.fillText(act > .7 ? hex(i) + '▮' : hex(i), p.x + 8, p.y - 7);
+    });
+  }
+  requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>

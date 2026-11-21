@@ -1,0 +1,1537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>🐬 Node Map · Dolphin Whiteboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* --- toolbar --- */
+        .toolbar {
+            background: white;
+            padding: 12px 24px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+        }
+        .toolbar h1 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #222;
+            margin-right: 12px;
+        }
+        .toolbar h1 span {
+            font-size: 16px;
+        }
+        .toolbar .badge {
+            background: #e8e8e8;
+            padding: 2px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: #666;
+        }
+        .toolbar button {
+            background: white;
+            border: 1px solid #ccc;
+            padding: 6px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .toolbar button:hover {
+            background: #f0f0f0;
+            border-color: #999;
+        }
+        .toolbar .clear-btn {
+            background: #fff0f0;
+            border-color: #ff6b6b;
+            color: #d63031;
+        }
+        .toolbar .clear-btn:hover {
+            background: #ffe0e0;
+        }
+
+        /* --- main layout --- */
+        .main-area {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* --- whiteboard canvas --- */
+        #whiteboard {
+            flex: 1;
+            background: white;
+            position: relative;
+            overflow: hidden;
+            cursor: grab;
+        }
+        #whiteboard:active {
+            cursor: grabbing;
+        }
+
+        /* --- DNA LIVE CARD (top-right overlay) --- */
+        .dna-card {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 180px;
+            height: 160px;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border-radius: 16px;
+            border: 1px solid rgba(0, 0, 0, 0.06);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.04);
+            z-index: 20;
+            padding: 8px 10px 6px 10px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+        .dna-card .dna-title {
+            font-size: 7px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #8895aa;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 2px;
+        }
+        .dna-card canvas {
+            width: 100%;
+            height: calc(100% - 20px);
+            display: block;
+            border-radius: 8px;
+        }
+        .dna-card .dna-status {
+            position: absolute;
+            bottom: 4px;
+            right: 10px;
+            font-size: 6px;
+            color: #8895aa;
+            letter-spacing: 0.5px;
+            background: rgba(255,255,255,0.6);
+            padding: 1px 6px;
+            border-radius: 8px;
+        }
+
+        /* --- swarm dots in status bar --- */
+        .swarm-container {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+        .swarm-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #1a7a5a;
+            animation: swarm-pulse 2s ease-in-out infinite;
+        }
+        .swarm-dot:nth-child(2) { animation-delay: 0.3s; background: #d48c1c; }
+        .swarm-dot:nth-child(3) { animation-delay: 0.6s; background: #7c3aed; }
+        .swarm-dot:nth-child(4) { animation-delay: 0.9s; background: #0066cc; }
+        .swarm-dot:nth-child(5) { animation-delay: 1.2s; background: #d63384; }
+        @keyframes swarm-pulse {
+            0%, 100% { opacity: 0.3; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+
+        /* --- nodes --- */
+        .node {
+            position: absolute;
+            background: white;
+            border: 2px solid #0066cc;
+            border-radius: 12px;
+            padding: 12px 16px;
+            min-width: 140px;
+            max-width: 200px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+            cursor: grab;
+            user-select: none;
+            transition: box-shadow 0.2s, border-color 0.2s;
+            z-index: 2;
+            touch-action: none;
+        }
+        .node:hover {
+            box-shadow: 0 6px 24px rgba(0,0,0,0.12);
+            border-color: #0055aa;
+        }
+        .node.dragging {
+            cursor: grabbing;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+            z-index: 10;
+        }
+        .node .node-avatar {
+            font-size: 24px;
+            margin-right: 8px;
+        }
+        .node .node-header {
+            display: flex;
+            align-items: center;
+            font-weight: 600;
+            font-size: 14px;
+            color: #1a1a2e;
+        }
+        .node .node-desc {
+            font-size: 11px;
+            color: #777;
+            margin-top: 4px;
+            line-height: 1.3;
+        }
+        .node .node-role {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            color: #aaa;
+            margin-top: 6px;
+            border-top: 1px solid #eee;
+            padding-top: 4px;
+        }
+        .node .node-grip-btn {
+            position: absolute;
+            top: 6px;
+            right: 8px;
+            background: none;
+            border: none;
+            font-size: 14px;
+            cursor: pointer;
+            color: #888;
+            transition: color 0.2s;
+            padding: 2px 4px;
+            border-radius: 4px;
+            z-index: 5;
+        }
+        .node .node-grip-btn:hover {
+            color: #0066cc;
+        }
+
+        /* --- node colors --- */
+        .node-1 { border-color: #6C5CE7; }
+        .node-2 { border-color: #00b894; }
+        .node-3 { border-color: #fdcb6e; }
+        .node-4 { border-color: #e17055; }
+        .node-5 { border-color: #0984e3; }
+        .node-6 { border-color: #fd79a8; }
+        .node-7 { border-color: #00cec9; }
+        .node-8 { border-color: #e84393; }
+
+        /* --- connection lines (SVG) --- */
+        #connections {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+        #connections line {
+            stroke: #888;
+            stroke-width: 2;
+            stroke-linecap: round;
+        }
+
+        /* --- unhook (✕) handle on each connection --- */
+        #connections .conn-x {
+            pointer-events: all;
+            cursor: pointer;
+        }
+        #connections .conn-x circle {
+            fill: white;
+            stroke: #d63031;
+            stroke-width: 1.5;
+            transition: fill 0.15s;
+        }
+        #connections .conn-x text {
+            fill: #d63031;
+            font-size: 11px;
+            font-weight: 700;
+            text-anchor: middle;
+            dominant-baseline: central;
+            pointer-events: none;
+            user-select: none;
+        }
+        #connections .conn-x:hover circle { fill: #d63031; }
+        #connections .conn-x:hover text { fill: white; }
+
+        /* --- temp ghost line --- */
+        #ghost-line {
+            pointer-events: none;
+            stroke: #0066cc;
+            stroke-width: 2;
+            stroke-dasharray: 6 4;
+            opacity: 0.6;
+        }
+
+        /* --- connection dot handles --- */
+        .node .output-dot {
+            position: absolute;
+            right: -6px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 14px;
+            height: 14px;
+            background: #0066cc;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 0 0 2px #0066cc;
+            cursor: crosshair;
+            pointer-events: all;
+            z-index: 5;
+        }
+        .node .input-dot {
+            position: absolute;
+            left: -6px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 14px;
+            height: 14px;
+            background: #00b894;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 0 0 2px #00b894;
+            cursor: crosshair;
+            pointer-events: all;
+            z-index: 5;
+        }
+
+        /* --- palette (sidebar) --- */
+        .palette {
+            background: white;
+            border-right: 1px solid #ddd;
+            width: 200px;
+            padding: 16px;
+            flex-shrink: 0;
+            overflow-y: auto;
+            display: none;
+        }
+        .palette .palette-item {
+            padding: 8px 12px;
+            margin-bottom: 6px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            cursor: grab;
+            font-size: 13px;
+            transition: all 0.15s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .palette .palette-item:hover {
+            background: #f0f4ff;
+            border-color: #0066cc;
+        }
+        .palette .palette-item .pal-avatar {
+            font-size: 20px;
+        }
+        .palette.open {
+            display: block;
+        }
+
+        /* --- status bar --- */
+        .status-bar {
+            background: #f9f9f9;
+            border-top: 1px solid #eee;
+            padding: 4px 16px;
+            font-size: 11px;
+            color: #999;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .status-bar .right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* ── PIP (floating detail window) ── */
+        .pip {
+            position: fixed;
+            min-width: 280px;
+            max-width: 420px;
+            background: white;
+            border: 2px solid #0066cc;
+            border-radius: 16px;
+            box-shadow: 0 12px 48px rgba(0,0,0,0.2);
+            z-index: 1000;
+            display: none;
+            overflow: hidden;
+            resize: both;
+            min-height: 150px;
+        }
+        .pip.active {
+            display: flex;
+            flex-direction: column;
+        }
+        .pip .pip-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 12px;
+            background: #0066cc;
+            color: white;
+            cursor: move;
+            flex-shrink: 0;
+            min-height: 36px;
+            user-select: none;
+        }
+        .pip .pip-header .pip-title {
+            font-size: 13px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .pip .pip-header .pip-actions {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+        .pip .pip-header .pip-actions button {
+            background: rgba(255,255,255,0.15);
+            border: none;
+            border-radius: 4px;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px 6px;
+            transition: background 0.15s;
+        }
+        .pip .pip-header .pip-actions button:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        .pip .pip-header .pip-actions .close-pip:hover {
+            background: rgba(255,70,70,0.6);
+        }
+        .pip .pip-body {
+            padding: 12px 16px;
+            overflow-y: auto;
+            flex: 1;
+            font-size: 13px;
+            color: #1a1a2e;
+        }
+        .pip .pip-body .pip-desc {
+            color: #555;
+            margin: 6px 0 8px;
+            line-height: 1.4;
+        }
+        .pip .pip-body .pip-detail {
+            display: none;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #eee;
+        }
+        .pip .pip-body .pip-detail.open {
+            display: block;
+        }
+        .pip .pip-body .pip-role {
+            font-size: 10px;
+            text-transform: uppercase;
+            color: #888;
+            letter-spacing: 0.5px;
+        }
+        .pip .pip-body .pip-conns {
+            font-size: 11px;
+            color: #0066cc;
+            margin-top: 6px;
+        }
+        .pip .pip-resize {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 16px;
+            height: 16px;
+            cursor: nwse-resize;
+            background: linear-gradient(135deg, transparent 50%, rgba(0,102,204,0.25) 50%);
+            z-index: 5;
+            border-bottom-right-radius: 14px;
+        }
+        .pip .pip-resize:hover {
+            background: linear-gradient(135deg, transparent 50%, rgba(0,102,204,0.4) 50%);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- toolbar -->
+    <div class="toolbar">
+        <h1><span>🐬</span> Node Map</h1>
+        <span class="badge">drag · connect · map</span>
+        <button onclick="addSampleNodes()">➕ Sample Nodes</button>
+        <button onclick="clearAll()" class="clear-btn">🗑️ Clear</button>
+        <button onclick="togglePalette()">📋 Advisors</button>
+        <button onclick="downloadJSON()" title="Download dolphin-index-nodes.json">⬇️ Download JSON</button>
+        <span style="margin-left:auto;font-size:12px;color:#999;">
+            click dot → drag to another dot · click ✕ on a line to unhook
+        </span>
+    </div>
+
+    <!-- main -->
+    <div class="main-area">
+        <!-- palette (sidebar) -->
+        <div class="palette" id="palette">
+            <div style="font-weight:600;font-size:14px;margin-bottom:12px;">Advisor Agents</div>
+           
+<div class="palette-item" data-name="merge-Donatello" data-emoji="👾" data-desc="Donatello 
+- AI Engineer
+- A++ Dev Language and python4 env
+- lean 
+- The Brain and tech Master " style="border-left: 4px solid #6a0dad; background: #f5f0ff;">
+    <span class="pal-avatar">👾</span>Donatello
+</div>
+
+<div class="palette-item" data-name="Leonardo" data-emoji="🀨" data-desc="Leonardo - The Leader" style="border-left: 4px solid #1d428a; background: #f0f5ff;">
+    <span class="pal-avatar">🀨</span>Leonardo
+</div>
+
+<div class="palette-item" data-name="MichaelAngelo" data-emoji="+" data-desc="Global Collaborator - Playful, social, connected. Links everyone together. The glue of the ecosystem." style="border-left: 4px solid #f97316; background: #fff7ed;">
+    <span class="pal-avatar">🔥</span> MichaelAngelo
+</div>
+
+<div class="palette-item" data-name="Anthropologist" data-emoji="🐎" data-desc="Raphael - The Muscle - The lone runner. Fast, powerful, independent. Sees the trend before anyone else." style="border-left: 4px solid #dc2626; background: #fef2f2;">
+    <span class="pal-avatar">🐎</span> Raphael
+</div>
+
+<div class="palette-item" data-name="Artist" data-emoji="𝚿" data-desc="Visual & aesthetic" style="border-left: 4px solid #1e293b; background: #f8fafc;">
+    <span class="pal-avatar">𝚿</span> Alfred
+</div>
+
+<div class="palette-item" data-name="Artist of Living" data-emoji="🍷" data-desc="Food, love, everyday elegance" style="border-left: 4px solid #7a1f3d; background: #fdf5f7;">
+    <span class="pal-avatar">🍷</span> BruceWayne
+</div>
+
+            <div class="palette-item" data-name="Business Legend" data-emoji="🐐" data-desc="Strategic & big-picture">
+                <span class="pal-avatar">🐐</span> Business Legend
+
+            </div>
+            <div class="palette-item" data-name="InfoRabbit" data-emoji="🐇" data-desc="- (capitalized phrases)
+- Data Points (numbers & statistics)
+- Main Ideas (first sentence analysis)
+- Secondary Insights (supporting details)
+- Text Summary (metadata about the content) "intel cards" from raw text">
+                <span class="pal-avatar">✌︎︎</span> InfoRabbit</div>
+
+            <div class="palette-item" data-name="Content Creator" data-emoji="⎚-⎚" data-desc="Transforms ideas into content">
+                <span class="pal-avatar">⎚-⎚</span> Content Creator
+            </div>
+
+<div class="palette-item" data-name="Data Scientist" data-emoji="G+" data-desc="Patterns & evidence" style="border-left: 4px solid #4285f4; background: #f4f8ff;">
+    <span class="pal-avatar" style="display:flex; gap:1px; align-items:center; font-weight:700; font-size:20px;">
+        <span style="color:#4285f4;">G</span><span style="color:#ea4335;">+</span>
+    </span> Data Scientist
+</div>
+
+            <div class="palette-item" data-name="Emotional Intelligence Coach" data-emoji="❦" data-desc="Self-awareness & communication">
+                <span class="pal-avatar">❦</span> EQ Coach
+            </div>
+
+<div class="palette-item" data-name="Execution Advisor" data-emoji="♘" data-desc="Turns strategy into action" style="border-left: 4px solid #8b5a2b; background: #fbf7f0;">
+    <span class="pal-avatar" style="color:#6b4c2a;">♘</span> Execution Advisor
+</div>
+
+            <div class="palette-item" data-name="Global Traveler" data-emoji="✈︎" data-desc="Broadens horizons">
+                <span class="pal-avatar">✈︎</span> Global Traveler
+            </div>
+
+            <div class="palette-item" data-name="Historian" data-emoji="✎" data-desc="Lessons from history">
+                <span class="pal-avatar">✎</span> Historian
+            </div>
+
+            <div class="palette-item" data-name="Industry Analyst" data-emoji="⌖" data-desc="Deep logic of markets">
+                <span class="pal-avatar">⌖</span> Industry Analyst
+            </div>
+
+            <div class="palette-item" data-name="Linguistics Scholar" data-emoji="𝐀++" data-desc="Symbols, context, values">
+                <span class="pal-avatar">𝐀++</span> Linguistics Scholar
+            </div>
+
+            <div class="palette-item" data-name="Macro Analyst" data-emoji="♕" data-desc="Trends & cycles">
+                <span class="pal-avatar">♕</span> Macro Analyst
+            </div>
+
+            <div class="palette-item" data-name="Marketing Expert" data-emoji="✧`" data-desc="Messages that convert">
+                <span class="pal-avatar">✧`</span> Marketing Expert
+            </div>
+
+            <div class="palette-item" data-name="Master of Apprentice Assist" data-emoji="☁" data-desc="Hidden worker - pluto right hand wing man and co-partner">
+                <span class="pal-avatar">☁</span> Apprentice
+            </div>
+
+            <div class="palette-item" data-name="Master of Innovative Thinking" data-emoji="➂" data-desc="Breakthrough solutions">
+                <span class="pal-avatar">➂</span> Innovative Thinking
+            </div>
+
+            <div class="palette-item" data-name="Master of Logical Reasoning" data-emoji="⚭V⚭" data-desc="Identifies logical flaws">
+                <span class="pal-avatar">⚭V⚭</span> Logical Reasoning
+            </div>
+
+            <div class="palette-item" data-name="Physicist" data-emoji="♔" data-desc="Fundamental laws">
+                <span class="pal-avatar">♔</span> Physicist
+            </div>
+
+            <div class="palette-item" data-name="Relationship Expert" data-emoji="×̷̷͜×̷" data-desc="Love, conflict, connection">
+                <span class="pal-avatar">×̷̷͜×̷</span> Relationship Expert
+            </div>
+
+
+            <div class="palette-item" data-name="Risk Assessment Expert" data-emoji="☯︎" data-desc="Identifies risks first">
+                <span class="pal-avatar">☯︎</span> Risk Assessment
+            </div>
+
+
+            <div class="palette-item" data-name="Senior Designer" data-emoji="✮⋆˙" data-desc="Abstract → compelling designs">
+                <span class="pal-avatar">✮⋆˙</span> Senior Designer
+            </div>
+
+
+            <div class="palette-item" data-name="Stand-up Comedian" data-emoji="✌︎㋡" data-desc="Humor & insight">
+                <span class="pal-avatar">✌︎㋡</span> Comedian
+            </div>
+
+
+            <div class="palette-item" data-name="Top Investor" data-emoji="ـﮩ٨ـ" data-desc="Commercial instinct">
+                <span class="pal-avatar">ـﮩ٨ـ</span> Top Investor
+            </div>
+
+            <div class="palette-item" data-name="Builder" data-emoji="⏣" data-desc="Ideas → action">
+                <span class="pal-avatar">⏣</span> Builder
+            </div>
+
+            <div class="palette-item" data-name="Athlete" data-emoji="✮" data-desc="Discipline & performance">
+                <span class="pal-avatar">✮</span> Athlete
+            </div>
+
+            <div class="palette-item" data-name="Wellness Guru" data-emoji="Fit™" data-desc="Balance & recovery">
+                <span class="pal-avatar">Fit™</span> Wellness Guru
+            </div>
+
+            <div class="palette-item" data-name="Culinary Master" data-emoji="♨" data-desc="Flavour & hospitality">
+                <span class="pal-avatar">♨</span> Culinary Master
+            </div>
+
+            <div class="palette-item" data-name="Media Master" data-emoji="♟" data-desc="Stories that cut through">
+                <span class="pal-avatar">♟</span> Media Master
+            </div>
+
+            <div class="palette-item" data-name="Strategist Scout" data-emoji=" ོ" data-desc="Sees the whole board">
+                <span class="pal-avatar"> ོ</span> Strategist Scout
+            </div>
+
+<div class="palette-item" data-name="Droid-Spec" data-emoji=" ོ" data-desc="Walk into every meeting armed with your scpect's own words. Paste a LinkedIn URL and this agent comes back with a Pre-Meeting file built around verbatim quotes from podcasts, articles, talks, and press — plus career arc, top LinkedIn posts, recent company news, and a four-quadrant list of specific things you can layer into the conversation.">
+                <span class="pal-avatar">🃖🃖</span> Droid-Spec
+            </div>
+
+<div class="palette-item" data-name="Trend Setter" data-emoji=" ོ" data-desc="What trends are shaping your industry this week? Find out in 90 seconds — or get the insights delivered to your inbox every week.
+">
+                <span class="pal-avatar">𝒾</span> Trend Setter
+            </div>
+
+<div class="palette-item" data-name="Meeting Follow-up" data-emoji=" ོ" data-desc="Create meeting summaries and follow-ups that match your style—and get smarter with every meeting.">
+                <span class="pal-avatar"> 🂭</span>Meeting Follow-up
+            </div>
+
+<div class="palette-item" data-name="Web Copy Analyzer" data-emoji=" ོ" data-desc="See exactly how your buyer would react to your website. Input some details about your target buyer and your page URL — the analyzer shows what makes them stay, what makes them bounce, and rewrites the sections that miss the mark in your buyer's language.>
+                <span class="pal-avatar"> ོ🂺</span> Web Copy Analyzer
+            </div>
+
+<div class="palette-item" data-name="Cold Email Analyzer" data-emoji=" ོ" data-desc="See exactly how a buyer persona would read your cold email. Input some details about your target buyer and your email draft (or what you want to convey in the email) — the analyzer shows their gut reaction, where they'd stop reading, and rewrites your email in language that resonates, with reasoning behind every change.">
+                <span class="pal-avatar">🃁</span>Cold Email Analyzer
+            </div>
+
+        </div>
+
+        <!-- whiteboard -->
+        <div id="whiteboard">
+            <svg id="connections">
+                <line id="ghost-line" x1="0" y1="0" x2="0" y2="0" style="display:none;" />
+            </svg>
+
+            <!-- DNA LIVE CARD (top-right overlay) -->
+            <div class="dna-card" id="dnaCard">
+                <div class="dna-title">🧬 DNA · LIVE</div>
+                <canvas id="dnaCanvas"></canvas>
+                <div class="dna-status" id="dnaStatus">0 connections</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- status -->
+    <div class="status-bar">
+        <span id="statusLeft">🐬 click a dot to connect</span>
+        <div class="right">
+            <div class="swarm-container" id="swarmContainer">
+                <span class="swarm-dot"></span>
+                <span class="swarm-dot"></span>
+                <span class="swarm-dot"></span>
+                <span class="swarm-dot"></span>
+                <span class="swarm-dot"></span>
+            </div>
+            <span id="statusRight"><span id="nodeCount">0</span> nodes · <span id="connCount">0</span> connections</span>
+        </div>
+    </div>
+
+    <!-- ── PIP ── -->
+    <div class="pip" id="pip">
+        <div class="pip-header" id="pipHeader">
+            <span class="pip-title" id="pipTitle">☂️ Advisor</span>
+            <div class="pip-actions">
+                <button id="pipUmbrella" title="Expand description">☂️</button>
+                <button class="close-pip" id="pipClose" title="Close">✕</button>
+            </div>
+        </div>
+        <div class="pip-body" id="pipBody">
+            <div id="pipName" style="font-weight:600;font-size:15px;"></div>
+            <div class="pip-desc" id="pipDesc"></div>
+            <div class="pip-detail" id="pipDetail">
+                <div id="pipFullDesc" style="margin-bottom:6px;"></div>
+                <div class="pip-role" id="pipRole"></div>
+                <div class="pip-conns" id="pipConns"></div>
+            </div>
+        </div>
+        <div class="pip-resize" id="pipResize"></div>
+    </div>
+
+    <script>
+        (function() {
+            'use strict';
+
+            const board = document.getElementById('whiteboard');
+            const svg = document.getElementById('connections');
+            const ghost = document.getElementById('ghost-line');
+            const statusLeft = document.getElementById('statusLeft');
+            const statusRight = document.getElementById('statusRight');
+            const nodeCountEl = document.getElementById('nodeCount');
+            const connCountEl = document.getElementById('connCount');
+            const swarmContainer = document.getElementById('swarmContainer');
+
+            // ── PIP refs ──
+            const pip = document.getElementById('pip');
+            const pipHeader = document.getElementById('pipHeader');
+            const pipTitle = document.getElementById('pipTitle');
+            const pipBody = document.getElementById('pipBody');
+            const pipName = document.getElementById('pipName');
+            const pipDesc = document.getElementById('pipDesc');
+            const pipDetail = document.getElementById('pipDetail');
+            const pipFullDesc = document.getElementById('pipFullDesc');
+            const pipRole = document.getElementById('pipRole');
+            const pipConns = document.getElementById('pipConns');
+            const pipUmbrella = document.getElementById('pipUmbrella');
+            const pipClose = document.getElementById('pipClose');
+            const pipResize = document.getElementById('pipResize');
+
+            let nodes = [];
+            let connections = [];
+            let nodeIdCounter = 0;
+            let connIdCounter = 0;
+
+            // ── PIP state ──
+            let pipNodeId = null;
+            let pipExpanded = false;
+
+            // connection drawing state
+            let isDrawing = false;
+            let startNode = null;
+            let startDot = null;
+            let startX = 0, startY = 0;
+            let currentMouseX = 0, currentMouseY = 0;
+
+            // drag state
+            let dragNode = null;
+            let dragOffsetX = 0, dragOffsetY = 0;
+
+            // ── PIP drag ──
+            let isPipDragging = false;
+            let pipDragOffsetX = 0, pipDragOffsetY = 0;
+
+            // ── DNA RENDERER ──
+            const dnaCanvas = document.getElementById('dnaCanvas');
+            const dnaCtx = dnaCanvas.getContext('2d');
+            const dnaStatus = document.getElementById('dnaStatus');
+            let dnaTick = 0;
+            let dnaConnectionCount = 0;
+
+            const dnaColors = ['#6C5CE7', '#00b894', '#fdcb6e', '#e17055', '#0984e3', '#fd79a8', '#00cec9', '#e84393', '#2a6b8a', '#c97a1a'];
+
+            function resizeDna() {
+                const rect = dnaCanvas.parentElement.getBoundingClientRect();
+                dnaCanvas.width = rect.width - 16;
+                dnaCanvas.height = Math.max(60, rect.height - 28);
+            }
+            resizeDna();
+            window.addEventListener('resize', resizeDna);
+
+            function updateDnaConnections(count) {
+                dnaConnectionCount = count;
+                dnaStatus.textContent = count + ' connections';
+                const dots = swarmContainer.querySelectorAll('.swarm-dot');
+                dots.forEach((dot, i) => {
+                    if (count > i) {
+                        dot.style.opacity = '1';
+                        dot.style.transform = 'scale(1.2)';
+                        setTimeout(() => {
+                            dot.style.opacity = '';
+                            dot.style.transform = '';
+                        }, 300);
+                    }
+                });
+            }
+
+            function drawDna() {
+                const w = dnaCanvas.width;
+                const h = dnaCanvas.height;
+                dnaCtx.clearRect(0, 0, w, h);
+
+                if (w < 20 || h < 20) { dnaTick++; requestAnimationFrame(drawDna); return; }
+
+                const cx = w / 2;
+                const cy = h / 2;
+                const radius = Math.min(w, h) * 0.28;
+                const rungCount = Math.min(dnaConnectionCount + 1, 16);
+                const twist = dnaTick * 0.025;
+
+                for (let strand = 0; strand < 2; strand++) {
+                    dnaCtx.beginPath();
+                    for (let i = 0; i <= 40; i++) {
+                        const t = i / 40;
+                        const angle = t * Math.PI * 3.5 + twist + strand * Math.PI;
+                        const x = cx + Math.cos(angle) * radius * 0.12 + (t - 0.5) * w * 0.55;
+                        const y = cy + Math.sin(angle) * radius * 0.35 + Math.sin(t * Math.PI * 2 + twist) * radius * 0.12;
+                        if (i === 0) dnaCtx.moveTo(x, y);
+                        else dnaCtx.lineTo(x, y);
+                    }
+                    dnaCtx.strokeStyle = strand === 0 ? 'rgba(42,107,138,0.25)' : 'rgba(120,60,180,0.25)';
+                    dnaCtx.lineWidth = 1.5;
+                    dnaCtx.stroke();
+                }
+
+                for (let i = 0; i < rungCount; i++) {
+                    const t = i / Math.max(1, rungCount - 1);
+                    const angle = t * Math.PI * 3.5 + twist;
+                    const x1 = cx + Math.cos(angle) * radius * 0.12 + (t - 0.5) * w * 0.55;
+                    const y1 = cy + Math.sin(angle) * radius * 0.35 + Math.sin(t * Math.PI * 2 + twist) * radius * 0.12;
+                    const x2 = cx + Math.cos(angle + Math.PI) * radius * 0.12 + (t - 0.5) * w * 0.55;
+                    const y2 = cy + Math.sin(angle + Math.PI) * radius * 0.35 + Math.sin(t * Math.PI * 2 + twist) * radius * 0.12;
+
+                    const color = dnaColors[i % dnaColors.length];
+
+                    dnaCtx.beginPath();
+                    dnaCtx.moveTo(x1, y1);
+                    dnaCtx.lineTo(x2, y2);
+                    dnaCtx.strokeStyle = color;
+                    dnaCtx.globalAlpha = 0.4 + Math.sin(dnaTick * 0.04 + i) * 0.2;
+                    dnaCtx.lineWidth = 1.2;
+                    dnaCtx.stroke();
+                    dnaCtx.globalAlpha = 1;
+
+                    dnaCtx.beginPath();
+                    dnaCtx.arc(x1, y1, 2.5 + Math.sin(dnaTick * 0.04 + i) * 0.8, 0, Math.PI * 2);
+                    dnaCtx.fillStyle = color;
+                    dnaCtx.shadowColor = color;
+                    dnaCtx.shadowBlur = 6;
+                    dnaCtx.fill();
+                    dnaCtx.shadowBlur = 0;
+
+                    dnaCtx.beginPath();
+                    dnaCtx.arc(x2, y2, 2.5 + Math.sin(dnaTick * 0.04 + i + 1) * 0.8, 0, Math.PI * 2);
+                    dnaCtx.fillStyle = color;
+                    dnaCtx.shadowColor = color;
+                    dnaCtx.shadowBlur = 6;
+                    dnaCtx.fill();
+                    dnaCtx.shadowBlur = 0;
+                }
+
+                dnaTick++;
+                requestAnimationFrame(drawDna);
+            }
+            drawDna();
+
+            // ── HELPERS ──
+            function updateCounts() {
+                nodeCountEl.textContent = nodes.length;
+                connCountEl.textContent = connections.length;
+                updateDnaConnections(connections.length);
+            }
+
+            function getNodeEl(id) {
+                return document.querySelector(`.node[data-id="${id}"]`);
+            }
+
+            function getNodeData(id) {
+                return nodes.find(n => n.id === id);
+            }
+
+            function getDotPos(nodeId, type) {
+                const el = getNodeEl(nodeId);
+                if (!el) return { x: 0, y: 0 };
+                const rect = el.getBoundingClientRect();
+                const boardRect = board.getBoundingClientRect();
+                const dot = el.querySelector(type === 'output' ? '.output-dot' : '.input-dot');
+                if (!dot) return { x: 0, y: 0 };
+                const dotRect = dot.getBoundingClientRect();
+                return {
+                    x: dotRect.left - boardRect.left + dotRect.width / 2,
+                    y: dotRect.top - boardRect.top + dotRect.height / 2
+                };
+            }
+
+            function getConnections(id) {
+                return connections.filter(c => c.fromNode === id || c.toNode === id);
+            }
+
+            // ── PIP FUNCTIONS ──
+            function openPip(nodeId) {
+                const node = getNodeData(nodeId);
+                if (!node) return;
+
+                pipNodeId = nodeId;
+                pipExpanded = false;
+                pipDetail.classList.remove('open');
+
+                pipName.textContent = node.emoji + ' ' + node.name;
+                pipDesc.textContent = node.desc || 'No description';
+                pipFullDesc.textContent = node.desc || 'No description';
+                pipRole.textContent = 'Role: Advisor';
+                const conns = getConnections(nodeId);
+                pipConns.textContent = '🔗 ' + conns.length + ' connections';
+
+                pipTitle.innerHTML = '☂️ ' + node.name;
+
+                // Position near the node
+                const el = getNodeEl(nodeId);
+                if (el) {
+                    const rect = el.getBoundingClientRect();
+                    pip.style.left = (rect.right + 16) + 'px';
+                    pip.style.top = (rect.top - 20) + 'px';
+                } else {
+                    pip.style.left = '100px';
+                    pip.style.top = '100px';
+                }
+
+                pip.classList.add('active');
+            }
+
+            function closePip() {
+                pip.classList.remove('active');
+                pipNodeId = null;
+            }
+
+            function togglePipDetail() {
+                pipExpanded = !pipExpanded;
+                pipDetail.classList.toggle('open', pipExpanded);
+                pipUmbrella.textContent = pipExpanded ? '☁' : '☂️';
+            }
+
+            // ── HOOK / UNHOOK (with events) ──
+            // Listen from anywhere:
+            //   document.addEventListener('dolphin:hook',   e => console.log(e.detail));
+            //   document.addEventListener('dolphin:unhook', e => console.log(e.detail));
+            function emit(name, detail) {
+                board.dispatchEvent(new CustomEvent(name, { bubbles: true, detail }));
+            }
+
+            function refreshPipConns() {
+                if (pipNodeId !== null && pip.classList.contains('active')) {
+                    pipConns.textContent = '🔗 ' + getConnections(pipNodeId).length + ' connections';
+                }
+            }
+
+            function hook(fromNodeId, toNodeId) {
+                const exists = connections.some(c => c.fromNode === fromNodeId && c.toNode === toNodeId);
+                if (exists) {
+                    statusLeft.textContent = '🐬 already hooked';
+                    return null;
+                }
+                const conn = {
+                    id: ++connIdCounter,
+                    fromNode: fromNodeId,
+                    fromType: 'output',
+                    toNode: toNodeId,
+                    toType: 'input'
+                };
+                connections.push(conn);
+                renderConnections();
+                refreshPipConns();
+                const a = getNodeData(fromNodeId), b = getNodeData(toNodeId);
+                emit('dolphin:hook', {
+                    connectionId: conn.id,
+                    from: { id: fromNodeId, name: a && a.name },
+                    to: { id: toNodeId, name: b && b.name }
+                });
+                return conn;
+            }
+
+            function unhook(connId) {
+                const idx = connections.findIndex(c => c.id === connId);
+                if (idx === -1) return;
+                const conn = connections.splice(idx, 1)[0];
+                renderConnections();
+                refreshPipConns();
+                const a = getNodeData(conn.fromNode), b = getNodeData(conn.toNode);
+                statusLeft.textContent = `🐬 unhooked ${a ? a.name : '?'} ✕ ${b ? b.name : '?'}`;
+                emit('dolphin:unhook', {
+                    connectionId: conn.id,
+                    from: { id: conn.fromNode, name: a && a.name },
+                    to: { id: conn.toNode, name: b && b.name }
+                });
+            }
+
+            // ── RENDER CONNECTIONS ──
+            function renderConnections() {
+                svg.querySelectorAll('g.conn').forEach(g => g.remove());
+                const NS = 'http://www.w3.org/2000/svg';
+
+                connections.forEach(conn => {
+                    const from = getDotPos(conn.fromNode, conn.fromType);
+                    const to = getDotPos(conn.toNode, conn.toType);
+
+                    const g = document.createElementNS(NS, 'g');
+                    g.setAttribute('class', 'conn');
+                    g.setAttribute('data-conn-id', conn.id);
+
+                    const line = document.createElementNS(NS, 'line');
+                    line.setAttribute('x1', from.x);
+                    line.setAttribute('y1', from.y);
+                    line.setAttribute('x2', to.x);
+                    line.setAttribute('y2', to.y);
+                    line.setAttribute('stroke', '#0066cc');
+                    line.setAttribute('stroke-width', '2');
+                    line.setAttribute('stroke-linecap', 'round');
+                    g.appendChild(line);
+
+                    // ✕ unhook handle at the midpoint
+                    const x = document.createElementNS(NS, 'g');
+                    x.setAttribute('class', 'conn-x');
+                    x.setAttribute('transform', `translate(${(from.x + to.x) / 2}, ${(from.y + to.y) / 2})`);
+                    const title = document.createElementNS(NS, 'title');
+                    title.textContent = 'Unhook';
+                    const circle = document.createElementNS(NS, 'circle');
+                    circle.setAttribute('r', '9');
+                    const label = document.createElementNS(NS, 'text');
+                    label.textContent = '✕';
+                    x.appendChild(title);
+                    x.appendChild(circle);
+                    x.appendChild(label);
+                    x.addEventListener('mousedown', e => e.stopPropagation());
+                    x.addEventListener('click', e => {
+                        e.stopPropagation();
+                        unhook(conn.id);
+                    });
+                    g.appendChild(x);
+
+                    svg.appendChild(g);
+                });
+                updateCounts();
+            }
+
+            // ── DOWNLOAD TEMPLATE JSON ──
+            function buildTemplate() {
+                return {
+                    name: 'dolphin-index-nodes',
+                    version: 1,
+                    exportedAt: new Date().toISOString(),
+                    nodes: nodes.map(n => {
+                        const m = n.el.className.match(/node-(\d+)/);
+                        return {
+                            id: n.id,
+                            name: n.name,
+                            emoji: n.emoji,
+                            desc: n.desc,
+                            x: Math.round(n.x),
+                            y: Math.round(n.y),
+                            color: m ? parseInt(m[1]) : 1
+                        };
+                    }),
+                    connections: connections.map(c => ({
+                        id: c.id,
+                        from: c.fromNode,
+                        to: c.toNode
+                    }))
+                };
+            }
+
+            function downloadJSON() {
+                const blob = new Blob([JSON.stringify(buildTemplate(), null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'dolphin-index-nodes.json';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                statusLeft.textContent = `🐬 downloaded dolphin-index-nodes.json (${nodes.length} nodes, ${connections.length} connections)`;
+            }
+
+            // ── CREATE NODE ──
+            function createNode(name, emoji, desc, x, y, colorClass) {
+                const id = ++nodeIdCounter;
+                const el = document.createElement('div');
+                el.className = `node node-${colorClass || 1}`;
+                el.setAttribute('data-id', id);
+                el.style.left = x + 'px';
+                el.style.top = y + 'px';
+
+                el.innerHTML = `
+                    <div class="node-header">
+                        <span class="node-avatar">${emoji || '🧠'}</span>
+                        ${name || 'Advisor'}
+                    </div>
+                    <div class="node-desc">${desc || 'Agent node'}</div>
+                    <div class="node-role">Advisor</div>
+                    <div class="input-dot" data-node="${id}" data-type="input" title="drag from here"></div>
+                    <div class="output-dot" data-node="${id}" data-type="output" title="drag to here"></div>
+                    <button class="node-grip-btn" title="Open PIP">⎚-⎚</button>
+                `;
+
+                board.appendChild(el);
+                nodes.push({ id, name, emoji, desc, x, y, el });
+
+                el.addEventListener('mousedown', onNodeMouseDown);
+                el.addEventListener('touchstart', onNodeTouchStart, { passive: false });
+
+                const dots = el.querySelectorAll('.input-dot, .output-dot');
+                dots.forEach(dot => {
+                    dot.addEventListener('mousedown', onDotMouseDown);
+                    dot.addEventListener('touchstart', onDotTouchStart, { passive: false });
+                });
+
+                const gripBtn = el.querySelector('.node-grip-btn');
+                gripBtn.addEventListener('mousedown', (e) => {
+                    e.stopPropagation();
+                    openPip(id);
+                });
+                gripBtn.addEventListener('touchstart', (e) => {
+                    e.stopPropagation();
+                    openPip(id);
+                }, { passive: false });
+
+                updateCounts();
+                renderConnections();
+                return id;
+            }
+
+            // ── ADD SAMPLE NODES ──
+            function addSampleNodes() {
+                const samples = [
+                    { name: 'AI Engineer', emoji: '👾', desc: 'Donatello - The Brain — Answers AI-related questions.', color: 1 },
+                    { name: 'Product Manager', emoji: '🀨', desc: 'Leonardo - The Leader — Balances user needs and business goals.', color: 2 },
+                    { name: 'Philosopher', emoji: '+', desc: 'MichaelAngelo - Fun Master — Cuts through appearances.', color: 3 },
+                    { name: 'Anthropologist', emoji: '🔍', desc: 'Raphael - The Muscle — Observational lens for blind spots.', color: 4 },
+                    { name: 'Data Scientist', emoji: 'G+', desc: 'Patterns & evidence — Data-driven insights.', color: 5 },
+                    { name: 'Strategist Scout', emoji: '♘', desc: 'Sees the whole board — Anticipates moves.', color: 6 },
+                ];
+                const padding = 40;
+                const spacing = 200;
+                samples.forEach((s, i) => {
+                    const row = Math.floor(i / 3);
+                    const col = i % 3;
+                    createNode(s.name, s.emoji, s.desc, padding + col * spacing, padding + row * 180, s.color);
+                });
+                setTimeout(() => {
+                    if (nodes.length >= 2) {
+                        hook(nodes[0].id, nodes[1].id);
+                    }
+                }, 100);
+                statusLeft.textContent = '🐬 sample nodes ready — drag dots to connect';
+            }
+
+            // ── CLEAR BOARD ──
+            function clearAll() {
+                if (nodes.length === 0) return;
+                if (!confirm('Clear all nodes and connections?')) return;
+                nodes.forEach(n => n.el.remove());
+                nodes = [];
+                connections = [];
+                connIdCounter = 0;
+                nodeIdCounter = 0;
+                closePip();
+                renderConnections();
+                updateCounts();
+                statusLeft.textContent = '🐬 whiteboard cleared';
+            }
+
+            // ── TOGGLE PALETTE ──
+            function togglePalette() {
+                document.getElementById('palette').classList.toggle('open');
+            }
+
+            // ── DRAG: NODE ──
+            function onNodeMouseDown(e) {
+                if (e.target.closest('.input-dot') || e.target.closest('.output-dot') || e.target.closest('.node-grip-btn')) return;
+                const el = e.currentTarget;
+                const id = parseInt(el.dataset.id);
+                const node = getNodeData(id);
+                if (!node) return;
+                const rect = el.getBoundingClientRect();
+                const boardRect = board.getBoundingClientRect();
+                dragNode = node;
+                dragOffsetX = (e.clientX - boardRect.left) - node.x;
+                dragOffsetY = (e.clientY - boardRect.top) - node.y;
+                el.classList.add('dragging');
+                e.preventDefault();
+            }
+
+            function onNodeTouchStart(e) {
+                if (e.target.closest('.input-dot') || e.target.closest('.output-dot') || e.target.closest('.node-grip-btn')) return;
+                const touch = e.touches[0];
+                const el = e.currentTarget;
+                const id = parseInt(el.dataset.id);
+                const node = getNodeData(id);
+                if (!node) return;
+                const rect = el.getBoundingClientRect();
+                const boardRect = board.getBoundingClientRect();
+                dragNode = node;
+                dragOffsetX = (touch.clientX - boardRect.left) - node.x;
+                dragOffsetY = (touch.clientY - boardRect.top) - node.y;
+                el.classList.add('dragging');
+                e.preventDefault();
+            }
+
+            // ── DRAG: DOT ──
+            function onDotMouseDown(e) {
+                e.stopPropagation();
+                const dot = e.currentTarget;
+                const nodeId = parseInt(dot.dataset.node);
+                const type = dot.dataset.type;
+                const node = getNodeData(nodeId);
+                if (!node) return;
+                const rect = dot.getBoundingClientRect();
+                const boardRect = board.getBoundingClientRect();
+                isDrawing = true;
+                startNode = node;
+                startDot = type;
+                startX = rect.left - boardRect.left + rect.width / 2;
+                startY = rect.top - boardRect.top + rect.height / 2;
+                ghost.style.display = 'block';
+                ghost.setAttribute('x1', startX);
+                ghost.setAttribute('y1', startY);
+                ghost.setAttribute('x2', startX);
+                ghost.setAttribute('y2', startY);
+                statusLeft.textContent = `🐬 connecting from ${node.name} (${type}) — release on another dot`;
+                e.preventDefault();
+            }
+
+            function onDotTouchStart(e) {
+                e.stopPropagation();
+                const touch = e.touches[0];
+                const dot = e.currentTarget;
+                const nodeId = parseInt(dot.dataset.node);
+                const type = dot.dataset.type;
+                const node = getNodeData(nodeId);
+                if (!node) return;
+                const rect = dot.getBoundingClientRect();
+                const boardRect = board.getBoundingClientRect();
+                isDrawing = true;
+                startNode = node;
+                startDot = type;
+                startX = rect.left - boardRect.left + rect.width / 2;
+                startY = rect.top - boardRect.top + rect.height / 2;
+                ghost.style.display = 'block';
+                ghost.setAttribute('x1', startX);
+                ghost.setAttribute('y1', startY);
+                ghost.setAttribute('x2', startX);
+                ghost.setAttribute('y2', startY);
+                statusLeft.textContent = `🐬 connecting from ${node.name} (${type}) — release on another dot`;
+                e.preventDefault();
+            }
+
+            // ── GLOBAL MOUSE/TOUCH ──
+            function onMouseMove(e) {
+                const boardRect = board.getBoundingClientRect();
+                const mx = e.clientX - boardRect.left;
+                const my = e.clientY - boardRect.top;
+
+                if (dragNode) {
+                    dragNode.x = mx - dragOffsetX;
+                    dragNode.y = my - dragOffsetY;
+                    dragNode.el.style.left = dragNode.x + 'px';
+                    dragNode.el.style.top = dragNode.y + 'px';
+                    renderConnections();
+                    // Update PIP position if it's open for this node
+                    if (pipNodeId === dragNode.id && pip.classList.contains('active')) {
+                        const rect = dragNode.el.getBoundingClientRect();
+                        pip.style.left = (rect.right + 16) + 'px';
+                        pip.style.top = (rect.top - 20) + 'px';
+                    }
+                    return;
+                }
+
+                if (isDrawing) {
+                    currentMouseX = mx;
+                    currentMouseY = my;
+                    ghost.setAttribute('x2', mx);
+                    ghost.setAttribute('y2', my);
+                }
+            }
+
+            function onMouseUp(e) {
+                if (dragNode) {
+                    dragNode.el.classList.remove('dragging');
+                    dragNode = null;
+                    renderConnections();
+                    return;
+                }
+
+                if (isDrawing) {
+                    const el = document.elementFromPoint(e.clientX, e.clientY);
+                    if (el && (el.classList.contains('input-dot') || el.classList.contains('output-dot'))) {
+                        const targetNodeId = parseInt(el.dataset.node);
+                        const targetType = el.dataset.type;
+                        const targetNode = getNodeData(targetNodeId);
+                        if (targetNode && targetNode.id !== startNode.id) {
+                            if (startDot !== targetType) {
+                                let fromNode, fromType, toNode, toType;
+                                if (startDot === 'output' && targetType === 'input') {
+                                    fromNode = startNode.id;
+                                    fromType = 'output';
+                                    toNode = targetNode.id;
+                                    toType = 'input';
+                                } else if (startDot === 'input' && targetType === 'output') {
+                                    fromNode = targetNode.id;
+                                    fromType = 'output';
+                                    toNode = startNode.id;
+                                    toType = 'input';
+                                } else {
+                                    statusLeft.textContent = '🐬 invalid connection — must be output → input';
+                                    ghost.style.display = 'none';
+                                    isDrawing = false;
+                                    return;
+                                }
+                                hook(fromNode, toNode);
+                                statusLeft.textContent = `🐬 connected ${startNode.name} → ${targetNode.name}`;
+                            } else {
+                                statusLeft.textContent = '🐬 must connect output → input (different types)';
+                            }
+                        } else {
+                            statusLeft.textContent = '🐬 cannot connect to itself';
+                        }
+                    } else {
+                        statusLeft.textContent = '🐬 release on a dot to connect';
+                    }
+                    ghost.style.display = 'none';
+                    isDrawing = false;
+                    startNode = null;
+                    startDot = null;
+                }
+            }
+
+            function onTouchMove(e) {
+                e.preventDefault();
+                const touch = e.touches[0];
+                const boardRect = board.getBoundingClientRect();
+                const mx = touch.clientX - boardRect.left;
+                const my = touch.clientY - boardRect.top;
+
+                if (dragNode) {
+                    dragNode.x = mx - dragOffsetX;
+                    dragNode.y = my - dragOffsetY;
+                    dragNode.el.style.left = dragNode.x + 'px';
+                    dragNode.el.style.top = dragNode.y + 'px';
+                    renderConnections();
+                    if (pipNodeId === dragNode.id && pip.classList.contains('active')) {
+                        const rect = dragNode.el.getBoundingClientRect();
+                        pip.style.left = (rect.right + 16) + 'px';
+                        pip.style.top = (rect.top - 20) + 'px';
+                    }
+                    return;
+                }
+
+                if (isDrawing) {
+                    currentMouseX = mx;
+                    currentMouseY = my;
+                    ghost.setAttribute('x2', mx);
+                    ghost.setAttribute('y2', my);
+                }
+            }
+
+            function onTouchEnd(e) {
+                if (dragNode) {
+                    dragNode.el.classList.remove('dragging');
+                    dragNode = null;
+                    renderConnections();
+                    return;
+                }
+
+                if (isDrawing) {
+                    const touch = e.changedTouches[0];
+                    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+                    if (el && (el.classList.contains('input-dot') || el.classList.contains('output-dot'))) {
+                        const targetNodeId = parseInt(el.dataset.node);
+                        const targetType = el.dataset.type;
+                        const targetNode = getNodeData(targetNodeId);
+                        if (targetNode && targetNode.id !== startNode.id) {
+                            if (startDot !== targetType) {
+                                let fromNode, fromType, toNode, toType;
+                                if (startDot === 'output' && targetType === 'input') {
+                                    fromNode = startNode.id;
+                                    fromType = 'output';
+                                    toNode = targetNode.id;
+                                    toType = 'input';
+                                } else if (startDot === 'input' && targetType === 'output') {
+                                    fromNode = targetNode.id;
+                                    fromType = 'output';
+                                    toNode = startNode.id;
+                                    toType = 'input';
+                                } else {
+                                    statusLeft.textContent = '🐬 invalid connection';
+                                    ghost.style.display = 'none';
+                                    isDrawing = false;
+                                    return;
+                                }
+                                hook(fromNode, toNode);
+                                statusLeft.textContent = `🐬 connected ${startNode.name} → ${targetNode.name}`;
+                            } else {
+                                statusLeft.textContent = '🐬 must connect output → input';
+                            }
+                        } else {
+                            statusLeft.textContent = '🐬 cannot connect to itself';
+                        }
+                    } else {
+                        statusLeft.textContent = '🐬 release on a dot to connect';
+                    }
+                    ghost.style.display = 'none';
+                    isDrawing = false;
+                    startNode = null;
+                    startDot = null;
+                }
+            }
+
+            // ── PALETTE DRAG ──
+            document.querySelectorAll('.palette-item').forEach(item => {
+                item.addEventListener('mousedown', function(e) {
+                    const name = this.dataset.name;
+                    const emoji = this.dataset.emoji;
+                    const desc = this.dataset.desc;
+                    const boardRect = board.getBoundingClientRect();
+                    const x = e.clientX - boardRect.left - 80;
+                    const y = e.clientY - boardRect.top - 30;
+                    const color = Math.floor(Math.random() * 7) + 1;
+                    createNode(name, emoji, desc, Math.max(0, x), Math.max(0, y), color);
+                    statusLeft.textContent = `🐬 added ${name}`;
+                });
+            });
+
+            // ── PIP DRAG ──
+            pipHeader.addEventListener('mousedown', function(e) {
+                if (e.target.closest('button')) return;
+                isPipDragging = true;
+                const rect = pip.getBoundingClientRect();
+                pipDragOffsetX = e.clientX - rect.left;
+                pipDragOffsetY = e.clientY - rect.top;
+                pip.style.cursor = 'grabbing';
+            });
+
+            document.addEventListener('mousemove', function(e) {
+                if (!isPipDragging) return;
+                const x = e.clientX - pipDragOffsetX;
+                const y = e.clientY - pipDragOffsetY;
+                pip.style.left = x + 'px';
+                pip.style.top = y + 'px';
+                pip.style.right = 'auto';
+                pip.style.bottom = 'auto';
+            });
+
+            document.addEventListener('mouseup', function() {
+                isPipDragging = false;
+                pip.style.cursor = 'default';
+            });
+
+            // ── PIP RESIZE ──
+            let isPipResizing = false;
+            let pipResizeStartX, pipResizeStartY, pipResizeStartW, pipResizeStartH;
+
+            pipResize.addEventListener('mousedown', function(e) {
+                e.stopPropagation();
+                isPipResizing = true;
+                pipResizeStartX = e.clientX;
+                pipResizeStartY = e.clientY;
+                pipResizeStartW = pip.offsetWidth;
+                pipResizeStartH = pip.offsetHeight;
+            });
+
+            document.addEventListener('mousemove', function(e) {
+                if (!isPipResizing) return;
+                const w = Math.max(240, pipResizeStartW + (e.clientX - pipResizeStartX));
+                const h = Math.max(120, pipResizeStartH + (e.clientY - pipResizeStartY));
+                pip.style.width = w + 'px';
+                pip.style.height = h + 'px';
+            });
+
+            document.addEventListener('mouseup', function() {
+                isPipResizing = false;
+            });
+
+            // ── PIP EVENTS ──
+            pipUmbrella.addEventListener('click', togglePipDetail);
+            pipClose.addEventListener('click', closePip);
+
+            // ── EVENTS ──
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+            document.addEventListener('touchmove', onTouchMove, { passive: false });
+            document.addEventListener('touchend', onTouchEnd);
+
+            board.addEventListener('touchstart', (e) => {
+                if (!e.target.closest('.node')) {
+                    e.preventDefault();
+                }
+            }, { passive: false });
+
+            // Close PIP when clicking outside
+            document.addEventListener('mousedown', function(e) {
+                if (pip.classList.contains('active') && !pip.contains(e.target) && !e.target.closest('.node')) {
+                    closePip();
+                }
+            });
+
+            // ── KEYBOARD SHORTCUTS ──
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'c' || e.key === 'C') {
+                    if (confirm('Clear all?')) clearAll();
+                }
+                if (e.key === 'p' || e.key === 'P') {
+                    togglePalette();
+                }
+                if (e.key === 'Escape' && pip.classList.contains('active')) {
+                    closePip();
+                }
+            });
+
+            // ── INIT ──
+            addSampleNodes();
+
+            window.addSampleNodes = addSampleNodes;
+            window.clearAll = clearAll;
+            window.togglePalette = togglePalette;
+            window.downloadJSON = downloadJSON;
+            window.hook = hook;
+            window.unhook = unhook;
+
+        })();
+    </script>
+
+</body>
+</html>

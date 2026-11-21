@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
+<title>🐇 InfoRabbit · Live Content Builder</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    background:#ffffff;
+    height:100vh;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+    color:#1a1a2e;
+  }
+
+  /* ─── TOOLBAR ─── */
+  .toolbar{
+    background:#fff;
+    padding:10px 20px;
+    border-bottom:1px solid rgba(0,0,0,0.08);
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-shrink:0;
+    flex-wrap:wrap;
+  }
+  .toolbar h1{ font-size:17px; font-weight:700; display:flex; align-items:center; gap:6px; }
+  .toolbar .badge{ background:rgba(0,0,0,0.04); padding:2px 10px; border-radius:20px; font-size:10px; color:#666; }
+  .toolbar textarea{
+    flex:1; min-width:180px; max-width:340px;
+    border:1px solid rgba(0,0,0,0.12); border-radius:10px;
+    padding:7px 11px; font-size:13px; font-family:inherit;
+    resize:vertical; min-height:34px; max-height:70px;
+    background:transparent; outline:none; transition:border-color .2s;
+  }
+  .toolbar textarea:focus{ border-color:#7c3aed; }
+  .toolbar button{
+    background:transparent; border:1px solid rgba(0,0,0,0.14);
+    padding:6px 14px; border-radius:8px; font-size:12.5px; cursor:pointer;
+    transition:all .15s; color:#1a1a2e; white-space:nowrap;
+  }
+  .toolbar button:hover{ background:rgba(0,0,0,0.05); }
+  .toolbar button:disabled{ opacity:.35; cursor:not-allowed; }
+  .toolbar button.on{ background:#1a1a2e; color:#fff; border-color:#1a1a2e; }
+  .toolbar .primary-btn{ background:#7c3aed; border-color:#7c3aed; color:#fff; }
+  .toolbar .primary-btn:hover{ background:#6d28d9; }
+  .toolbar .clear-btn{ color:#dc2626; border-color:rgba(220,38,38,.35); }
+  .toolbar .clear-btn:hover{ background:rgba(220,38,38,.08); }
+  .toolbar .listen-btn.active{ background:#dc2626; border-color:#dc2626; color:#fff; animation:pulseRec 1.4s ease-in-out infinite; }
+  @keyframes pulseRec{ 0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.4);} 50%{box-shadow:0 0 0 8px rgba(220,38,38,0);} }
+  .toolbar .status-text{ font-size:11px; color:#888; margin-left:auto; }
+  .toolbar input[type=file]{ display:none; }
+
+  /* ─── RABBIT FACE ─── */
+  .header-rabbit-compact {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      background: #eae3d7;
+      padding: 6px 12px 8px 12px;
+      border-radius: 50px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      cursor: pointer;
+      transition: all 0.2s;
+      min-width: 50px;
+      border: 1px solid rgba(0,0,0,0.06);
+  }
+  .header-rabbit-compact:hover {
+      transform: scale(1.05);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
+
+  /* ─── MAIN ─── */
+  .main-area{ display:flex; flex:1; overflow:hidden; position:relative; }
+
+  #whiteboard{
+    flex:1; position:relative; overflow:auto;
+    background-color:#ffffff;
+    background-image:radial-gradient(rgba(0,0,0,0.06) 1px, transparent 1px);
+    background-size:22px 22px;
+  }
+
+  .node-container{ position:relative; width:100%; height:100%; min-width:1200px; min-height:1000px; }
+
+  /* ─── NODES: true see-through glass (no blur) ─── */
+  .node{
+    position:absolute;
+    width:340px;
+    background:rgba(255,255,255,0.55);
+    border:1px solid rgba(0,0,0,0.14);
+    border-radius:16px;
+    padding:14px 18px;
+    box-shadow:0 6px 20px rgba(0,0,0,0.06);
+    transition:box-shadow .2s, transform .12s;
+    cursor:grab; touch-action:none; user-select:none;
+  }
+  .node:hover{ box-shadow:0 10px 30px rgba(0,0,0,0.1); }
+  .node.dragging{ cursor:grabbing; box-shadow:0 16px 40px rgba(0,0,0,0.14); z-index:10; transition:none; }
+  .node .node-header{ display:flex; align-items:center; gap:8px; font-weight:700; font-size:13.5px; margin-bottom:6px; flex-wrap:wrap; }
+  .node .node-header .node-emoji{ font-size:19px; }
+  .node .node-content{ font-size:12.5px; color:#333; line-height:1.5; padding-left:0; }
+  .node .node-content .content-preview{ white-space:pre-wrap; word-break:break-word; }
+  .node .node-tag{ display:inline-block; font-size:9.5px; background:rgba(0,0,0,0.06); padding:2px 9px; border-radius:12px; color:#555; margin-top:8px; }
+  .node .node-conf{ font-size:10px; color:#888; }
+  .node .live-tag{ font-size:9.5px; color:#dc2626; font-weight:700; }
+
+  .node .dot{
+    position:absolute; top:50%; transform:translateY(-50%);
+    width:13px; height:13px; border-radius:50%;
+    border:2px solid #fff; cursor:crosshair; z-index:5; transition:transform .15s;
+  }
+  .node .dot:hover{ transform:translateY(-50%) scale(1.35); }
+  .node .dot.input-dot{ left:-7px; background:#00b894; box-shadow:0 0 0 2px #00b894; }
+  .node .dot.output-dot{ right:-7px; background:#7c3aed; box-shadow:0 0 0 2px #7c3aed; }
+
+  /* ─── PER-TYPE ACCENTS ─── */
+  .node[data-type="entity"]{ border-color:rgba(124,58,237,0.4); }
+  .node[data-type="entity"] .node-header{ color:#6d28d9; }
+  .node[data-type="data"]{ border-color:rgba(0,102,204,0.4); }
+  .node[data-type="data"] .node-header{ color:#0066cc; }
+  .node[data-type="insight"]{ border-color:rgba(0,184,148,0.4); }
+  .node[data-type="insight"] .node-header{ color:#00825f; }
+  .node[data-type="detail"]{ border-color:rgba(245,158,11,0.4); }
+  .node[data-type="detail"] .node-header{ color:#b45309; }
+
+  .node.content-card{ border-color:rgba(245,158,11,0.55); background:rgba(245,158,11,0.08); }
+  .node.content-card .node-header{ color:#b45309; }
+  .node.content-card .regenerate-btn{
+    background:rgba(0,184,148,0.12); border:1px solid rgba(0,184,148,0.3); color:#00825f;
+    padding:3px 10px; border-radius:6px; font-size:10.5px; cursor:pointer; margin-left:auto;
+  }
+  .node.content-card .regenerate-btn:hover{ background:rgba(0,184,148,0.22); }
+
+  /* ─── BUBBLE MODE ─── */
+  .node.bubble{
+    width:150px; height:150px; border-radius:50%;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:12px; overflow:hidden;
+  }
+  .node.bubble .node-header{ flex-direction:column; gap:2px; margin-bottom:0; }
+  .node.bubble .node-content, .node.bubble .node-tag{ display:none; }
+  .node.bubble.expanded{
+    width:320px; height:auto; border-radius:18px; text-align:left; justify-content:flex-start; align-items:stretch;
+  }
+  .node.bubble.expanded .node-header{ flex-direction:row; }
+  .node.bubble.expanded .node-content, .node.bubble.expanded .node-tag{ display:block; }
+
+  /* ─── CONNECTIONS ─── */
+  #connections{ position:absolute; top:0; left:0; pointer-events:none; z-index:1; }
+  #connections line{ stroke:#7c3aed; stroke-width:2; stroke-linecap:round; opacity:.35; }
+  #ghost-line{ pointer-events:none; stroke:#7c3aed; stroke-width:2; stroke-dasharray:6 4; opacity:.5; }
+
+  /* ─── STATUS BAR ─── */
+  .status-bar{
+    background:#fafafa; border-top:1px solid rgba(0,0,0,0.06);
+    padding:6px 20px; font-size:11.5px; color:#888;
+    display:flex; justify-content:space-between; align-items:center; flex-shrink:0;
+  }
+  .status-bar .right{ display:flex; align-items:center; gap:14px; }
+  #nodeCount, #connCount{ display:inline-block; transition:transform .15s ease-out; }
+  #nodeCount.bump, #connCount.bump{ transform:scale(1.35); }
+  .swarm-dots{ display:flex; gap:4px; }
+  .swarm-dot{ width:6px; height:6px; border-radius:50%; background:#00b894; opacity:.25; transition:opacity .25s, transform .25s; }
+  .swarm-dot.active{ opacity:1; transform:scale(1.4); }
+  .swarm-dot:nth-child(2){ background:#f59e0b; }
+  .swarm-dot:nth-child(3){ background:#7c3aed; }
+  .swarm-dot:nth-child(4){ background:#0066cc; }
+  .swarm-dot:nth-child(5){ background:#d63384; }
+
+  @media (max-width:640px){
+    .toolbar{ padding:8px 10px; }
+    .toolbar textarea{ min-width:120px; max-width:100%; font-size:12px; }
+    .node{ width:260px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <!-- RABBIT FACE -->
+  <div class="header-rabbit-compact" id="rabbit">
+      <span style="color: #1f7bc7; font-size: 20px; font-weight: bold;">≽≼</span>
+      <span style="color: #dc2626; font-size: 20px; font-weight: bold;">.◣¥◢.</span>
+
+      <span style="color: #1f7bc7; font-size: 20px; font-weight: bold;">◡</span>
+      <span style="color: #8b7a6b; font-size: 20px; font-weight: bold;" id="mouth">)◡</span>
+  </div>
+  
+  <h1>🐇 InfoRabbit</h1>
+  <span class="badge">live content builder</span>
+  <textarea id="textInput" placeholder="Paste text, or hit Listen and talk…"></textarea>
+  <button class="primary-btn" id="extractBtn">🐇 Extract</button>
+  <button id="listenBtn" class="listen-btn" title="Talk and cards appear live (⌘/Ctrl+Space)">🎙️ Listen</button>
+  <button id="alfredBtn" title="Alfred reads new cards aloud">🔊 Alfred</button>
+  <button id="viewBtn" title="Switch between cards and bubbles">◯ Bubbles</button>
+  <button id="saveBtn" title="Download this board as a file">💾 Save</button>
+  <button id="loadBtn" title="Load a previously saved board">📂 Load</button>
+  <input type="file" id="loadInput" accept="application/json" />
+  <button class="clear-btn" id="clearBtn">🗑️ Clear</button>
+  <span class="status-text" id="statusText">✨ 0 cards</span>
+</div>
+
+<div class="main-area">
+  <div id="whiteboard">
+    <svg id="connections">
+      <line id="ghost-line" x1="0" y1="0" x2="0" y2="0" style="display:none;" />
+    </svg>
+    <div class="node-container" id="nodeContainer"></div>
+  </div>
+</div>
+
+<div class="status-bar">
+  <span id="statusLeft">🐇 Paste text & click Extract, or ⌘/Ctrl+Enter</span>
+  <div class="right">
+    <div class="swarm-dots">
+      <span class="swarm-dot" data-module="entity"></span>
+      <span class="swarm-dot" data-module="data"></span>
+      <span class="swarm-dot" data-module="insight"></span>
+      <span class="swarm-dot" data-module="detail"></span>
+      <span class="swarm-dot" data-module="content"></span>
+    </div>
+    <span id="statusRight"><span id="nodeCount">0</span> cards · <span id="connCount">0</span> connections</span>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+const container   = document.getElementById('nodeContainer');
+const whiteboard   = document.getElementById('whiteboard');
+const svg          = document.getElementById('connections');
+const ghost        = document.getElementById('ghost-line');
+const textInput    = document.getElementById('textInput');
+const extractBtn   = document.getElementById('extractBtn');
+const listenBtn    = document.getElementById('listenBtn');
+const alfredBtn    = document.getElementById('alfredBtn');
+const viewBtn      = document.getElementById('viewBtn');
+const saveBtn      = document.getElementById('saveBtn');
+const loadBtn      = document.getElementById('loadBtn');
+const loadInput    = document.getElementById('loadInput');
+const clearBtn     = document.getElementById('clearBtn');
+const statusText   = document.getElementById('statusText');
+const statusLeft   = document.getElementById('statusLeft');
+const nodeCountEl  = document.getElementById('nodeCount');
+const connCountEl  = document.getElementById('connCount');
+const swarmDots    = document.querySelectorAll('.swarm-dot');
+
+// ─── RABBIT FACE ───
+const mouth = document.getElementById('mouth');
+const expressions = [
+    '. ̫.',        // straight face
+    '....',      // closed mouth
+    '?',         // unsure
+    '!',         // surprised
+    '~',         // relaxed
+    'O',         // shocked
+    '. ̫.',       // happy rabbit
+    '+',      // speaking
+    '<◡>',      // smiling with cheeks
+    ')<◡>(',    // smiling with dimples!
+    ')=+=('     // super happy!
+];
+let index = 0;
+
+document.getElementById('rabbit').onclick = function() {
+    index = (index + 1) % expressions.length;
+    mouth.textContent = expressions[index];
+};
+
+// ─── STATE ───
+let nodes = [];
+let connections = [];
+let nodeIdCounter = 0;
+let connIdCounter = 0;
+let viewMode = 'card';       // 'card' | 'bubble'
+let alfredOn = true;
+let listening = false;
+let recognition = null;
+let regenTemplateIndex = {}; // per content-node regenerate cycling
+
+let isDrawing = false, startNode = null, startDot = null, startX = 0, startY = 0;
+let dragNode = null, dragOffsetX = 0, dragOffsetY = 0, dragMoved = false;
+
+// ─── UTIL ───
+function escapeHTML(str){
+  return String(str).replace(/[&<>"']/g, c => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+  }[c]));
+}
+
+function updateCounts(){
+  if (nodeCountEl.textContent !== String(nodes.length)) bump(nodeCountEl);
+  if (connCountEl.textContent !== String(connections.length)) bump(connCountEl);
+  nodeCountEl.textContent = nodes.length;
+  connCountEl.textContent = connections.length;
+  statusText.textContent = `✨ ${nodes.length} cards`;
+}
+function bump(el){
+  el.classList.add('bump');
+  setTimeout(() => el.classList.remove('bump'), 150);
+}
+
+function getNodeEl(id){ return document.querySelector(`.node[data-id="${id}"]`); }
+function getNodeData(id){ return nodes.find(n => n.id === id); }
+
+function flashModule(name){
+  const dot = document.querySelector(`.swarm-dot[data-module="${name}"]`);
+  if(!dot) return;
+  dot.classList.add('active');
+  setTimeout(()=>dot.classList.remove('active'), 500);
+}
+
+function growCanvas(x, y){
+  const el = container;
+  const needW = x + 400, needH = y + 260;
+  if (needW > el.offsetWidth)  el.style.minWidth  = needW + 'px';
+  if (needH > el.offsetHeight) el.style.minHeight = needH + 'px';
+  svg.setAttribute('width', el.scrollWidth);
+  svg.setAttribute('height', el.scrollHeight);
+}
+
+function nextPosition(){
+  const perRow = Math.max(1, Math.floor((container.clientWidth - 40) / 380));
+  const i = nodes.length;
+  const col = i % perRow;
+  const row = Math.floor(i / perRow);
+  const jitterX = (Math.random() * 30) - 15;
+  const jitterY = (Math.random() * 20) - 10;
+  return {
+    x: 40 + col * 380 + jitterX,
+    y: 30 + row * 210 + jitterY
+  };
+}
+
+// ─── CONNECTIONS RENDER ───
+function getDotPos(nodeId, type){
+  const el = getNodeEl(nodeId);
+  if (!el) return {x:0,y:0};
+  const boardRect = whiteboard.getBoundingClientRect();
+  const dot = el.querySelector(`.${type}-dot`);
+  if (!dot) return {x:0,y:0};
+  const r = dot.getBoundingClientRect();
+  return {
+    x: r.left - boardRect.left + whiteboard.scrollLeft + r.width/2,
+    y: r.top  - boardRect.top  + whiteboard.scrollTop  + r.height/2
+  };
+}
+
+function renderConnections(){
+  svg.querySelectorAll('line:not(#ghost-line)').forEach(l => l.remove());
+  connections.forEach(conn => {
+    const from = getDotPos(conn.fromNode, 'output');
+    const to   = getDotPos(conn.toNode, 'input');
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', from.x); line.setAttribute('y1', from.y);
+    line.setAttribute('x2', to.x);   line.setAttribute('y2', to.y);
+    line.setAttribute('data-conn-id', conn.id);
+    svg.appendChild(line);
+  });
+  updateCounts();
+}
+
+// ─── TEXT-TO-SPEECH (Alfred) ───
+let alfredVoice = null;
+function pickAlfredVoice(){
+  const voices = speechSynthesis.getVoices();
+  alfredVoice = voices.find(v => /daniel|arthur|oliver|george|david|male/i.test(v.name))
+             || voices.find(v => v.lang && v.lang.startsWith('en'))
+             || voices[0] || null;
+}
+if ('speechSynthesis' in window){
+  speechSynthesis.onvoiceschanged = pickAlfredVoice;
+  pickAlfredVoice();
+}
+function alfredSpeak(text){
+  if (!alfredOn || !('speechSynthesis' in window)) return;
+  const utter = new SpeechSynthesisUtterance(text);
+  if (alfredVoice) utter.voice = alfredVoice;
+  utter.rate = 1.02; utter.pitch = 0.95;
+  speechSynthesis.speak(utter);
+}
+
+// ─── SPEECH-TO-TEXT (Listen) ───
+const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (!SpeechRec){
+  listenBtn.disabled = true;
+  listenBtn.title = 'Voice input is not supported in this browser';
+}
+
+let listenBuffer = '';
+let listenDebounce = null;
+
+function startListening(){
+  if (!SpeechRec) return;
+  recognition = new SpeechRec();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = 'en-US';
+
+  recognition.onresult = (e) => {
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++){
+      const chunk = e.results[i][0].transcript;
+      if (e.results[i].isFinal){
+        listenBuffer += chunk + '. ';
+        textInput.value = listenBuffer;
+        clearTimeout(listenDebounce);
+        listenDebounce = setTimeout(() => {
+          extractAndBuild({ append: true, source: chunk });
+        }, 600);
+      } else {
+        interim = chunk;
+      }
+    }
+    statusLeft.textContent = '🎙️ ' + (interim || 'listening…');
+  };
+
+  recognition.onerror = (e) => {
+    statusLeft.textContent = '⚠️ Mic error: ' + e.error;
+    stopListening();
+  };
+
+  recognition.onend = () => {
+    if (listening) recognition.start();
+  };
+
+  recognition.start();
+  listening = true;
+  listenBtn.classList.add('active');
+  statusLeft.textContent = '🎙️ Listening… talk and cards will appear';
+}
+
+function stopListening(){
+  listening = false;
+  listenBtn.classList.remove('active');
+  if (recognition){ recognition.onend = null; recognition.stop(); }
+  statusLeft.textContent = '🐇 Stopped listening';
+}
+
+listenBtn.addEventListener('click', () => {
+  if (listening) stopListening(); else startListening();
+});
+
+alfredBtn.addEventListener('click', () => {
+  alfredOn = !alfredOn;
+  alfredBtn.classList.toggle('on', alfredOn);
+  if (!alfredOn && 'speechSynthesis' in window) speechSynthesis.cancel();
+});
+alfredBtn.classList.add('on');
+
+viewBtn.addEventListener('click', () => {
+  viewMode = viewMode === 'card' ? 'bubble' : 'card';
+  viewBtn.textContent = viewMode === 'card' ? '◯ Bubbles' : '▭ Cards';
+  document.querySelectorAll('.node').forEach(el => el.classList.toggle('bubble', viewMode === 'bubble'));
+  renderConnections();
+});
+
+// ─── EXTRACTION MODULES ───
+const STOPWORDS = new Set(['The','This','That','These','Those','A','An','And','But','Or','If','It','In','On','At','For','With','To','Of','Is','Are','Was','Were','As','By','From']);
+
+function extractIntel(text){
+  const cards = [];
+  const sentences = text.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 12);
+  const words = text.split(/\s+/).filter(Boolean);
+
+  const freq = {};
+  let phrase = [];
+  const flush = () => {
+    if (phrase.length){
+      const p = phrase.join(' ');
+      if (!STOPWORDS.has(phrase[0])) freq[p] = (freq[p]||0) + 1;
+      phrase = [];
+    }
+  };
+  words.forEach(w => {
+    const clean = w.replace(/[^A-Za-z'-]/g, '');
+    if (clean.length > 1 && clean[0] === clean[0].toUpperCase() && /[A-Za-z]/.test(clean[0])){
+      phrase.push(clean);
+    } else flush();
+  });
+  flush();
+  const entities = Object.entries(freq).sort((a,b)=>b[1]-a[1]).map(e=>e[0]).slice(0,5);
+  if (entities.length){
+    cards.push({ type:'entity', emoji:'🧠', title:'Key Entities', content:entities.join(', '), tag:'extracted', confidence:Math.round(70+Math.random()*20) });
+  }
+
+  const numbers = (text.match(/\d+(\.\d+)?%?/g) || []).filter(n => n.replace('%','').length > 0);
+  const uniqueNumbers = [...new Set(numbers)].slice(0,4);
+  if (uniqueNumbers.length){
+    cards.push({ type:'data', emoji:'📊', title:'Data Points', content:`${uniqueNumbers.length} values found: ${uniqueNumbers.join(', ')}`, tag:'data', confidence:Math.round(75+Math.random()*20) });
+  }
+
+  const keywordSet = new Set(entities.join(' ').toLowerCase().split(/\s+/));
+  const scored = sentences.map(s => {
+    const lower = s.toLowerCase();
+    let score = 0;
+    keywordSet.forEach(k => { if (k && lower.includes(k)) score += 2; });
+    score += Math.min(s.length / 40, 3);
+    return { s, score };
+  }).sort((a,b) => b.score - a.score);
+
+  if (scored[0]){
+    const t = scored[0].s.length > 130 ? scored[0].s.slice(0,130) + '…' : scored[0].s;
+    cards.push({ type:'insight', emoji:'💡', title:'Main Idea', content:t, tag:'insight', confidence:Math.round(80+Math.random()*15) });
+  }
+  if (scored[1]){
+    const t = scored[1].s.length > 130 ? scored[1].s.slice(0,130) + '…' : scored[1].s;
+    cards.push({ type:'detail', emoji:'🔍', title:'Secondary Insight', content:t, tag:'detail', confidence:Math.round(65+Math.random()*20) });
+  }
+
+  cards.push({ type:'metadata', emoji:'📋', title:'Text Summary', content:`${words.length} words, ${sentences.length} sentences`, tag:'metadata', confidence:95 });
+
+  return cards;
+}
+
+const CONTENT_TEMPLATES = [
+  (i,e,d,det) => {
+    let c = '📝 Content Draft\n\n';
+    if (i) c += `Main Idea: ${i.content}\n\n`;
+    if (e) c += `Key Players: ${e.content}\n\n`;
+    if (d) c += `Data: ${d.content}\n\n`;
+    if (det) c += `Additional Context: ${det.content}\n\n`;
+    return c + 'Generated from the connected intel cards above.';
+  },
+  (i,e,d,det) => {
+    let c = '📝 Content Draft (narrative)\n\n';
+    if (i) c += `${i.content} `;
+    if (e) c += `This centers on ${e.content}. `;
+    if (d) c += `Backed by the numbers: ${d.content}. `;
+    if (det) c += `Worth noting: ${det.content}`;
+    return c;
+  },
+  (i,e,d,det) => {
+    let c = '📝 Content Draft (bullets)\n\n';
+    if (i) c += `• Hook: ${i.content}\n`;
+    if (e) c += `• Who's involved: ${e.content}\n`;
+    if (d) c += `• Numbers: ${d.content}\n`;
+    if (det) c += `• Extra angle: ${det.content}\n`;
+    return c;
+  }
+];
+
+function generateContent(cards, templateIndex){
+  const entity   = cards.find(c => c.type === 'entity');
+  const data     = cards.find(c => c.type === 'data');
+  const insight  = cards.find(c => c.type === 'insight');
+  const detail   = cards.find(c => c.type === 'detail');
+  const idx = ((templateIndex||0) % CONTENT_TEMPLATES.length + CONTENT_TEMPLATES.length) % CONTENT_TEMPLATES.length;
+  return CONTENT_TEMPLATES[idx](insight, entity, data, detail);
+}
+
+// ─── CREATE NODE ───
+function createNode(data, opts){
+  opts = opts || {};
+  const id = ++nodeIdCounter;
+  const el = document.createElement('div');
+  el.className = `node${data.type === 'content' ? ' content-card' : ''}${viewMode === 'bubble' ? ' bubble' : ''}`;
+  el.setAttribute('data-id', id);
+  el.setAttribute('data-type', data.type || 'metadata');
+
+  const conf = data.confidence || 0;
+  const confColor = conf > 80 ? '#00b894' : conf > 60 ? '#f59e0b' : '#ef4444';
+  const pos = data.position || nextPosition();
+
+  el.innerHTML = `
+    <div class="node-header">
+      <span class="node-emoji">${data.emoji || '📄'}</span>
+      ${escapeHTML(data.title)}
+      <span class="node-conf" style="color:${confColor}">${conf}%</span>
+      ${opts.live ? '<span class="live-tag">● LIVE</span>' : ''}
+      ${data.type === 'content' ? `<button class="regenerate-btn" onclick="window.regenerateContent(${id})">🔄 Regenerate</button>` : ''}
+    </div>
+    <div class="node-content"><div class="content-preview">${escapeHTML(data.content)}</div></div>
+    <span class="node-tag">${escapeHTML(data.tag || 'intel')}</span>
+    <div class="dot input-dot" data-node="${id}" data-type="input"></div>
+    <div class="dot output-dot" data-node="${id}" data-type="output"></div>
+  `;
+  el.style.left = pos.x + 'px';
+  el.style.top  = pos.y + 'px';
+
+  container.appendChild(el);
+  nodes.push({ id, ...data, el, x: pos.x, y: pos.y });
+
+  el.addEventListener('mousedown', onNodeMouseDown);
+  el.addEventListener('touchstart', onNodeTouchStart, { passive:false });
+  el.querySelectorAll('.dot').forEach(dot => {
+    dot.addEventListener('mousedown', onDotMouseDown);
+    dot.addEventListener('touchstart', onDotTouchStart, { passive:false });
+  });
+  el.addEventListener('click', (e) => {
+    if (dragMoved) return;
+    if (viewMode === 'bubble' && !e.target.closest('.dot') && !e.target.closest('.regenerate-btn')){
+      el.classList.toggle('expanded');
+    }
+  });
+
+  growCanvas(pos.x, pos.y);
+  renderConnections();
+  return id;
+}
+
+// ─── EXTRACT & BUILD ───
+function extractAndBuild(opts){
+  opts = opts || {};
+  const text = opts.append ? opts.source : textInput.value.trim();
+  if (!text){ statusLeft.textContent = '📖 Please paste or say some text first'; return; }
+
+  if (!opts.append){
+    statusLeft.textContent = '🐇 Extracting intel…';
+    clearAll(false);
+  }
+
+  const modules = ['entity','data','insight','detail'];
+  modules.forEach((m,i) => setTimeout(()=>flashModule(m), i*120));
+
+  const extracted = extractIntel(text);
+  extracted.forEach(card => createNode(card, { live: opts.append }));
+
+  setTimeout(() => {
+    flashModule('content');
+    let contentNode = nodes.find(n => n.type === 'content');
+    const sourceNodes = nodes.filter(n => n.type !== 'content');
+
+    if (contentNode && opts.append){
+      const idx = regenTemplateIndex[contentNode.id] || 0;
+      contentNode.content = generateContent(sourceNodes, idx);
+      const preview = getNodeEl(contentNode.id)?.querySelector('.content-preview');
+      if (preview) preview.textContent = contentNode.content;
+    } else {
+      const contentData = {
+        type:'content', emoji:'✍️', title:'Content Draft',
+        content: generateContent(sourceNodes, 0), tag:'generated', confidence:92
+      };
+      const cid = createNode(contentData);
+      contentNode = getNodeData(cid);
+      regenTemplateIndex[cid] = 0;
+    }
+
+    sourceNodes.slice(-4).forEach((node) => {
+      const exists = connections.some(c => c.fromNode === node.id && c.toNode === contentNode.id);
+      if (!exists){
+        connections.push({ id: ++connIdCounter, fromNode: node.id, toNode: contentNode.id });
+      }
+    });
+
+    renderConnections();
+    statusLeft.textContent = opts.append
+      ? `🎙️ Live card${sourceNodes.length===1?'':'s'} added from speech`
+      : `✅ Extracted ${sourceNodes.length} intel cards + 1 content draft`;
+    updateCounts();
+
+    if (!opts.append){
+      alfredSpeak(`Content draft ready. ${contentNode.content.replace(/[📝✍️•]/g,'')}`);
+    } else {
+      alfredSpeak(`New card captured: ${extracted[extracted.length-1]?.title || 'update'}.`);
+    }
+  }, 550);
+
+  updateCounts();
+}
+
+// ─── REGENERATE ───
+window.regenerateContent = function(nodeId){
+  const node = getNodeData(nodeId);
+  if (!node || node.type !== 'content') return;
+  const sourceNodes = nodes.filter(n => n.type !== 'content');
+  regenTemplateIndex[nodeId] = (regenTemplateIndex[nodeId] || 0) + 1;
+  const newContent = generateContent(sourceNodes, regenTemplateIndex[nodeId]);
+  node.content = newContent;
+  const preview = getNodeEl(nodeId)?.querySelector('.content-preview');
+  if (preview) preview.textContent = newContent;
+  statusLeft.textContent = '🔄 Content regenerated — new phrasing style';
+  alfredSpeak('Here is another version of the draft.');
+};
+
+// ─── CLEAR ───
+function clearAll(confirmDelete){
+  if (nodes.length === 0) return;
+  if (confirmDelete && !confirm('Clear all cards?')) return;
+  nodes.forEach(n => n.el.remove());
+  nodes = []; connections = []; connIdCounter = 0; nodeIdCounter = 0; regenTemplateIndex = {};
+  container.style.minWidth = ''; container.style.minHeight = '';
+  renderConnections(); updateCounts();
+  statusLeft.textContent = '🗑️ Cleared';
+}
+
+// ─── DRAG: NODE ───
+function onNodeMouseDown(e){
+  if (e.target.closest('.dot') || e.target.closest('.regenerate-btn')) return;
+  const el = e.currentTarget;
+  const node = getNodeData(parseInt(el.dataset.id));
+  if (!node) return;
+  const rect = el.getBoundingClientRect();
+  dragNode = node; dragMoved = false;
+  dragOffsetX = e.clientX - rect.left; dragOffsetY = e.clientY - rect.top;
+  el.classList.add('dragging');
+  e.preventDefault();
+}
+function onNodeTouchStart(e){
+  if (e.target.closest('.dot') || e.target.closest('.regenerate-btn')) return;
+  const touch = e.touches[0]; const el = e.currentTarget;
+  const node = getNodeData(parseInt(el.dataset.id));
+  if (!node) return;
+  const rect = el.getBoundingClientRect();
+  dragNode = node; dragMoved = false;
+  dragOffsetX = touch.clientX - rect.left; dragOffsetY = touch.clientY - rect.top;
+  el.classList.add('dragging');
+  e.preventDefault();
+}
+
+// ─── DRAG: DOT (connections) ───
+function beginDraw(node, type, clientX, clientY){
+  const boardRect = whiteboard.getBoundingClientRect();
+  isDrawing = true; startNode = node; startDot = type;
+  startX = clientX - boardRect.left + whiteboard.scrollLeft;
+  startY = clientY - boardRect.top + whiteboard.scrollTop;
+  ghost.style.display = 'block';
+  ghost.setAttribute('x1', startX); ghost.setAttribute('y1', startY);
+  ghost.setAttribute('x2', startX); ghost.setAttribute('y2', startY);
+  statusLeft.textContent = `🔗 Connecting from ${node.title}…`;
+}
+function onDotMouseDown(e){
+  e.stopPropagation();
+  const dot = e.currentTarget;
+  const node = getNodeData(parseInt(dot.dataset.node));
+  if (!node) return;
+  const r = dot.getBoundingClientRect();
+  beginDraw(node, dot.dataset.type, r.left + r.width/2, r.top + r.height/2);
+  e.preventDefault();
+}
+function onDotTouchStart(e){
+  e.stopPropagation();
+  const touch = e.touches[0]; const dot = e.currentTarget;
+  const node = getNodeData(parseInt(dot.dataset.node));
+  if (!node) return;
+  const r = dot.getBoundingClientRect();
+  beginDraw(node, dot.dataset.type, r.left + r.width/2, r.top + r.height/2);
+  e.preventDefault();
+}
+
+function finishConnection(el){
+  if (el && (el.classList.contains('input-dot') || el.classList.contains('output-dot'))){
+    const targetNode = getNodeData(parseInt(el.dataset.node));
+    const targetType = el.dataset.type;
+    if (targetNode && targetNode.id !== startNode.id){
+      let fromNode, toNode;
+      if (startDot === 'output' && targetType === 'input'){ fromNode = startNode.id; toNode = targetNode.id; }
+      else if (startDot === 'input' && targetType === 'output'){ fromNode = targetNode.id; toNode = startNode.id; }
+      else { statusLeft.textContent = '❌ Must connect output → input'; return; }
+      connections.push({ id: ++connIdCounter, fromNode, toNode });
+      renderConnections();
+      statusLeft.textContent = `✅ Connected ${startNode.title} → ${targetNode.title}`;
+    } else {
+      statusLeft.textContent = '❌ Cannot connect to itself';
+    }
+  } else {
+    statusLeft.textContent = '🔗 Release on a dot to connect';
+  }
+}
+
+document.addEventListener('mousemove', (e) => {
+  const boardRect = whiteboard.getBoundingClientRect();
+  if (dragNode){
+    dragMoved = true;
+    const x = e.clientX - boardRect.left + whiteboard.scrollLeft - dragOffsetX;
+    const y = e.clientY - boardRect.top + whiteboard.scrollTop - dragOffsetY;
+    const el = getNodeEl(dragNode.id);
+    if (el){ el.style.left = x + 'px'; el.style.top = y + 'px'; dragNode.x = x; dragNode.y = y; }
+    growCanvas(x, y);
+    renderConnections();
+    return;
+  }
+  if (isDrawing){
+    ghost.setAttribute('x2', e.clientX - boardRect.left + whiteboard.scrollLeft);
+    ghost.setAttribute('y2', e.clientY - boardRect.top + whiteboard.scrollTop);
+  }
+});
+document.addEventListener('mouseup', (e) => {
+  if (dragNode){
+    getNodeEl(dragNode.id)?.classList.remove('dragging');
+    dragNode = null; renderConnections();
+    setTimeout(()=>dragMoved=false, 50);
+    return;
+  }
+  if (isDrawing){
+    finishConnection(document.elementFromPoint(e.clientX, e.clientY));
+    ghost.style.display = 'none'; isDrawing = false; startNode = null; startDot = null;
+  }
+});
+document.addEventListener('touchmove', (e) => {
+  const touch = e.touches[0]; const boardRect = whiteboard.getBoundingClientRect();
+  if (dragNode){
+    dragMoved = true;
+    const x = touch.clientX - boardRect.left + whiteboard.scrollLeft - dragOffsetX;
+    const y = touch.clientY - boardRect.top + whiteboard.scrollTop - dragOffsetY;
+    const el = getNodeEl(dragNode.id);
+    if (el){ el.style.left = x + 'px'; el.style.top = y + 'px'; dragNode.x = x; dragNode.y = y; }
+    growCanvas(x, y);
+    renderConnections(); e.preventDefault(); return;
+  }
+  if (isDrawing){
+    ghost.setAttribute('x2', touch.clientX - boardRect.left + whiteboard.scrollLeft);
+    ghost.setAttribute('y2', touch.clientY - boardRect.top + whiteboard.scrollTop);
+    e.preventDefault();
+  }
+}, { passive:false });
+document.addEventListener('touchend', (e) => {
+  if (dragNode){
+    getNodeEl(dragNode.id)?.classList.remove('dragging');
+    dragNode = null; renderConnections();
+    setTimeout(()=>dragMoved=false, 50);
+    return;
+  }
+  if (isDrawing){
+    const touch = e.changedTouches[0];
+    finishConnection(document.elementFromPoint(touch.clientX, touch.clientY));
+    ghost.style.display = 'none'; isDrawing = false; startNode = null; startDot = null;
+  }
+});
+
+// ─── SAVE / LOAD ───
+function serializeState(){
+  return {
+    savedAt: new Date().toISOString(),
+    nodes: nodes.map(n => ({ id:n.id, type:n.type, emoji:n.emoji, title:n.title, content:n.content, tag:n.tag, confidence:n.confidence, x:n.x, y:n.y })),
+    connections: connections.map(c => ({ fromNode:c.fromNode, toNode:c.toNode })),
+    viewMode
+  };
+}
+saveBtn.addEventListener('click', () => {
+  const data = serializeState();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `inforabbit-board-${Date.now()}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  statusLeft.textContent = '💾 Board downloaded';
+});
+
+loadBtn.addEventListener('click', () => loadInput.click());
+loadInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    try {
+      const data = JSON.parse(evt.target.result);
+      clearAll(false);
+      const idMap = {};
+      (data.nodes || []).forEach(n => {
+        const newId = createNode({ type:n.type, emoji:n.emoji, title:n.title, content:n.content, tag:n.tag, confidence:n.confidence, position:{x:n.x,y:n.y} });
+        idMap[n.id] = newId;
+      });
+      (data.connections || []).forEach(c => {
+        if (idMap[c.fromNode] && idMap[c.toNode]){
+          connections.push({ id: ++connIdCounter, fromNode: idMap[c.fromNode], toNode: idMap[c.toNode] });
+        }
+      });
+      renderConnections();
+      statusLeft.textContent = `📂 Loaded board from ${file.name}`;
+    } catch(err){
+      statusLeft.textContent = '❌ Could not read that file';
+    }
+  };
+  reader.readAsText(file);
+  loadInput.value = '';
+});
+
+// ─── EVENTS ───
+extractBtn.addEventListener('click', () => extractAndBuild());
+clearBtn.addEventListener('click', () => clearAll(true));
+textInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); extractAndBuild(); }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && (e.ctrlKey || e.metaKey) && document.activeElement !== textInput){
+    e.preventDefault();
+    listenBtn.click();
+  }
+});
+
+// ─── INIT ───
+updateCounts();
+console.log('🐇 InfoRabbit · Live Content Builder loaded');
+})();
+</script>
+</body>
+</html>
