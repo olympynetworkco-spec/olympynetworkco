@@ -1,0 +1,1740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes" />
+  <title>Zeta Map — Nodes + Search</title>
+  <!-- Google fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <!-- MapLibre GL JS -->
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    :root {
+      --font: 'Inter', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --bg: #0E1013;
+      --bg-raised: #16181C;
+      --text: #ECE8E1;
+      --muted: #8A8D93;
+      --amber: #F2B84B;
+      --teal: #3FBFAE;
+      --coral: #FF6B4A;
+      --border: rgba(255, 255, 255, 0.06);
+      --shadow: rgba(0, 0, 0, 0.5);
+    }
+    html, body {
+  position: absolute;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  background: #000000;
+  zoom: 0.9;
+      color: var(--text);
+      font-family: var(--font);
+      overflow: hidden;
+      position: fixed;
+      top: 0;
+      left: 0;
+    }
+    #map {
+  position: absolute;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  background: #000000;
+  zoom: 0.7;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 0;
+      padding-top: 40px;
+      box-sizing: border-box;
+    }
+    
+    /* ─── PIN TOGGLE ─── */
+    .pin-toggle {
+      position: absolute;
+      top: 112px;
+      right: 16px;
+      z-index: 1000;
+      background: rgba(10, 14, 20, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 197, 22, 0.25);
+      border-radius: 40px;
+      padding: 8px 16px;
+      color: #fff;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      transition: 0.2s;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .pin-toggle.active {
+      border-color: #ff3b30;
+      background: rgba(255, 59, 48, 0.2);
+      box-shadow: 0 0 30px rgba(255, 59, 48, 0.15);
+    }
+    .pin-toggle .indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #555;
+      transition: 0.2s;
+    }
+    .pin-toggle.active .indicator {
+      background: #ff3b30;
+      box-shadow: 0 0 12px #ff3b30;
+    }
+    
+    /* ─── SMS TOGGLE ─── */
+    .sms-widget {
+      position: absolute;
+      top: 116px;
+      right: 16px;
+      z-index: 9999;
+      background: rgba(10, 14, 20, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 197, 22, 0.25);
+      border-radius: 14px;
+      padding: 10px 14px;
+      min-width: 110px;
+      max-width: 150px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 12px;
+    }
+    .sms-widget .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .sms-widget .label {
+      font-weight: 500;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.7);
+    }
+    .sms-widget .toggle-track {
+      width: 36px;
+      height: 20px;
+      background: #333;
+      border-radius: 10px;
+      cursor: pointer;
+      position: relative;
+      transition: background 0.3s ease;
+      flex-shrink: 0;
+    }
+    .sms-widget .toggle-track.active {
+      background: var(--teal);
+    }
+    .sms-widget .toggle-thumb {
+      width: 16px;
+      height: 16px;
+      background: white;
+      border-radius: 50%;
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.3s ease;
+    }
+    .sms-widget .toggle-track.active .toggle-thumb {
+      transform: translateX(16px);
+    }
+    .sms-widget .status-text {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.35);
+      margin-top: 3px;
+      text-align: right;
+      font-weight: 400;
+    }
+    .sms-widget .status-text.on {
+      color: var(--teal);
+    }
+    
+    /* ─── SIGNAL WIDGET ─── */
+    .signal-widget {
+      position: absolute;
+      top: 122px;
+      right: 16px;
+      z-index: 9997;
+      background: rgba(10, 14, 20, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 197, 22, 0.25);
+      border-radius: 14px;
+      padding: 10px 14px;
+      min-width: 80px;
+      max-width: 130px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 10px;
+    }
+    .signal-widget .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .signal-widget .label {
+      font-weight: 500;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.7);
+    }
+    .signal-widget .toggle-track {
+      width: 36px;
+      height: 20px;
+      background: #333;
+      border-radius: 10px;
+      cursor: pointer;
+      position: relative;
+      transition: background 0.3s ease;
+      flex-shrink: 0;
+    }
+    .signal-widget .toggle-track.active {
+      background: var(--teal);
+    }
+    .signal-widget .toggle-thumb {
+      width: 16px;
+      height: 16px;
+      background: white;
+      border-radius: 50%;
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.3s ease;
+    }
+    .signal-widget .toggle-track.active .toggle-thumb {
+      transform: translateX(16px);
+    }
+    .signal-widget .status-text {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.35);
+      margin-top: 3px;
+      text-align: right;
+      font-weight: 400;
+    }
+    .signal-widget .status-text.on {
+      color: var(--teal);
+    }
+    
+    /* ─── WEATHER WIDGET ─── */
+    .weather-widget {
+      position: absolute;
+      top: 196px;
+      left: 16px;
+      z-index: 9998;
+      background: rgba(10, 14, 20, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 197, 22, 0.25);
+      border-radius: 14px;
+      padding: 10px 14px;
+      min-width: 100px;
+      max-width: 150px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 12px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .weather-widget:hover {
+      border-color: #3FBFAE;
+    }
+    .weather-widget .weather-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .weather-widget .weather-city {
+      font-weight: 600;
+      font-size: 13px;
+      color: #ECE8E1;
+    }
+    .weather-widget .weather-temp {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--amber);
+    }
+    .weather-widget .weather-temp sup {
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .weather-widget .weather-status {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.5);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .weather-widget .weather-icon {
+      width: 36px;
+      height: 36px;
+      object-fit: contain;
+    }
+    
+    /* ─── FILE MUSIC BROWSER WIDGET ─── */
+    .file-widget {
+      position: absolute;
+      top: 350px;
+      right: 16px;
+      z-index: 9995;
+      background: rgba(10, 14, 20, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 197, 22, 0.25);
+      border-radius: 14px;
+      padding: 10px 14px;
+      min-width: 100px;
+      max-width: 150px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 12px;
+      cursor: pointer;
+      transition: 0.2s;
+      max-height: 340px;
+      overflow: hidden;
+    }
+    .file-widget:hover {
+      border-color: #3FBFAE;
+    }
+    .file-widget .file-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .file-widget .file-info {
+      flex: 1;
+      overflow: hidden;
+      min-width: 0;
+    }
+    .file-widget .file-path {
+      font-weight: 600;
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.5);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 4px;
+    }
+    .file-widget .file-list {
+      font-size: 10px;
+      color: #ECE8E1;
+      max-height: 140px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--amber) rgba(255, 255, 255, 0.05);
+    }
+    .file-widget .file-list::-webkit-scrollbar {
+      width: 3px;
+    }
+    .file-widget .file-list::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 4px;
+    }
+    .file-widget .file-list::-webkit-scrollbar-thumb {
+      background: var(--amber);
+      border-radius: 4px;
+    }
+    .file-widget .file-list .file-item {
+      padding: 2px 4px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .file-widget .file-list .file-item:hover {
+      background: rgba(63, 191, 174, 0.15);
+    }
+    .file-widget .file-list .file-item.folder {
+      color: var(--amber);
+    }
+    .file-widget .file-list .file-item.audio {
+      color: var(--teal);
+    }
+    .file-widget .file-icon {
+      font-size: 28px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    
+    .file-widget .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .file-widget .label {
+      font-weight: 500;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.7);
+    }
+    .file-widget .toggle-track {
+      width: 36px;
+      height: 20px;
+      background: #333;
+      border-radius: 10px;
+      cursor: pointer;
+      position: relative;
+      transition: background 0.3s ease;
+      flex-shrink: 0;
+    }
+    .file-widget .toggle-track.active {
+      background: var(--teal);
+    }
+    .file-widget .toggle-thumb {
+      width: 16px;
+      height: 16px;
+      background: white;
+      border-radius: 50%;
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.3s ease;
+    }
+    .file-widget .toggle-track.active .toggle-thumb {
+      transform: translateX(16px);
+    }
+    .file-widget .status-text {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.35);
+      margin-top: 3px;
+      text-align: right;
+      font-weight: 400;
+    }
+    .file-widget .status-text.on {
+      color: var(--teal);
+    }
+    .file-widget .file-content {
+      display: none;
+      margin-top: 6px;
+    }
+    .file-widget .file-content.active {
+      display: block;
+    }
+    
+    /* ─── ZETA TOGGLE ─── */
+    .zeta-toggle {
+      position: absolute;
+      bottom: 80px;
+      right: 16px;
+      z-index: 1001;
+      background: rgba(10, 14, 20, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 197, 22, 0.25);
+      border-radius: 40px;
+      padding: 6px 14px;
+      color: #fff;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+      transition: 0.2s;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .zeta-toggle:hover {
+      border-color: #3FBFAE;
+    }
+    .zeta-panel {
+      position: absolute;
+      bottom: 130px;
+      right: 16px;
+      z-index: 1000;
+      background: rgba(10, 14, 20, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 197, 22, 0.2);
+      border-radius: 14px;
+      padding: 12px 14px;
+      min-width: 180px;
+      max-width: 240px;
+      max-height: 340px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 12px;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      transform-origin: bottom right;
+    }
+    .zeta-panel.hidden {
+      opacity: 0;
+      transform: scale(0.9);
+      pointer-events: none;
+    }
+    .zeta-panel .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    .zeta-panel .header .title {
+      color: var(--amber);
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.5px;
+    }
+    .zeta-panel .header .badge {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.4);
+    }
+    .zeta-panel .header .badge .count {
+      color: var(--amber);
+      font-weight: 700;
+    }
+    .zeta-panel .row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin: 6px 0 4px;
+    }
+    .zeta-panel button {
+      background: rgba(255, 197, 22, 0.1);
+      border: 1px solid rgba(255, 197, 22, 0.2);
+      color: #ffe08c;
+      padding: 3px 10px;
+      border-radius: 6px;
+      font: 600 10px var(--font);
+      cursor: pointer;
+      transition: 0.15s;
+    }
+    .zeta-panel button:hover {
+      background: rgba(255, 197, 22, 0.2);
+    }
+    .node-list {
+      max-height: 140px;
+      overflow-y: auto;
+      font-size: 9px;
+      font-family: var(--font-mono);
+      color: #9fd6ff;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 6px;
+      padding: 4px 8px;
+      margin-top: 4px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      word-wrap: break-word;
+      overflow-x: hidden;
+      max-width: 100%;
+      scrollbar-width: thin;
+      scrollbar-color: var(--amber) rgba(255, 255, 255, 0.05);
+    }
+    .node-list::-webkit-scrollbar {
+      width: 3px;
+    }
+    .node-list::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 4px;
+    }
+    .node-list::-webkit-scrollbar-thumb {
+      background: var(--amber);
+      border-radius: 4px;
+    }
+    
+    /* ─── COMPASS ─── */
+    .compass-wrap {
+      position: absolute;
+      bottom: 90px;
+      left: 16px;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(8px);
+      border-radius: 2rem;
+      padding: 0.4rem;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .compass-wrap svg {
+      display: block;
+      width: 48px;
+      height: 48px;
+    }
+    
+    /* ─── INSTAG WIDGET (COPY OF CALENDAR) ─── */
+    .empty-widget {
+      position: absolute;
+      bottom: 256px;
+      right: 16px;
+      z-index: 999;
+      background: rgba(10, 14, 20, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 197, 22, 0.25);
+      border-radius: 14px;
+      padding: 10px 14px;
+      min-width: 100px;
+      max-width: 150px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 12px;
+      cursor: pointer;
+      transition: 0.2s;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .empty-widget:hover {
+      border-color: #fffff;
+    }
+    
+    /* ─── MINI IFRAME WIDGET ─── */
+    .mini-frame {
+      position: absolute;
+      bottom: 70px;
+      left: 16px;
+      z-index: 999;
+      width: 40vw;
+      height: 45vh;
+      max-width: 620px;
+      max-height: 540px;
+      min-width: 200px;
+      min-height: 150px;
+      border-radius: 14px;
+      overflow: hidden;
+      background: rgba(10, 14, 20, 0.9);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 197, 22, 0.25);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .mini-frame:hover {
+      border-color: #3FBFAE;
+    }
+    .mini-frame iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+    .mini-frame .mini-label {
+      position: absolute;
+      bottom: 4px;
+      right: 8px;
+      font-size: 8px;
+      color: rgba(255, 255, 255, 0.2);
+      letter-spacing: 0.05em;
+      pointer-events: none;
+    }
+    .mini-frame .mini-toggle {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      color: rgba(255, 255, 255, 0.5);
+      font-size: 10px;
+      padding: 2px 6px;
+      cursor: pointer;
+      transition: 0.2s;
+      font-family: inherit;
+      z-index: 10;
+    }
+    .mini-frame .mini-toggle:hover {
+      background: rgba(63, 191, 174, 0.2);
+      border-color: #3FBFAE;
+      color: #fff;
+    }
+    
+    /* ─── EXPANDED STATE ─── */
+    .mini-frame.expanded {
+      position: fixed !important;
+      top: 50% !important;
+      left: 50% !important;
+      transform: translate(-50%, -50%) !important;
+      width: 90% !important;
+      max-width: 900px !important;
+      height: 80% !important;
+      max-height: 700px !important;
+      z-index: 9999 !important;
+      border-color: #3FBFAE !important;
+      border-width: 2px !important;
+      border-radius: 16px !important;
+      bottom: auto !important;
+      right: auto !important;
+    }
+    
+    /* ─── OVERLAY FOR EXPANDED STATE ─── */
+    .mini-frame-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: 9998;
+    }
+    .mini-frame-overlay.active {
+      display: block;
+    }
+    
+    /* ─── CALENDAR TOGGLE (RIGHT SIDE, NEAR PIN/SMS) ─── */
+    .calendar-toggle {
+      position: absolute;
+      top: 158px;
+      right: 16px;
+      z-index: 9999;
+      background: rgba(10, 14, 20, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 197, 22, 0.25);
+      border-radius: 40px;
+      padding: 6px 14px;
+      color: #fff;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+      transition: 0.2s;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .calendar-toggle:hover {
+      border-color: #3FBFAE;
+    }
+    
+    /* ─── CALENDAR PANEL (SLIDES FROM RIGHT) ─── */
+    .calendar-panel {
+      position: absolute;
+      top: 300px;
+      right: -380px;
+      width: 340px;
+      max-height: calc(100vh - 340px);
+      z-index: 9999;
+      background: rgba(10, 14, 20, 0.92);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 197, 22, 0.15);
+      border-radius: 16px;
+      padding: 16px 18px;
+      box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+      transition: right 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+      overflow-y: auto;
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 12px;
+    }
+    .calendar-panel.open {
+      right: 16px;
+    }
+    .calendar-panel::-webkit-scrollbar {
+      width: 3px;
+    }
+    .calendar-panel::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 4px;
+    }
+    .calendar-panel::-webkit-scrollbar-thumb {
+      background: #3FBFAE;
+      border-radius: 4px;
+    }
+    
+    .calendar-panel .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .calendar-panel .panel-header .title {
+      font-weight: 600;
+      font-size: 14px;
+      color: #ECE8E1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .calendar-panel .panel-header .close-btn {
+      background: none;
+      border: none;
+      color: rgba(255, 255, 255, 0.4);
+      cursor: pointer;
+      font-size: 18px;
+      transition: 0.2s;
+    }
+    .calendar-panel .panel-header .close-btn:hover {
+      color: #FF6B4A;
+    }
+    
+    .calendar-panel label {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.4);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      display: block;
+      margin-top: 10px;
+      margin-bottom: 3px;
+    }
+    .calendar-panel input,
+    .calendar-panel textarea {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.05);
+      color: #ECE8E1;
+      font-size: 13px;
+      font-family: inherit;
+      transition: border 0.2s;
+    }
+    .calendar-panel input:focus,
+    .calendar-panel textarea:focus {
+      outline: none;
+      border-color: #3FBFAE;
+    }
+    .calendar-panel textarea {
+      resize: vertical;
+      min-height: 60px;
+    }
+    .calendar-panel .btn-ics {
+      width: 100%;
+      margin-top: 12px;
+      padding: 10px;
+      border-radius: 10px;
+      border: none;
+      background: linear-gradient(135deg, #3FBFAE, #0892A5);
+      color: #0E1013;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .calendar-panel .btn-ics:hover {
+      transform: scale(1.02);
+      box-shadow: 0 4px 20px rgba(63, 191, 174, 0.3);
+    }
+    .calendar-panel .file-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+    .calendar-panel .file-row input[type="file"] {
+      flex: 1;
+      padding: 6px;
+      font-size: 11px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px dashed rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      color: rgba(255, 255, 255, 0.5);
+      cursor: pointer;
+    }
+    .calendar-panel .file-row input[type="file"]::-webkit-file-upload-button {
+      background: #3FBFAE;
+      color: #0E1013;
+      border: none;
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .calendar-panel .file-types {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+    .calendar-panel .file-types span {
+      font-size: 9px;
+      padding: 2px 8px;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 12px;
+      color: rgba(255, 255, 255, 0.3);
+    }
+    .calendar-panel .pip-btn {
+      width: 100%;
+      margin-top: 6px;
+      padding: 8px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.04);
+      color: rgba(255, 255, 255, 0.7);
+      font-weight: 500;
+      font-size: 12px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .calendar-panel .pip-btn:hover {
+      background: rgba(63, 191, 174, 0.15);
+      border-color: #3FBFAE;
+      color: #ECE8E1;
+    }
+    .calendar-panel .footer-note {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.04);
+      font-size: 9px;
+      color: rgba(255, 255, 255, 0.2);
+      text-align: center;
+    }
+    
+    /* ─── LOCATION BANNER ─── */
+    #locationBanner {
+      position: fixed;
+      top: 60px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10000;
+      background: rgba(10, 14, 20, 0.95);
+      backdrop-filter: blur(12px);
+      border: 1px solid #3FBFAE;
+      border-radius: 12px;
+      padding: 12px 20px;
+      display: none;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+    }
+    
+    /* ─── BOTTOM HEADER (NOW TOP RIGHT) ─── */
+    .bottom-header {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      left: auto;
+      bottom: auto;
+      transform: none;
+      z-index: 9999;
+      background: rgba(10, 14, 30, 0.88);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 40px;
+      padding: 6px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 36px;
+      min-width: 160px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+    }
+    
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.3; transform: scale(0.8); }
+    }
+    
+    /* ─── RESPONSIVE ─── */
+    @media (max-width: 600px) {
+      .pin-toggle { top: 12px; right: 12px; font-size: 11px; padding: 6px 12px; }
+      .sms-widget { top: 62px; right: 12px; padding: 8px 10px; min-width: 100px; font-size: 10px; }
+      .sms-widget .toggle-track { width: 30px; height: 17px; }
+      .sms-widget .toggle-thumb { width: 13px; height: 13px; }
+      .sms-widget .toggle-track.active .toggle-thumb { transform: translateX(13px); }
+      .zeta-panel { bottom: 12px; right: 12px; left: 12px; min-width: unset; max-width: none; padding: 10px 12px; font-size: 10px; max-height: 260px; }
+      .compass-wrap { bottom: 80px; left: 12px; padding: 0.3rem; }
+      .compass-wrap svg { width: 36px; height: 36px; }
+      .calendar-toggle {
+        top: 200px;
+        right: 12px;
+        font-size: 10px;
+        padding: 4px 10px;
+      }
+      .calendar-panel {
+        top: 240px;
+        right: -320px;
+        width: 280px;
+        max-height: calc(100vh - 280px);
+        padding: 12px 14px;
+      }
+      .calendar-panel.open {
+        right: 12px;
+      }
+      
+      .bottom-header { bottom: 110px; height: 30px; min-width: 130px; padding: 4px 12px; }
+      .bottom-header div { font-size: 9px; }
+      .bottom-header .avatar { width: 18px; height: 18px; font-size: 8px; }
+      .sms-widget { top: 56px; right: 10px; padding: 6px 8px; min-width: 80px; font-size: 9px; }
+      .zeta-panel { padding: 8px 10px; font-size: 9px; max-height: 200px; }
+    }
+    
+    /* ─── EMPTY WIDGETS (INSTAGRAM TEMPLATE) ─── */
+    .empty-widget-2 {
+      position: absolute;
+      bottom: 306px;
+      right: 16px;
+      z-index: 999;
+      background: rgba(10, 14, 20, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 197, 22, 0.25);
+      border-radius: 14px;
+      padding: 10px 14px;
+      min-width: 100px;
+      max-width: 150px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 12px;
+      cursor: pointer;
+      transition: 0.2s;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .empty-widget-2:hover {
+      border-color: #3FBFAE;
+    }
+    
+    .empty-widget-3 {
+      position: absolute;
+      bottom: 406px;
+      right: 16px;
+      z-index: 999;
+      background: rgba(10, 14, 20, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 197, 22, 0.25);
+      border-radius: 14px;
+      padding: 10px 14px;
+      min-width: 100px;
+      max-width: 150px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 12px;
+      cursor: pointer;
+      transition: 0.2s;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .empty-widget-3:hover {
+      border-color: #3FBFAE;
+    }
+    
+    .empty-widget-4 {
+      position: absolute;
+      bottom: 456px;
+      right: 16px;
+      z-index: 999;
+      background: rgba(10, 14, 20, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 197, 22, 0.25);
+      border-radius: 14px;
+      padding: 10px 14px;
+      min-width: 100px;
+      max-width: 150px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 12px;
+      cursor: pointer;
+      transition: 0.2s;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .empty-widget-4:hover {
+      border-color: #3FBFAE;
+    }
+    
+    .empty-widget-5 {
+      position: absolute;
+      bottom: 356px;
+      right: 16px;
+      z-index: 999;
+      background: rgba(10, 14, 20, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 197, 22, 0.25);
+      border-radius: 14px;
+      padding: 10px 14px;
+      min-width: 100px;
+      max-width: 150px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 12px;
+      cursor: pointer;
+      transition: 0.2s;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .empty-widget-5:hover {
+      border-color: #3FBFAE;
+    }
+
+    /* ─── WIDGET HUB (launcher + popup panel) ─── */
+    .hub-toggle {
+      position: absolute;
+      top: 66px;
+      right: 16px;
+      z-index: 10000;
+      background: rgba(10, 14, 20, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 197, 22, 0.25);
+      border-radius: 40px;
+      padding: 6px 14px;
+      color: #fff;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+      transition: 0.2s;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      user-select: none;
+    }
+    .hub-toggle:hover, .hub-toggle.open { border-color: #3FBFAE; }
+    .hub-toggle .hub-badge {
+      display: none;
+      min-width: 16px;
+      height: 16px;
+      padding: 0 4px;
+      border-radius: 8px;
+      background: #3FBFAE;
+      color: #0a0e14;
+      font-size: 10px;
+      font-weight: 700;
+      align-items: center;
+      justify-content: center;
+    }
+    .hub-toggle .hub-badge.show { display: inline-flex; }
+
+    .widget-panel {
+      position: absolute;
+      top: 66px;
+      right: 172px;
+      z-index: 10000;
+      width: 250px;
+      max-height: calc(100vh - 100px);
+      overflow-y: auto;
+      background: rgba(10, 14, 20, 0.92);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 197, 22, 0.25);
+      border-radius: 16px;
+      padding: 12px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+      color: rgba(255, 255, 255, 0.85);
+      transform-origin: top right;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      scrollbar-width: thin;
+    }
+    .widget-panel.hidden {
+      opacity: 0;
+      transform: scale(0.95);
+      pointer-events: none;
+    }
+    .widget-panel .hub-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      color: rgba(255, 255, 255, 0.5);
+    }
+    .widget-panel .hub-close {
+      background: none;
+      border: none;
+      color: rgba(255, 255, 255, 0.5);
+      cursor: pointer;
+      font-size: 13px;
+      padding: 2px 6px;
+    }
+    .widget-panel .hub-close:hover { color: #fff; }
+    .widget-panel .hub-section {
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      color: rgba(255, 255, 255, 0.3);
+      margin: 10px 0 6px;
+    }
+    .widget-panel .hub-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .widget-panel .hub-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    /* Neutralise the old floating positions for widgets living in the panel */
+    .widget-panel .sms-widget,
+    .widget-panel .signal-widget,
+    .widget-panel .file-widget,
+    .widget-panel .empty-widget,
+    .widget-panel .empty-widget-2,
+    .widget-panel .empty-widget-3,
+    .widget-panel .empty-widget-4,
+    .widget-panel .empty-widget-5 {
+      position: static;
+      top: auto; right: auto; bottom: auto; left: auto;
+      z-index: auto;
+      min-width: 0;
+      max-width: none;
+      width: auto;
+      box-sizing: border-box;
+      box-shadow: none;
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .widget-panel .empty-widget,
+    .widget-panel .empty-widget-2,
+    .widget-panel .empty-widget-3,
+    .widget-panel .empty-widget-4,
+    .widget-panel .empty-widget-5 {
+      height: 40px;
+      padding: 6px;
+    }
+    .widget-panel .empty-widget span,
+    .widget-panel .empty-widget-2 span,
+    .widget-panel .empty-widget-3 span,
+    .widget-panel .empty-widget-4 span,
+    .widget-panel .empty-widget-5 span {
+      color: rgba(255, 255, 255, 0.55) !important;
+    }
+    @media (max-width: 600px) {
+      .hub-toggle { top: 104px; right: 12px; font-size: 10px; padding: 4px 10px; }
+      .widget-panel { top: 104px; right: 12px; left: 12px; width: auto; max-height: calc(100vh - 140px); }
+    }
+
+    /* ─── HUB v2: sliding panel + collapsible sections ─── */
+    .widget-panel {
+      right: 172px;
+      transform: translateX(24px) scale(0.98);
+      transition: opacity 0.25s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .widget-panel:not(.hidden) { transform: none; }
+    .widget-panel.hidden { transform: translateX(40px) scale(0.98); }
+    .widget-panel .hub-actions { display: flex; gap: 2px; }
+    .widget-panel .hub-collapse-all {
+      background: none; border: none; color: rgba(255,255,255,0.5);
+      cursor: pointer; font-size: 13px; padding: 2px 6px;
+    }
+    .widget-panel .hub-collapse-all:hover { color: #fff; }
+    .hub-sec { border-top: 1px solid rgba(255,255,255,0.06); }
+    .hub-sec:first-of-type { border-top: none; }
+    .hub-sec-head {
+      width: 100%; display: flex; align-items: center; justify-content: space-between;
+      background: none; border: none; cursor: pointer; padding: 9px 2px;
+      color: rgba(255,255,255,0.8); font: inherit; font-size: 12px; font-weight: 600;
+    }
+    .hub-sec-head:hover { color: #fff; }
+    .hub-sec-head .chev { font-size: 11px; color: rgba(255,255,255,0.4); transition: transform 0.25s ease; }
+    .hub-sec:not(.open) .hub-sec-head .chev { transform: rotate(-90deg); }
+    .hub-sec-body {
+      display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.28s ease;
+    }
+    .hub-sec.open .hub-sec-body { grid-template-rows: 1fr; }
+    .hub-sec-inner { overflow: hidden; min-height: 0; }
+    .hub-sec.open .hub-sec-inner { padding-bottom: 8px; }
+    .widget-panel .weather-widget {
+      position: static; top: auto; left: auto; z-index: auto;
+      min-width: 0; max-width: none; width: auto; box-sizing: border-box;
+      box-shadow: none; background: rgba(255,255,255,0.04);
+    }
+
+    /* Zeta moves up under Calendar (desktop) */
+    @media (min-width: 601px) {
+      .zeta-toggle { top: 204px; bottom: auto; }
+      .zeta-panel {
+        top: 250px; bottom: auto; transform-origin: top right;
+        max-height: calc(100vh - 290px);
+      }
+    }
+    @media (max-width: 600px) {
+      .zeta-toggle { top: 244px; bottom: auto; right: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- ─── CALENDAR TOGGLE (LEFT) ─── -->
+  <div class="calendar-toggle" id="calendarToggle">
+    <span>📅</span> Calendar <span style="font-size:10px;color:rgba(255,255,255,0.3);">[≡]</span>
+  </div>
+  <!-- ─── CALENDAR PANEL (SLIDES FROM LEFT) ─── -->
+  <div class="calendar-panel" id="calendarPanel">
+    <div class="panel-header">
+      <span class="title">📅 Calendar</span>
+      <button class="close-btn" id="calendarClose">✕</button>
+    </div>
+    <label>📝 Event title</label>
+    <input type="text" id="eventTitle" placeholder="e.g., MLB Game" value="⚾ MLB Game" />
+    <label>📍 Location</label>
+    <input type="text" id="eventLocation" placeholder="e.g., Rogers Centre" value="Rogers Centre" />
+    <label>📅 Date</label>
+    <input type="date" id="eventDate" value="2026-07-22" />
+    <label>⏰ Time</label>
+    <input type="time" id="eventTime" value="19:00" />
+    <label>📝 Notes</label>
+    <textarea id="eventNotes" placeholder="Add notes...">Bring snacks!</textarea>
+    <label>📷 Background file</label>
+    <div class="file-row">
+      <input type="file" id="bgFileInput" accept="image/*,.pdf,.txt,.html,.mov,.mp4,.webm" />
+    </div>
+    <div class="file-types">
+      <span>📷 PNG/JPG</span>
+      <span>📄 PDF</span>
+      <span>📝 TXT</span>
+      <span>🌐 HTML</span>
+      <span>🎬 MP4</span>
+    </div>
+    <button class="pip-btn" id="pipButton">📹 Open in PiP</button>
+    <button class="btn-ics" id="downloadIcs">📥 Add to Calendar (.ics)</button>
+    <div class="footer-note">Made with ❤️ · offline-first · </div>
+  </div>
+  <!-- ─── LOCATION BANNER ─── -->
+  <div id="locationBanner">
+    <span style="color:#FF6B4A;font-weight:600;">📍</span>
+    <span style="font-size:13px;color:#ECE8E1;">Location blocked. Tap to allow:</span>
+    <button onclick="requestLocation()" style="background:#3FBFAE;border:none;color:#0E1013;padding:4px 16px;border-radius:20px;font-weight:600;font-size:12px;cursor:pointer;">Allow</button>
+  </div>
+  <!-- ─── BOTTOM HEADER ─── -->
+  <div class="bottom-header">
+    <div style="display:flex;align-items:center;gap:6px;">
+      <div style="width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#3FBFAE,#0892A5);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:10px;color:#fff;box-shadow:0 0 16px rgba(63,191,174,0.2);border:1px solid rgba(255,255,255,0.08);">🦄</div>
+      <div style="font-size:10px;font-weight:500;color:#ECE8E1;letter-spacing:0.2px;">sent from <span style="color:#3FBFAE;">artiom</span></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <div style="font-size:8px;color:rgba(255,255,255,0.3);font-weight:400;">live</div>
+      <div style="width:4px;height:4px;border-radius:50%;background:#3FBFAE;box-shadow:0 0 10px rgba(63,191,174,0.3);animation:pulse-dot 2s infinite;"></div>
+    </div>
+  </div>
+  <!-- ─── MAP ─── -->
+  <div id="map"></div>
+  <!-- ─── COMPASS ─── -->
+  <div class="compass-wrap">
+    <svg viewBox="0 0 120 120">
+      <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="2" />
+      <polygon points="60,22 66,60 60,98 54,60" fill="#C9910D" opacity="0.8" />
+      <polygon points="22,60 60,66 98,60 60,54" fill="#0892A5" opacity="0.7" />
+      <circle cx="60" cy="60" r="6" fill="white" stroke="currentColor" stroke-width="1.5" />
+      <line x1="60" y1="60" x2="60" y2="18" stroke="#C9910D" stroke-width="2" stroke-linecap="round" />
+    </svg>
+  </div>
+  <!-- ─── MINI IFRAME WIDGET ─── -->
+  <div class="mini-frame" id="miniFrame">
+    <iframe id="miniIframe" src="https://www.bing.com/entitydetails?q=pltr%20stock%20price&wt=FinanceGenericL3TabModule&ocid=ansMSNMoney11&qid=bvsk7w&t=bvsk7w&src=b_l3tsubp&id=bvsk7w&l3=L3_Chart&chart=quote"></iframe>
+    <div class="mini-label">📊 LIVE</div>
+  </div>
+  <!-- ─── MINI FRAME OVERLAY ─── -->
+  <div class="mini-frame-overlay" id="miniFrameOverlay"></div>
+  <!-- ─── PIN TOGGLE ─── -->
+  <div class="pin-toggle" id="pinToggle">
+    <span class="indicator"></span>
+    <span id="pinLabel">📍 Pin off</span>
+  </div>
+
+  <!-- ─── WIDGET HUB ─── -->
+  <div class="hub-toggle" id="hubToggle">
+    <span>🧩</span> Widgets <span class="hub-badge" id="hubBadge">0</span>
+  </div>
+  <div class="widget-panel hidden" id="widgetPanel">
+    <div class="hub-header">
+      <span>WIDGETS</span>
+      <span class="hub-actions">
+        <button class="hub-collapse-all" id="hubCollapseAll" type="button" title="Collapse / expand all">⇕</button>
+        <button class="hub-close" id="hubClose" type="button">✕</button>
+      </span>
+    </div>
+    <div class="hub-sec open" data-sec="weather">
+      <button class="hub-sec-head" type="button"><span>☁️ Weather</span><span class="chev">▾</span></button>
+      <div class="hub-sec-body"><div class="hub-sec-inner">
+<div class="hub-stack">
+  <div class="weather-widget" id="weatherWidget">
+    <div class="weather-row">
+      <div>
+        <div class="weather-city" id="weatherCity">London</div>
+        <div class="weather-temp" id="weatherTemp">20<sup>o</sup></div>
+        <div class="weather-status" id="weatherStatus">Thunder</div>
+      </div>
+      <img class="weather-icon" id="weatherIcon" src="https://i.ibb.co/GtWcGNW/cloud.png" alt="weather" />
+    </div>
+  </div>
+</div>
+      </div></div>
+    </div>
+    <div class="hub-sec open" data-sec="social">
+      <button class="hub-sec-head" type="button"><span>💬 Social</span><span class="chev">▾</span></button>
+      <div class="hub-sec-body"><div class="hub-sec-inner">
+<div class="hub-grid">
+  <div class="empty-widget" id="emptyWidget">
+    <span style="color:rgba(255,255,255,0.3); font-size:10px;">INSTAGRAM</span>
+  </div>
+  <div class="empty-widget-2" id="emptyWidget2">
+    <span style="color:rgba(255,255,255,0.15); font-size:10px;">TWITTER</span>
+  </div>
+  <div class="empty-widget-3" id="emptyWidget3">
+    <span style="color:rgba(255,255,255,0.15); font-size:10px;">TIKTOK</span>
+  </div>
+  <div class="empty-widget-4" id="emptyWidget4">
+    <span style="color:rgba(255,255,255,0.15); font-size:10px;">SOCIAL</span>
+  </div>
+  <div class="empty-widget-5" id="emptyWidget5">
+    <span style="color:rgba(255,255,255,0.15); font-size:10px;">SCOUT</span>
+  </div>
+</div>
+      </div></div>
+    </div>
+    <div class="hub-sec open" data-sec="connections">
+      <button class="hub-sec-head" type="button"><span>📡 Connections</span><span class="chev">▾</span></button>
+      <div class="hub-sec-body"><div class="hub-sec-inner">
+<div class="hub-stack">
+  <!-- ─── SMS WIDGET ─── -->
+  <div class="sms-widget" id="smsWidget">
+    <div class="row">
+      <span class="label">📱 SMS</span>
+      <div class="toggle-track" id="smsTrack">
+        <div class="toggle-thumb"></div>
+      </div>
+    </div>
+    <div class="status-text" id="smsStatus">offline</div>
+  </div>
+  <!-- ─── SIGNAL WIDGET (NEW) ─── -->
+  <div class="signal-widget" id="signalWidget">
+    <div class="row">
+      <span class="label">📡 Signal</span>
+      <div class="toggle-track" id="signalTrack">
+        <div class="toggle-thumb"></div>
+      </div>
+    </div>
+    <div class="status-text" id="signalStatus">offline</div>
+  </div>
+  <!-- ─── MUSIC WIDGET ─── -->
+  <div class="file-widget" id="fileWidget">
+    <div class="row">
+      <span class="label">📁 Files</span>
+      <div class="toggle-track" id="fileTrack">
+        <div class="toggle-thumb"></div>
+      </div>
+    </div>
+    <div class="status-text" id="fileStatus">closed</div>
+    <div class="file-content" id="fileContent">
+      <div class="file-row">
+        <div class="file-info">
+          <div class="file-path" id="filePath">📁 /</div>
+          <div class="file-list" id="fileList">Loading...</div>
+        </div>
+        <div class="file-icon" id="fileIcon">📂</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+      </div></div>
+    </div>
+  </div>
+
+  <script>
+    // ─── MAP INIT (MapLibre Globe) ───
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: 'https://tiles.openfreemap.org/styles/positron',
+      center: [-0.09, 51.505],
+      zoom: 2,
+      pitch: 0,
+      bearing: 0
+    });
+
+    // Add navigation controls (zoom, compass)
+    map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
+
+    // Add a 3D globe toggle button
+    map.on('load', () => {
+      map.setProjection({ type: 'globe' });
+      
+      const toggleBtn = document.createElement('button');
+      toggleBtn.textContent = '🌐';
+      toggleBtn.style.cssText = 'position:absolute;top:10px;right:10px;z-index:1000;padding:8px 12px;border-radius:8px;border:1px solid #ccc;background:white;cursor:pointer;';
+      toggleBtn.onclick = () => {
+        const isGlobe = map.getProjection().type === 'globe';
+        map.setProjection({ type: isGlobe ? 'mercator' : 'globe' });
+        toggleBtn.textContent = isGlobe ? '🗺️' : '🌐';
+      };
+      document.getElementById('map').appendChild(toggleBtn);
+    });
+
+    // ─── PIN TOGGLE (MapLibre version) ───
+    const pinToggle = document.getElementById('pinToggle');
+    const pinLabel = document.getElementById('pinLabel');
+    let pins = [];
+    let pinActive = false;
+
+    pinToggle.addEventListener('click', () => {
+      pinActive = !pinActive;
+      pinToggle.classList.toggle('active', pinActive);
+      pinLabel.textContent = pinActive ? '📍 Pin on' : '📍 Pin off';
+      if (!pinActive) {
+        pins.forEach(p => p.remove());
+        pins = [];
+      }
+    });
+
+    map.on('click', (e) => {
+      if (!pinActive) return;
+      const marker = new maplibregl.Marker()
+        .setLngLat(e.lngLat)
+        .addTo(map);
+      pins.push(marker);
+    });
+
+    // ─── SMS TOGGLE ───
+    const smsTrack = document.getElementById('smsTrack');
+    const smsStatus = document.getElementById('smsStatus');
+    let smsOn = false;
+    smsTrack.addEventListener('click', () => {
+      smsOn = !smsOn;
+      smsTrack.classList.toggle('active', smsOn);
+      smsStatus.textContent = smsOn ? 'online' : 'offline';
+      smsStatus.classList.toggle('on', smsOn);
+    });
+
+    // ─── SIGNAL TOGGLE ───
+    const signalTrack = document.getElementById('signalTrack');
+    const signalStatus = document.getElementById('signalStatus');
+    let signalOn = false;
+    signalTrack.addEventListener('click', () => {
+      signalOn = !signalOn;
+      signalTrack.classList.toggle('active', signalOn);
+      signalStatus.textContent = signalOn ? 'online' : 'offline';
+      signalStatus.classList.toggle('on', signalOn);
+    });
+
+    // ─── FILE WIDGET ───
+    const fileTrack = document.getElementById('fileTrack');
+    const fileStatus = document.getElementById('fileStatus');
+    const fileContent = document.getElementById('fileContent');
+    const fileList = document.getElementById('fileList');
+    let fileOpen = false;
+    fileTrack.addEventListener('click', (e) => {
+      e.stopPropagation();
+      fileOpen = !fileOpen;
+      fileTrack.classList.toggle('active', fileOpen);
+      fileStatus.textContent = fileOpen ? 'open' : 'closed';
+      fileStatus.classList.toggle('on', fileOpen);
+      fileContent.classList.toggle('active', fileOpen);
+    });
+    // Sample file list
+    const files = [
+      { name: '📁 Documents', type: 'folder' },
+      { name: '📁 Music', type: 'folder' },
+      { name: '🎵 track1.mp3', type: 'audio' },
+      { name: '🎵 track2.mp3', type: 'audio' },
+      { name: '📄 notes.txt', type: 'file' },
+      { name: '🌐 index.html', type: 'file' }
+    ];
+    fileList.innerHTML = files.map(f => `<div class="file-item ${f.type}">${f.name}</div>`).join('');
+    fileList.addEventListener('click', (e) => {
+      const item = e.target.closest('.file-item');
+      if (item) {
+        document.getElementById('filePath').textContent = '📁 /' + item.textContent.trim();
+      }
+    });
+
+    // ─── ZETA PANEL ───
+    const zetaToggle = document.createElement('div');
+    zetaToggle.className = 'zeta-toggle';
+    zetaToggle.innerHTML = '🧠 Zeta <span style="font-size:10px;color:rgba(255,255,255,0.3);">[≡]</span>';
+    document.body.appendChild(zetaToggle);
+    const zetaPanel = document.createElement('div');
+    zetaPanel.className = 'zeta-panel hidden';
+    zetaPanel.innerHTML = `
+      <div class="header">
+        <span class="title">ZETA NODES</span>
+        <span class="badge"><span class="count">7</span> active</span>
+      </div>
+      <div class="row">
+        <button>Refresh</button>
+        <button>Scan</button>
+        <button>Clear</button>
+      </div>
+      <div class="node-list">node-01 · online · 12ms
+node-02 · online · 8ms
+node-03 · offline · -
+node-04 · online · 24ms
+node-05 · degraded · 156ms
+node-06 · online · 9ms
+node-07 · online · 5ms</div>
+    `;
+    document.body.appendChild(zetaPanel);
+    zetaToggle.addEventListener('click', () => {
+      zetaPanel.classList.toggle('hidden');
+    });
+
+    // ─── CALENDAR ───
+    const calendarToggle = document.getElementById('calendarToggle');
+    const calendarPanel = document.getElementById('calendarPanel');
+    const calendarClose = document.getElementById('calendarClose');
+    calendarToggle.addEventListener('click', () => {
+      calendarPanel.classList.toggle('open');
+    });
+    calendarClose.addEventListener('click', () => {
+      calendarPanel.classList.remove('open');
+    });
+
+    // ─── ICS DOWNLOAD ───
+    document.getElementById('downloadIcs').addEventListener('click', () => {
+      const title = document.getElementById('eventTitle').value || 'Event';
+      const location = document.getElementById('eventLocation').value || '';
+      const date = document.getElementById('eventDate').value || '2026-07-22';
+      const time = document.getElementById('eventTime').value || '19:00';
+      const notes = document.getElementById('eventNotes').value || '';
+      const dtStart = date.replace(/-/g, '') + 'T' + time.replace(/:/g, '') + '00';
+      const dtEnd = date.replace(/-/g, '') + 'T' + (parseInt(time) + 2).toString().padStart(2, '0') + time.slice(2).replace(/:/g, '') + '00';
+      const ics = `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Zeta//Map//EN
+BEGIN:VEVENT
+UID:${Date.now()}@zeta.map
+DTSTAMP:${dtStart}
+DTSTART:${dtStart}
+DTEND:${dtEnd}
+SUMMARY:${title}
+LOCATION:${location}
+DESCRIPTION:${notes}
+END:VEVENT
+END:VCALENDAR`;
+      const blob = new Blob([ics], { type: 'text/calendar' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'event.ics';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // ─── PiP BUTTON ───
+    document.getElementById('pipButton').addEventListener('click', () => {
+      const iframe = document.getElementById('miniIframe');
+      if (iframe.requestPictureInPicture) {
+        iframe.requestPictureInPicture();
+      } else {
+        alert('Picture-in-Picture not supported in this browser.');
+      }
+    });
+
+    // ─── MINI FRAME EXPAND ───
+    const miniFrame = document.getElementById('miniFrame');
+    const miniFrameOverlay = document.getElementById('miniFrameOverlay');
+    const miniToggle = document.createElement('button');
+    miniToggle.className = 'mini-toggle';
+    miniToggle.textContent = '⛶';
+    miniFrame.appendChild(miniToggle);
+    miniToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      miniFrame.classList.toggle('expanded');
+      miniFrameOverlay.classList.toggle('active', miniFrame.classList.contains('expanded'));
+      miniToggle.textContent = miniFrame.classList.contains('expanded') ? '✕' : '⛶';
+    });
+    miniFrameOverlay.addEventListener('click', () => {
+      miniFrame.classList.remove('expanded');
+      miniFrameOverlay.classList.remove('active');
+      miniToggle.textContent = '⛶';
+    });
+
+    // ─── WEATHER (Mock) ───
+    // Already set in HTML
+
+    // ─── LOCATION ───
+    function requestLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 14 });
+            document.getElementById('locationBanner').style.display = 'none';
+            new maplibregl.Marker()
+              .setLngLat([pos.coords.longitude, pos.coords.latitude])
+              .setPopup(new maplibregl.Popup().setHTML('You are here'))
+              .addTo(map);
+          },
+          () => {
+            document.getElementById('locationBanner').style.display = 'flex';
+          }
+        );
+      } else {
+        document.getElementById('locationBanner').style.display = 'flex';
+      }
+    }
+
+    // Try geolocation on load
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 14 });
+          new maplibregl.Marker()
+            .setLngLat([pos.coords.longitude, pos.coords.latitude])
+            .setPopup(new maplibregl.Popup().setHTML('You are here'))
+            .addTo(map);
+        },
+        () => {
+          document.getElementById('locationBanner').style.display = 'flex';
+        }
+      );
+    }
+
+
+    // ─── WIDGET HUB ───
+    const hubToggle = document.getElementById('hubToggle');
+    const widgetPanel = document.getElementById('widgetPanel');
+    const hubBadge = document.getElementById('hubBadge');
+    function setHub(open) {
+      widgetPanel.classList.toggle('hidden', !open);
+      hubToggle.classList.toggle('open', open);
+    }
+    hubToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setHub(widgetPanel.classList.contains('hidden'));
+    });
+    document.getElementById('hubClose').addEventListener('click', () => setHub(false));
+    widgetPanel.addEventListener('click', (e) => e.stopPropagation());
+    document.addEventListener('click', () => setHub(false));
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setHub(false); });
+    // badge = how many of SMS / Signal / Files are currently on
+    function updateHubBadge() {
+      const n = ['smsTrack', 'signalTrack', 'fileTrack']
+        .filter(id => document.getElementById(id).classList.contains('active')).length;
+      hubBadge.textContent = n;
+      hubBadge.classList.toggle('show', n > 0);
+    }
+    ['smsTrack', 'signalTrack', 'fileTrack'].forEach(id =>
+      document.getElementById(id).addEventListener('click', () => setTimeout(updateHubBadge, 0)));
+
+
+    // ─── HUB SECTIONS (collapsible) ───
+    document.querySelectorAll('.hub-sec-head').forEach(h =>
+      h.addEventListener('click', () => h.parentElement.classList.toggle('open')));
+    document.getElementById('hubCollapseAll').addEventListener('click', () => {
+      const secs = [...document.querySelectorAll('.hub-sec')];
+      const anyOpen = secs.some(x => x.classList.contains('open'));
+      secs.forEach(x => x.classList.toggle('open', !anyOpen));
+    });
+
+    // ─── EMPTY WIDGETS (just for demo, click alert) ───
+    document.querySelectorAll('.empty-widget, .empty-widget-2, .empty-widget-3, .empty-widget-4, .empty-widget-5').forEach(el => {
+      el.addEventListener('click', () => {
+        alert('Social widget placeholder — connect your API');
+      });
+    });
+  </script>
+</body>
+</html>

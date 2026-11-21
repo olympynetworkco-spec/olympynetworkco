@@ -1,0 +1,1618 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90' fill='%23FF8C00'%3E🗨%3C/text%3E%3C/svg%3E" />
+    <title>Nueral Heartbeat · Tab Commander</title>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+        background: #d5ccc5 url('file:///Users/olympynetworkco/Desktop/pluto-for-testing-background.png') center center / 95% 95% no-repeat fixed;
+        min-height: 100vh;
+        font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        }
+        
+        #heartbeat {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: background 0.4s ease;
+        width: 200px;
+        height: 200px;
+        }
+        #heartbeat .loader-inner {
+        --loader-background: linear-gradient(0deg, rgba(200,200,200,.3) 0%, rgba(230,230,230,.3) 100%);
+        position: relative;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        }
+        #heartbeat .loader-logo {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 60px;
+        height: 60px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 999;
+        pointer-events: none;
+        font-size: 50px;
+        color: #222;
+        transition: color 0.10s ease;
+        }
+        #heartbeat .box {
+        position: absolute;
+        background: var(--loader-background);
+        border-radius: 50%;
+        border-top: 1px solid rgba(180, 180, 180, 0.6);
+        box-shadow: rgba(0,0,0,.08) 0 10px 20px 0;
+        backdrop-filter: blur(5px);
+        animation: ripple 1.8s infinite ease-in-out;
+        transition: border-color 0.9s ease, border-width 0.3s ease, animation-duration 0.9s ease;
+        }
+        #heartbeat .box:nth-child(1) { width: 25%; aspect-ratio: 1/1; z-index: 99; border-color: rgba(150,150,150,0.5); }
+        #heartbeat .box:nth-child(2) { inset: 30%; z-index: 98; border-color: rgba(150,150,150,0.4); animation-delay: .15s; }
+        #heartbeat .box:nth-child(3) { inset: 20%; z-index: 97; border-color: rgba(150,150,150,0.3); animation-delay: .3s; }
+        #heartbeat .box:nth-child(4) { inset: 10%; z-index: 96; border-color: rgba(150,150,150,0.2); animation-delay: .45s; }
+        #heartbeat .box:nth-child(5) { inset: 0; z-index: 95; border-color: rgba(150,150,150,0.1); animation-delay: .6s; }
+        
+        @keyframes ripple {
+        0% { transform: scale(1); box-shadow: rgba(0,0,0,.08) 0 10px 20px 0; }
+        50% { transform: scale(1.25); box-shadow: rgba(0,0,0,.12) 0 30px 40px 0; }
+        100% { transform: scale(1); box-shadow: rgba(0,0,0,.08) 0 10px 20px 0; }
+        }
+        
+        #heartbeat.listening .box { border-color: rgba(30,215,96,0.6) !important; animation-duration: 0.8s !important; }
+        #heartbeat.listening .loader-logo { color: #1ed760 !important; animation: pulse 0.6s infinite ease-in-out; }
+        #heartbeat.listening { animation: listeningPulse 1.5s ease-in-out infinite; }
+        
+        @keyframes listeningPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.02); } }
+        @keyframes pulse { 0%,100% { transform: translate(-50%,-50%) scale(1); } 50% { transform: translate(-50%,-50%) scale(1.1); } }
+        
+        .badge {
+        position: fixed; top: 20px; right: 20px; z-index: 1000;
+        padding: 8px 16px;
+        background: rgba(0,0,0,0.05);
+        border-radius: 30px;
+        font-size: 12px;
+        color: #888;
+        backdrop-filter: blur(4px);
+        border: 1px solid rgba(0,0,0,0.05);
+        transition: all 0.9s ease;
+        cursor: pointer;
+        font-weight: 500;
+        letter-spacing: 0.3px;
+        }
+        .badge:hover { background: rgba(0,0,0,0.08); }
+        .badge.listening { color: #1ed760 !important; background: rgba(30,215,96,0.15) !important; border-color: rgba(30,215,96,0.2) !important; }
+        
+        .history {
+            position: fixed;
+            bottom: 30px;
+            right: 40px;
+            left: auto;
+            transform: none;
+            z-index: 100;
+            text-align: center;
+            color: #999;
+            font-size: 13px;
+            max-width: 20%;
+            max-height: 275px;
+            /* ← cap the height */
+            overflow-y: scroll;
+            /* ← always show scrollbar */
+            overflow-x: hidden;
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(8px);
+            padding: 10px 20px;
+            border-radius: 30px;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            display: flex;
+            align-items: flex-start;
+            /* ← was center — stacks entries from top */
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            transition: all 0.9s ease;
+        }
+        .history .entry {
+        background: rgba(0,0,0,0.05);
+        padding: 2px 10px;
+        border-radius: 20px;
+        font-size: 11px;
+        color: #666;
+        animation: fadeIn 0.3s ease;
+        }
+        .history .entry:last-child { color: #222; font-weight: 500; }
+        .history .entry.latest { color: #1ed760; font-weight: 600; }
+        
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .toast {
+        position: fixed;
+        bottom: 80px; left: 50%;
+        transform: translateX(-50%);
+        background: #2d2a24;
+        color: white;
+        padding: 10px 20px;
+        border-radius: 10px;
+        font-size: 13px;
+        opacity: 0;
+        transition: 0.6s;
+        pointer-events: none;
+        z-index: 999;
+        }
+        .toast.show { opacity: 1; }
+        
+        /* ─── POPUP FRAME ─── */
+        #popup-overlay {
+        position: fixed; inset: 0; z-index: 200;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0,0,0,0.55);
+        backdrop-filter: blur(2px);
+        }
+        #popup-overlay.active { display: flex; }
+        #popup-frame {
+        position: relative;
+        width: 90%;
+        height: 85vh;
+        max-height: 90vh;
+        background: #fff;
+        border: 1.5px solid rgba(79,216,255,0.4);
+        border-radius: 24px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+        overflow: hidden;
+        }
+        #popup-content {
+        position: relative;
+        z-index: 2;
+        width: 100%;
+        height: 100%;
+        }
+        #popupSearchFrame {
+        display: block;
+        width: 100%;
+        height: 100%;
+        border: 0;
+        }
+        #popup-close {
+        position: absolute;
+        top: 14px; right: 20px;
+        z-index: 20;
+        width: 36px; height: 36px;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        background: rgba(255,255,255,0.92);
+        border: 1px solid rgba(79,216,255,0.35);
+        color: #333;
+        cursor: pointer;
+        font-size: 18px;
+        font-weight: 300;
+        }
+        #popup-close:hover { color: #e0453c; border-color: #e0453c; }
+        #popup-pin {
+        position: absolute;
+        top: 14px; right: 62px;
+        z-index: 20;
+        width: 36px; height: 36px;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        background: rgba(255,255,255,0.92);
+        border: 1px solid rgba(79,216,255,0.35);
+        color: #333;
+        cursor: pointer;
+        font-size: 15px;
+        }
+        #popup-pin.pinned { border-color: #4fd8ff; color: #4fd8ff; box-shadow: 0 0 12px rgba(79,216,255,0.4); }
+        
+        @media (max-width: 600px) {
+        .badge { top: 14px; right: 14px; font-size: 10px; padding: 6px 12px; }
+        #heartbeat { width: 150px; height: 150px; }
+        #heartbeat .loader-logo { font-size: 40px; width: 50px; height: 50px; }
+        .history { font-size: 11px; padding: 8px 14px; bottom: 20px; max-width: 92%; }
+        }
+        @media (max-width: 400px) {
+        #heartbeat { width: 120px; height: 120px; }
+        #heartbeat .loader-logo { font-size: 32px; width: 40px; height: 40px; }
+        }
+        /* ─── RABBIT WIDGET SHELL ─── */
+        #rabbitWidget {
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        width: 280px;
+        background: rgba(255,255,255,0.92);
+        border: 1px solid rgba(0,0,0,0.1);
+        border-radius: 14px;
+        box-shadow: 0 8px 28px rgba(0,0,0,0.12);
+        padding: 12px 14px;
+        z-index: 500;
+        display: none;
+        font-size: 13px;
+        }
+        #rabbitWidget.open { display: block; }
+        #rabbitWidget .rw-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+        font-weight: 700;
+        font-size: 13px;
+        }
+        #rabbitWidget .rw-close {
+        border: none;
+        background: transparent;
+        font-size: 16px;
+        cursor: pointer;
+        color: #888;
+        padding: 0 4px;
+        }
+        #rabbitWidget .rw-close:hover { color: #e0453c; }
+        #rabbitWidget textarea {
+        width: 100%;
+        min-height: 120px;
+        border: 1px solid rgba(0,0,0,0.12);
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-size: 12.5px;
+        font-family: inherit;
+        resize: vertical;
+        outline: none;
+        background: rgba(255,255,255,0.7);
+        }
+        #rabbitWidget textarea:focus { border-color: #7c3aed; }
+        #rabbitWidget .rw-btns {
+        display: flex;
+        gap: 6px;
+        margin-top: 10px;
+        }
+        #rabbitWidget .rw-btn {
+        flex: 1;
+        border: 1px solid rgba(0,0,0,0.14);
+        background: transparent;
+        padding: 7px 0;
+        border-radius: 8px;
+        font-size: 12px;
+        cursor: pointer;
+        font-family: inherit;
+        }
+        #rabbitWidget .rw-btn:hover { background: rgba(0,0,0,0.05); }
+        
+        /* ─── HOTSPOT PLUSES ─── */
+        #hotspotRing {
+        position: absolute;
+        top: 50%; left: 50%;
+        width: 320px; height: 320px;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+        z-index: 400;
+        }
+        .hotspot-plus {
+        position: absolute;
+        width: 34px; height: 34px;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        background: rgba(255,255,255,0.85);
+        border: 1px solid rgba(0,0,0,0.12);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        color: #666;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        pointer-events: auto;
+        transition: all 0.2s ease;
+        }
+        .hotspot-plus:hover {
+        background: #f97316;
+        color: #fff;
+        border-color: #f97316;
+        transform: scale(1.12);
+        }
+        .hotspot-plus[data-slot="1"] {
+        top: 0; left: 50%; transform: translateX(-50%);
+        background: #ef4444;
+        border-color: #ef4444;
+        color: #fff;
+        }
+        .hotspot-plus[data-slot="2"] {
+        top: 50%; right: 0; transform: translateY(-50%);
+        background: #7c3aed;
+        border-color: #7c3aed;
+        color: #fff;
+        }
+        
+        
+        .hotspot-plus[data-slot="3"] {
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #3b82f6;
+        border-color: #3b82f6;
+        color: #fff;
+        }
+        
+        
+        .hotspot-plus[data-slot="4"] {
+        top: 50%; left: 0; transform: translateY(-50%);
+        background: #f97316;
+        border-color: #f97316;
+        color: #fff;
+        }
+        .hotspot-plus[data-slot="1"]:hover {
+        transform: translateX(-50%) scale(1.12);
+        background: #dc2626;
+        border-color: #dc2626;
+        color: #fff;
+        }
+        .hotspot-plus[data-slot="2"]:hover {
+        transform: translateY(-50%) scale(1.12);
+        background: #6d28d9;
+        border-color: #6d28d9;
+        color: #fff;
+        }
+        
+        
+        .hotspot-plus[data-slot="3"]:hover {
+        transform: translateX(-50%) scale(1.12);
+        background: aqua;
+        border-color: aqua;
+        color: #fff;
+        }
+        
+        
+        .hotspot-plus[data-slot="4"]:hover {
+        transform: translateY(-50%) scale(1.12);
+        background: #ea580c;
+        border-color: #ea580c;
+        color: #fff;
+        }
+        
+        /* ─── HOTSPOT PANEL ─── */
+        #hotspotPanel {
+        position: fixed;
+        top: 80px;
+        left: 20px;
+        width: 320px;
+        max-height: calc(100vh - 100px);
+        background: rgba(255,255,255,0.95);
+        border: 1px solid rgba(0,0,0,0.1);
+        border-radius: 14px;
+        box-shadow: 0 8px 28px rgba(0,0,0,0.14);
+        padding: 14px 16px;
+        z-index: 600;
+        display: none;
+        font-size: 13px;
+        }
+        #hotspotPanel.open { display: block; }
+        #hotspotPanel .hp-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+        font-weight: 700;
+        font-size: 13px;
+        }
+        #hotspotPanel .hp-close {
+        border: none;
+        background: transparent;
+        font-size: 16px;
+        cursor: pointer;
+        color: #888;
+        padding: 0 4px;
+        }
+        #hotspotPanel .hp-close:hover { color: #e0453c; }
+        #hotspotPanel textarea {
+        width: 100%;
+        min-height: 140px;
+        border: 1px solid rgba(0,0,0,0.12);
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-size: 12.5px;
+        font-family: inherit;
+        resize: vertical;
+        outline: none;
+        background: rgba(255,255,255,0.7);
+        }
+        #hotspotPanel textarea:focus { border-color: #7c3aed; }
+        
+        
+        #hotspotPanelEast {
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        width: 320px;
+        max-height: calc(100vh - 100px);
+        background: rgba(255,255,255,0.95);
+        border: 1px solid rgba(0,0,0,0.1);
+        border-radius: 14px;
+        box-shadow: 0 8px 28px rgba(0,0,0,0.14);
+        padding: 14px 16px;
+        z-index: 600;
+        display: none;
+        font-size: 13px;
+        }
+        #hotspotPanelEast.open { display: block; }
+        #hotspotPanelEast .hp-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+        font-weight: 700;
+        font-size: 13px;
+        }
+        #hotspotPanelEast .hp-close {
+        border: none;
+        background: transparent;
+        font-size: 16px;
+        cursor: pointer;
+        color: #888;
+        padding: 0 4px;
+        }
+        #hotspotPanelEast .hp-close:hover { color: #e0453c; }
+        #hotspotPanelEast textarea {
+        width: 100%;
+        min-height: 140px;
+        border: 1px solid rgba(0,0,0,0.12);
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-size: 12.5px;
+        font-family: inherit;
+        resize: vertical;
+        outline: none;
+        background: rgba(255,255,255,0.7);
+        }
+        #hotspotPanelEast textarea:focus { border-color: #7c3aed; }
+
+        #hotspotPanelSouth {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            top: auto;
+            right: auto;
+            transform: none;
+            width: 150px;
+            max-height: calc(100vh - 100px);
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: 14px;
+            box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14);
+            padding: 14px 16px;
+            z-index: 600;
+            display: none;
+            font-size: 13px;
+        }
+        #hotspotPanelSouth.open { display: block; }
+        #hotspotPanelSouth .hp-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+        font-weight: 700;
+        font-size: 13px;
+        }
+        #hotspotPanelSouth .hp-close {
+        border: none;
+        background: transparent;
+        font-size: 16px;
+        cursor: pointer;
+        color: #888;
+        padding: 0 4px;
+        }
+        #hotspotPanelSouth .hp-close:hover { color: #e0453c; }
+        #hotspotPanelSouth textarea {
+        width: 100%;
+        min-height: 280px;
+        border: 1px solid rgba(0,0,0,0.12);
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-size: 12.5px;
+        font-family: inherit;
+        resize: vertical;
+        outline: none;
+        background: rgba(255,255,255,0.7);
+        }
+        #hotspotPanelSouth textarea:focus { border-color: #3b82f6; }
+        
+        
+        
+        .hotspot-plus {
+        position: absolute;
+        width: 34px; height: 34px;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        background: rgba(255,255,255,0.85);
+        border: 1px solid rgba(0,0,0,0.12);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        color: #666;
+        font-size: 18px;
+        font-weight: 300;
+        cursor: pointer;
+        pointer-events: auto;
+        transition: all 0.2s ease;
+        }
+        
+        
+        
+        .east-timeline {
+        width: 100%;
+        height: 400px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 10px 4px 10px 0;
+        font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+        font-size: 12px;
+        color: #555;
+        }
+        
+        .east-row {
+        position: relative;
+        padding-left: 34px;
+        padding-bottom: 14px;
+        }
+        
+        .east-row::before {
+        content: "";
+        position: absolute;
+        left: 11px;
+        top: 0;
+        bottom: 0;
+        width: 1px;
+        background: rgba(0,0,0,0.08);
+        }
+        .east-row:last-child::before { bottom: 50%; }
+        
+        .east-dot {
+        position: absolute;
+        left: 6px;
+        top: 6px;
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        background: #fff;
+        border: 2px solid #bbb;
+        z-index: 1;
+        }
+        
+        .east-row::after {
+        content: "";
+        position: absolute;
+        left: 11px;
+        top: 10px;
+        width: 12px;
+        height: 1px;
+        background: rgba(0,0,0,0.08);
+        }
+        
+        .east-card {
+        background: rgba(255,255,255,0.85);
+        border: 1px solid rgba(0,0,0,0.06);
+        border-radius: 10px;
+        padding: 8px 10px 9px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        transition: box-shadow .2s ease, transform .15s ease;
+        }
+        .east-card:hover {
+        box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+        transform: translateY(-1px);
+        }
+        
+        .east-play {
+        font-size: 11.5px;
+        line-height: 1.4;
+        color: #222;
+        word-break: break-word;
+        }
+        
+        #hpVoiceToggle {
+        border: none;
+        background: transparent;
+        font-size: 16px;
+        cursor: pointer;
+        color: #888;
+        padding: 0 4px;
+        }
+        #hpVoiceToggle:hover { color: #e0453c; }
+        #hpVoiceToggle.on { color: #4fd8ff; }
+        
+        
+        
+        
+      </style>
+    </head>
+    <body>
+      <!-- HOTSPOT RING -->
+      <div id="hotspotRing">
+        <div class="hotspot-plus" data-slot="1">NORTH</div>
+          <div class="hotspot-plus" data-slot="2">EAST</div>
+            <div class="hotspot-plus" data-slot="3">SOUTH</div>
+              <div class="hotspot-plus" data-slot="4">WEST</div>
+              </div>
+              <!-- HOTSPOT PANEL (WEST — help / command list) -->
+              <div id="hotspotPanel">
+                <div class="hp-head">
+                  <span id="hpTitle">hotspot WEST</span>
+                    <button class="hp-close" id="hpClose">✕</button>
+                      </div>
+                      <textarea id="hpText" placeholder="write anything here…">
+                      </textarea>
+                      <p id="hpHelp" style="display:none; font-size:11.5px; color:#888; margin-top:8px; white-space:pre-line; line-height:1.5;">
+                      </p>
+                    </div>
+                    <!-- SOUTH PANEL (dedicated, so it can stay open alongside WEST) -->
+                    <div id="hotspotPanelSouth">
+                      <div class="hp-head">
+                        <span id="hpTitleSouth">hotspot SOUTH</span>
+                          <button class="hp-close" id="hpCloseSouth">✕</button>
+                          </div>
+                          <textarea id="hpTextSouth" placeholder="write your notes here…">
+                          </textarea>
+                        </div>
+                    <!-- EAST PANEL (dedicated, so it can stay open alongside WEST/SOUTH) -->
+                    <div id="hotspotPanelEast">
+                      <div class="hp-head">
+                        <span id="hpTitleEast">hotspot EAST</span>
+                          <button id="hpVoiceToggle" title="Toggle voice">🔇</button>
+                            <button class="hp-close" id="hpCloseEast">✕</button>
+                            </div>
+                            <textarea id="hpTextEast" placeholder="write anything here…">
+                            </textarea>
+                          </div>
+                    <!-- RABBIT WIDGET -->
+                    <div id="rabbitWidget">
+                      <div class="rw-head">
+                        <span>🐇 rabbit</span>
+                          <button class="rw-close" id="rabbitClose">✕</button>
+                          </div>
+                          <textarea id="rabbitText" placeholder="paste or talk…">
+                          </textarea>
+                          <div class="rw-btns">
+                            <button class="rw-btn" id="rabbitSpeak">🔊 speak</button>
+                              <button class="rw-btn" id="rabbitListen">🎙️ listen</button>
+                              </div>
+                            </div>
+                            <!-- TOAST -->
+                            <div class="toast" id="toast">
+                            </div>
+                            <!-- BADGE -->
+                            <div class="badge" id="statusBadge">☁︎ tap to speak</div>
+                              <!-- HEARTBEAT -->
+                              <div id="heartbeat">
+                                <div class="loader-inner">
+                                  <div class="loader-logo">☁︎</div>
+                                    <div class="box">
+                                    </div>
+                                    <div class="box">
+                                    </div>
+                                    <div class="box">
+                                    </div>
+                                    <div class="box">
+                                    </div>
+                                    <div class="box">
+                                    </div>
+                                  </div>
+                                </div>
+                                <!-- HISTORY -->
+                                <div class="history" id="history">
+                                  <span style="opacity:0.4;">☁︎ voice history</span>
+                                  </div>
+                                  <!-- POPUP FRAME -->
+                                  <div id="popup-overlay">
+                                    <div id="popup-frame">
+                                      <button id="popup-pin" title="Pin / unpin popup">📍</button>
+                                        <button id="popup-close">✕</button>
+                                          <div id="popup-content">
+                                            <iframe id="popupSearchFrame" src="about:blank" allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Frame">
+                                            </iframe>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <script>
+                                        // ─── DOM REFS ───
+                                        const heartbeat = document.getElementById('heartbeat');
+                                        const badge = document.getElementById('statusBadge');
+                                        const historyEl = document.getElementById('history');
+                                        const toast = document.getElementById('toast');
+                                        
+                                        // ─── TOAST ───
+                                        let toastTimeout;
+                                        function showToast(msg) {
+                                        toast.textContent = msg;
+                                        toast.classList.add('show');
+                                        clearTimeout(toastTimeout);
+                                        toastTimeout = setTimeout(() => toast.classList.remove('show'), 2800);
+                                        }
+                                        
+                                        // ─── STATE ───
+                                        let recognition = null;
+                                        let isListening = false;
+                                        let manualStopRequested = false;
+                                        let sendRequested = false;
+                                        let silenceTimer = null;
+                                        const SILENCE_BULLET_MS = 7000;
+                                        
+                                        // ─── MIC PERMISSION MEMORY ───
+                                        const MIC_PERM_KEY = 'nueral_mic_permission';
+                                        function getStoredMicPermission() { try { return localStorage.getItem(MIC_PERM_KEY); } catch(e) { return null; } }
+                                        function setStoredMicPermission(state) { try { localStorage.setItem(MIC_PERM_KEY, state); } catch(e) {} }
+                                        function applyMicPermissionUI(state) {
+                                        if (isListening) return;
+                                        if (state === 'granted') { badge.textContent = '☁︎ mic ready'; badge.title = 'Click to start voice input'; }
+                                        else if (state === 'denied') { badge.textContent = '❋ mic blocked'; badge.title = "Microphone blocked"; }
+                                        else { badge.textContent = '☁︎ tap to speak'; badge.title = 'Click to enable your microphone'; }
+                                        }
+                                        async function initMicPermissionMemory() {
+                                        if (navigator.permissions && navigator.permissions.query) {
+                                        try {
+                                        const status = await navigator.permissions.query({ name: 'microphone' });
+                                        setStoredMicPermission(status.state);
+                                        applyMicPermissionUI(status.state);
+                                        status.onchange = () => { setStoredMicPermission(status.state); applyMicPermissionUI(status.state); };
+                                        return;
+                                        } catch(e) {}
+                                        }
+                                        const remembered = getStoredMicPermission();
+                                        if (remembered) applyMicPermissionUI(remembered);
+                                        }
+                                        
+                                        // ─── INDEXED DB ───
+                                        function openDB() {
+                                        return new Promise((resolve, reject) => {
+                                        const req = indexedDB.open('VoiceAssistantDB', 2);   // ← bumped 1 → 2
+                                        req.onupgradeneeded = (e) => {
+                                        const db = e.target.result;
+                                        if (!db.objectStoreNames.contains('history')) {
+                                        db.createObjectStore('history', { keyPath: 'id', autoIncrement: true });
+                                        }
+                                        if (!db.objectStoreNames.contains('handles')) {    // ← NEW store
+                                        db.createObjectStore('handles');
+                                        }
+                                        };
+                                        req.onsuccess = () => resolve(req.result);
+                                        req.onerror = () => reject(req.error);
+                                        });
+                                        }
+                                        async function saveToHistory(text) {
+                                        try {
+                                        const db = await openDB();
+                                        const tx = db.transaction('history', 'readwrite');
+                                        tx.objectStore('history').add({ text: text, timestamp: Date.now() });
+                                        await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = rej; });
+                                        } catch(e) { console.log('Save error:', e); }
+                                        }
+                                        async function getHistory(limit = 5) {
+                                        try {
+                                        const db = await openDB();
+                                        const tx = db.transaction('history', 'readonly');
+                                        const items = await new Promise((res, rej) => {
+                                        const req = tx.objectStore('history').getAll();
+                                        req.onsuccess = () => res(req.result);
+                                        req.onerror = rej;
+                                        });
+                                        return items.slice(-limit).reverse();
+                                        } catch(e) { return []; }
+                                        }
+                                        async function updateHistory() {
+                                        const items = await getHistory(5);
+                                        if (items.length === 0) {
+                                        historyEl.innerHTML = `<span style="opacity:0.4;">☁︎ voice history</span>`;
+                                        return;
+                                        }
+                                        let html = '';
+                                        items.forEach((item, i) => {
+                                        const isLatest = i === 0;
+                                        html += `<span class="entry ${isLatest ? 'latest' : ''}">${isLatest ? '▶ ' : ''}${item.text}</span>`;
+                                        });
+                                        historyEl.innerHTML = html;
+                                        }
+                                        
+                                        
+                                        // ─── FOLDER HANDLE (pick once, remember forever) ───
+                                        let liveDirHandle = null;
+                                        
+                                        async function idbSetHandle(key, handle) {
+                                        const db = await openDB();
+                                        return new Promise((res, rej) => {
+                                        const tx = db.transaction('handles', 'readwrite');
+                                        tx.objectStore('handles').put(handle, key);
+                                        tx.oncomplete = () => res();
+                                        tx.onerror = () => rej(tx.error);
+                                        });
+                                        }
+                                        
+                                        async function idbGetHandle(key) {
+                                        const db = await openDB();
+                                        return new Promise((res, rej) => {
+                                        const tx = db.transaction('handles', 'readonly');
+                                        const rq = tx.objectStore('handles').get(key);
+                                        rq.onsuccess = () => res(rq.result);
+                                        rq.onerror = () => rej(rq.error);
+                                        });
+                                        }
+                                        
+                                        async function connectDataFolder() {
+                                        if (!window.showDirectoryPicker) {
+                                        showToast('❋ Folder access needs Chrome or Edge');
+                                        return;
+                                        }
+                                        try {
+                                        const handle = await window.showDirectoryPicker({ id: 'pluto-data', mode: 'read' });
+                                        liveDirHandle = handle;
+                                        await idbSetHandle('dataDir', handle);
+                                        showToast('📁 Connected: ' + handle.name);
+                                        console.log('[EAST] Data folder connected:', handle.name);
+                                        loadEastTimeline();
+                                        
+                                        } catch(e) {
+                                        // user cancelled
+                                        }
+                                        }
+                                        
+                                        async function restoreDataFolder() {
+                                        if (!window.showDirectoryPicker) return;
+                                        try {
+                                        const handle = await idbGetHandle('dataDir');
+                                        if (!handle) { console.log('[EAST] No saved folder yet'); return; }
+                                        const perm = await handle.queryPermission({ mode: 'read' });
+                                        if (perm === 'granted') {
+                                        liveDirHandle = handle;
+                                        console.log('[EAST] Data folder restored:', handle.name);
+                                        } else {
+                                        console.log('[EAST] Folder saved but needs re-grant');
+                                        }
+                                        } catch(e) {
+                                        console.log('[EAST] Restore failed:', e);
+                                        }
+                                        }
+                                        
+                                        // Fire restore on page load
+                                        restoreDataFolder();
+                                        
+                                        // ─── COMMANDS ───
+                                        function cmdN() {
+                                        const newWin = window.open(
+                                        'https://www.bing.com/webhp',
+                                        '_blank',
+                                        'width=1000,height=700,menubar=yes,scrollbars=yes,resizable=yes,noopener'
+                                        );
+                                        if (!newWin || newWin.closed) { showToast('❋ Pop-up blocked.'); return false; }
+                                        newWin.focus();
+                                        showToast('✅ New window');
+                                        return true;
+                                        }
+                                        
+                                        function cmdSearch(phrase) {
+                                        const q = encodeURIComponent(phrase.trim()).replace(/%20/g, '+');
+                                        const url = 'https://www.bing.com/search?q=' + q;
+                                        const newWin = window.open(url, '_blank', 'width=1000,height=700,menubar=yes,scrollbars=yes,resizable=yes,noopener');
+                                        if (!newWin || newWin.closed) { showToast('❋ Pop-up blocked.'); return false; }
+                                        newWin.focus();
+                                        showToast('🔍 ' + phrase);
+                                        return true;
+                                        }
+                                        
+                                        function cmdFrame() {
+                                        const popupOverlay = document.getElementById('popup-overlay');
+                                        const popupSearchFrame = document.getElementById('popupSearchFrame');
+                                        if (!popupOverlay || !popupSearchFrame) return false;
+                                        
+                                        if (!popupSearchFrame.src || popupSearchFrame.src === 'about:blank') {
+                                        popupSearchFrame.src = 'https://www.bing.com/webhp';
+                                        }
+                                        popupOverlay.classList.add('active');
+                                        showToast('🖼️ frame opened');
+                                        return true;
+                                        }
+                                        
+                                        function closeCurrentTab() {
+                                        try {
+                                        window.close();
+                                        if (!window.closed) {
+                                        const event = new KeyboardEvent('keydown', {
+                                        key: 'w', code: 'KeyW',
+                                        ctrlKey: true,
+                                        metaKey: navigator.platform.includes('Mac'),
+                                        bubbles: true, cancelable: true
+                                        });
+                                        document.dispatchEvent(event);
+                                        showToast('✅ Tab closing…');
+                                        return true;
+                                        }
+                                        showToast('✅ Tab closed.');
+                                        return true;
+                                        } catch(e) { showToast('❋ ' + e.message); return false; }
+                                        }
+                                        
+                                        
+                                        
+                                        // ─── PARSE ───
+                                        function parseTabCommand(text) {
+                                        // pluto rabbit / pluto open rabbit
+                                        if (/\bpluto\s+(open\s+)?rabbit\b/i.test(text)) {
+                                        return { type: 'rabbit' };
+                                        }
+                                        // pluto open frame / iframe
+                                        if (/\bpluto\s+open\s+(i?frame)\b/i.test(text) || /\bopen\s+(i?frame)\b/i.test(text)) {
+                                        return { type: 'frame' };
+                                        }
+                                        // pluto search <phrase>
+                                        const searchMatch = text.match(/\bpluto\s+search\s+(.+)/i);
+                                        if (searchMatch) {
+                                        return { type: 'search', query: searchMatch[1].trim() };
+                                        }
+                                        // open tab
+                                        if (/\bopen\s*(a|one|new)?\s*tab\b/i.test(text) || /\bnew\s*tab\b/i.test(text)) {
+                                        return { type: 'open' };
+                                        }
+                                        // close tab
+                                        if (/\bclose\s*(this|the|current)?\s*tab\b/i.test(text) || /\bclose\s*tab\b/i.test(text)) {
+                                        return { type: 'close' };
+                                        }
+                                        return null;
+                                        }
+                                        
+                                        // ─── SPEECH PROCESSING ───
+                                        function processTranscriptChunk(raw) {
+                                        let text = raw;
+                                        let shouldSend = false;
+                                        let tabAction = null;
+                                        
+                                        const tabCmd = parseTabCommand(text);
+                                        if (tabCmd) {
+                                        tabAction = tabCmd;
+                                        if (tabCmd.type === 'open') {
+                                        text = text.replace(/\bopen\s*(a|one|new)?\s*tab\b/i, '').replace(/\bnew\s*tab\b/i, '').trim();
+                                        } else if (tabCmd.type === 'close') {
+                                        text = text.replace(/\bclose\s*(this|the|current)?\s*tab\b/i, '').trim();
+                                        } else if (tabCmd.type === 'search') {
+                                        text = text.replace(/\bpluto\s+search\s+(.+)/i, '').trim();
+                                        } else if (tabCmd.type === 'frame') {
+                                        text = text.replace(/\bpluto\s+open\s+(i?frame)\b/i, '').replace(/\bopen\s+(i?frame)\b/i, '').trim();
+                                        } else if (tabCmd.type === 'rabbit') {
+                                        text = text.replace(/\bpluto\s+(open\s+)?rabbit\b/i, '').trim();
+                                        }
+                                        
+                                        if (!text) {
+                                        text = tabCmd.type === 'open' ? '📂 open tab'
+                                        : tabCmd.type === 'close' ? '📂 close tab'
+                                        : tabCmd.type === 'search' ? '🔍 search'
+                                        : tabCmd.type === 'rabbit' ? '🐇 rabbit'
+                                        : '🖼️ frame';
+                                        }
+                                        }
+                                        
+                                        if (/\bdone\b/i.test(text)) {
+                                        text = text.replace(/\bdone\b\.?/gi, '');
+                                        shouldSend = true;
+                                        }
+                                        
+                                        text = text.replace(/\s*\bshift\b\s*/gi, '\n');
+                                        text = text.replace(/\s*\bcomma\b\s*/gi, ', ');
+                                        text = text.replace(/\s*\bperiod\b\s*/gi, '. ');
+                                        text = text.replace(/\s*\barrow\b\s*/gi, '\n└──> ');
+                                        text = text.replace(/[ \t]+/g, ' ').replace(/ \n/g, '\n').trim();
+                                        
+                                        if (!text) text = '📂 voice command';
+                                        
+                                        return { text, shouldSend, tabAction };
+                                        }
+                                        
+                                        // ─── SPEECH RECOGNITION ───
+                                        function initSpeech() {
+                                        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+                                        if (!SR) { badge.textContent = '❋ no speech'; badge.title = 'Speech not supported'; return null; }
+                                        
+                                        const rec = new SR();
+                                        rec.lang = 'en-US';
+                                        rec.continuous = true;
+                                        rec.interimResults = true;
+                                        
+                                        rec.onresult = async function(e) {
+                                        let final = '', interim = '';
+                                        for (let i = e.resultIndex; i < e.results.length; i++) {
+                                        if (e.results[i].isFinal) final += e.results[i][0].transcript;
+                                        else interim += e.results[i][0].transcript;
+                                        }
+                                        
+                                        if (final) {
+                                        // ── HOTSPOT VOICE (isolated, does not touch the command parser) ──
+                                        const hsMatch = final.match(/\b(?:pluto\s+)?hot\s*spot\s+(north|south|east|west)\b/i);
+                                        if (hsMatch) {
+                                        const dirMap = { north: 1, east: 2, south: 3, west: 4 };
+                                        const slot = dirMap[hsMatch[1].toLowerCase()];
+                                        openHotspot(slot);
+                                        await saveToHistory('📌 hotspot ' + SLOT_NAMES[slot]);
+                                        await updateHistory();
+                                        badge.textContent = '☁︎ hotspot ' + SLOT_NAMES[slot] + ' ✓';
+                                        setTimeout(() => { if (!isListening) badge.textContent = '☁︎ tap to speak'; }, 1200);
+                                        return;
+                                        }
+                                        
+                                        const { text, shouldSend, tabAction } = processTranscriptChunk(final);
+                                        
+                                        if (tabAction) {
+                                        
+                                        
+                                        if (tabAction.type === 'rabbit') {
+                                        openRabbit();
+                                        await saveToHistory('🐇 rabbit');
+                                        await updateHistory();
+                                        badge.textContent = '☁︎ rabbit open ✓';
+                                        setTimeout(() => { if (!isListening) badge.textContent = '☁︎ tap to speak'; }, 1200);
+                                        return;
+                                        }
+                                        if (tabAction.type === 'frame') {
+                                        const ok = cmdFrame();
+                                        await saveToHistory('🖼️ ' + text);
+                                        await updateHistory();
+                                        badge.textContent = ok ? '☁︎ frame opened ✓' : '❋ frame failed';
+                                        setTimeout(() => { if (!isListening) badge.textContent = '☁︎ tap to speak'; }, 1200);
+                                        return;
+                                        }
+                                        if (tabAction.type === 'open') {
+                                        const opened = cmdN();
+                                        if (opened) {
+                                        await saveToHistory('📂 ' + text);
+                                        await updateHistory();
+                                        badge.textContent = '☁︎ tab opened ✓';
+                                        setTimeout(() => { if (!isListening) badge.textContent = '☁︎ tap to speak'; }, 1200);
+                                        }
+                                        return;
+                                        }
+                                        if (tabAction.type === 'search') {
+                                        const ok = cmdSearch(tabAction.query);
+                                        if (ok) {
+                                        await saveToHistory('🔍 ' + tabAction.query);
+                                        await updateHistory();
+                                        badge.textContent = '☁︎ search opened ✓';
+                                        setTimeout(() => { if (!isListening) badge.textContent = '☁︎ tap to speak'; }, 1200);
+                                        }
+                                        return;
+                                        }
+                                        if (tabAction.type === 'close') {
+                                        const closed = closeCurrentTab();
+                                        const label = closed ? '✅' : '❋';
+                                        await saveToHistory(`${label} close tab`);
+                                        await updateHistory();
+                                        badge.textContent = `☁︎ tab ${closed ? 'closed ✓' : 'close failed'}`;
+                                        setTimeout(() => { if (!isListening) badge.textContent = '☁︎ tap to speak'; }, 1400);
+                                        return;
+                                        }
+                                        }
+                                        
+                                        if (text) {
+                                        await saveToHistory(text);
+                                        await updateHistory();
+                                        badge.textContent = '☁︎ ' + text;
+                                        showToast('✅ ' + text);
+                                        }
+                                        
+                                        if (shouldSend) {
+                                        sendRequested = true;
+                                        clearTimeout(silenceTimer);
+                                        silenceTimer = null;
+                                        recognition.stop();
+                                        }
+                                        
+                                        clearTimeout(silenceTimer);
+                                        silenceTimer = setTimeout(() => {
+                                        saveToHistory('❋ ');
+                                        updateHistory();
+                                        showToast('❋ bullet');
+                                        }, SILENCE_BULLET_MS);
+                                        
+                                        } else if (interim) {
+                                        badge.textContent = '☁︎ ' + interim + '...';
+                                        }
+                                        };
+                                        
+                                        rec.onstart = function() {
+                                        isListening = true;
+                                        manualStopRequested = false;
+                                        sendRequested = false;
+                                        setStoredMicPermission('granted');
+                                        heartbeat.classList.add('listening');
+                                        badge.classList.add('listening');
+                                        badge.textContent = '☁︎ listening...';
+                                        showToast('❋ Microphone active');
+                                        clearTimeout(silenceTimer);
+                                        silenceTimer = setTimeout(() => {
+                                        saveToHistory('❋ ');
+                                        updateHistory();
+                                        showToast('❋ bullet');
+                                        }, SILENCE_BULLET_MS);
+                                        };
+                                        
+                                        rec.onend = function() {
+                                        isListening = false;
+                                        clearTimeout(silenceTimer);
+                                        silenceTimer = null;
+                                        heartbeat.classList.remove('listening');
+                                        badge.classList.remove('listening');
+                                        
+                                        if (sendRequested) {
+                                        sendRequested = false;
+                                        manualStopRequested = false;
+                                        badge.textContent = '☁︎ sent ✓';
+                                        showToast('✅ Sent — "done" heard');
+                                        setTimeout(() => { badge.textContent = '☁︎ tap to speak'; }, 1500);
+                                        return;
+                                        }
+                                        if (manualStopRequested) {
+                                        manualStopRequested = false;
+                                        badge.textContent = '☁︎ tap to speak';
+                                        return;
+                                        }
+                                        badge.textContent = '☁︎ reconnecting...';
+                                        setTimeout(() => { try { recognition.start(); } catch(e) {} }, 300);
+                                        };
+                                        
+                                        rec.onerror = function(e) {
+                                        if (e.error === 'no-speech' || e.error === 'aborted') return;
+                                        clearTimeout(silenceTimer);
+                                        silenceTimer = null;
+                                        if (e.error === 'not-allowed') {
+                                        manualStopRequested = true;
+                                        isListening = false;
+                                        setStoredMicPermission('denied');
+                                        heartbeat.classList.remove('listening');
+                                        badge.classList.remove('listening');
+                                        badge.textContent = '❋ mic blocked';
+                                        showToast('❋ Microphone access denied');
+                                        } else {
+                                        showToast('❋ Mic error: ' + e.error);
+                                        }
+                                        };
+                                        
+                                        return rec;
+                                        }
+                                        
+                                        // ─── TOGGLE MIC ───
+                                        function toggleMic() {
+                                        if (!recognition) { recognition = initSpeech(); if (!recognition) return; }
+                                        if (isListening) {
+                                        manualStopRequested = true;
+                                        clearTimeout(silenceTimer);
+                                        silenceTimer = null;
+                                        recognition.stop();
+                                        return;
+                                        }
+                                        try { recognition.start(); }
+                                        catch(e) {
+                                        if (e.message.includes('already started')) { recognition.stop(); setTimeout(() => toggleMic(), 200); }
+                                        else { showToast('❋ Mic error: ' + e.message); }
+                                        }
+                                        }
+                                        
+                                        // ─── EVENTS ───
+                                        heartbeat.addEventListener('click', toggleMic);
+                                        badge.addEventListener('click', toggleMic);
+                                        
+                                        document.addEventListener('dblclick', (e) => {
+                                        if (e.target.closest('.history') || e.target.closest('.badge')) return;
+                                        toggleMic();
+                                        });
+                                        
+                                        document.addEventListener('keydown', (e) => {
+                                        if (e.key === 'Escape') {
+                                        const ov = document.getElementById('popup-overlay');
+                                        if (ov && ov.classList.contains('active')) ov.classList.remove('active');
+                                        return;
+                                        }
+                                        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+                                        if (e.key === ' ' || e.key === 'Space') { e.preventDefault(); toggleMic(); }
+                                        });
+                                        
+                                        // ─── POPUP WIRING ───
+                                        const popupOverlay = document.getElementById('popup-overlay');
+                                        const popupClose = document.getElementById('popup-close');
+                                        const popupPin = document.getElementById('popup-pin');
+                                        
+                                        popupClose.addEventListener('click', (e) => {
+                                        e.stopPropagation();
+                                        popupOverlay.classList.remove('active');
+                                        });
+                                        popupOverlay.addEventListener('click', (e) => {
+                                        if (e.target === popupOverlay) popupOverlay.classList.remove('active');
+                                        });
+                                        popupPin.addEventListener('click', (e) => {
+                                        e.stopPropagation();
+                                        popupPin.classList.toggle('pinned');
+                                        });
+                                        
+                                        
+                                        // ─── RABBIT WIDGET ───
+                                        const rabbitWidget = document.getElementById('rabbitWidget');
+                                        const rabbitClose = document.getElementById('rabbitClose');
+                                        const rabbitText = document.getElementById('rabbitText');
+                                        const rabbitSpeak = document.getElementById('rabbitSpeak');
+                                        
+                                        function openRabbit() {
+                                        rabbitWidget.classList.add('open');
+                                        showToast('🐇 rabbit open');
+                                        }
+                                        function closeRabbit() {
+                                        rabbitWidget.classList.remove('open');
+                                        }
+                                        
+                                        rabbitClose.addEventListener('click', closeRabbit);
+                                        
+                                        // ─── ALFRED VOICE ───
+                                        let alfredVoice = null;
+                                        function pickAlfredVoice() {
+                                        const voices = speechSynthesis.getVoices();
+                                        alfredVoice =
+                                        voices.find(v => /daniel/i.test(v.name)) ||
+                                        voices.find(v => /Google UK English Male/i.test(v.name)) ||
+                                        voices.find(v => /thomas/i.test(v.name)) ||
+                                        voices.find(v => /arthur|oliver|george/i.test(v.name)) ||
+                                        voices.find(v => v.lang === 'en-GB') ||
+                                        voices.find(v => v.lang && v.lang.startsWith('en')) ||
+                                        null;
+                                        }
+                                        
+                                        if ('speechSynthesis' in window) {
+                                        speechSynthesis.onvoiceschanged = pickAlfredVoice;
+                                        pickAlfredVoice();
+                                        }
+                                        
+                                        rabbitSpeak.addEventListener('click', () => {
+                                        const text = rabbitText.value.trim();
+                                        if (!text) { showToast('🐇 nothing to say'); return; }
+                                        if (!('speechSynthesis' in window)) { showToast('❋ speech not supported'); return; }
+                                        
+                                        speechSynthesis.cancel();   // cut whatever's playing
+                                        const utter = new SpeechSynthesisUtterance(text);
+                                        if (alfredVoice) utter.voice = alfredVoice;
+                                        utter.rate = 1.02;
+                                        utter.pitch = 0.95;
+                                        utteranceChain(utter);
+                                        
+                                        utter.onstart = () => showToast('🔊 speaking…');
+                                        utter.onend = () => showToast('🐇 done');
+                                        speechSynthesis.speak(utter);
+                                        });
+                                        
+                                        // helper: lets us stop the current utterance cleanly
+                                        let currentUtterance = null;
+                                        function utteranceChain(u) {
+                                        currentUtterance = u;
+                                        }
+                                        
+                                        rabbitClose.addEventListener('click', closeRabbit);
+                                        
+                                        
+                                        
+                                        // ─── EAST VOICE TOGGLE ───
+                                        let eastVoiceOn = false;
+                                        const hpVoiceToggle = document.getElementById('hpVoiceToggle');
+                                        
+                                        function applyVoiceUI() {
+                                        if (!hpVoiceToggle) return;
+                                        hpVoiceToggle.textContent = eastVoiceOn ? '🔊' : '🔇';
+                                        hpVoiceToggle.classList.toggle('on', eastVoiceOn);
+                                        }
+                                        
+                                        hpVoiceToggle && hpVoiceToggle.addEventListener('click', (e) => {
+                                        e.stopPropagation();
+                                        eastVoiceOn = !eastVoiceOn;
+                                        applyVoiceUI();
+                                        showToast(eastVoiceOn ? '🔊 voice on' : '🔇 voice off');
+                                        if (!eastVoiceOn && 'speechSynthesis' in window) speechSynthesis.cancel();
+                                        });
+                                        
+                                        applyVoiceUI();
+                                        
+                                        
+                                        
+                                        // ─── HOTSPOT PANEL ───
+                                        const hotspotPanel = document.getElementById('hotspotPanel');
+                                        const hpTitle = document.getElementById('hpTitle');
+                                        const hpText = document.getElementById('hpText');
+                                        const hpClose = document.getElementById('hpClose');
+                                        
+                                        const SLOT_NAMES = { 1: 'NORTH', 2: 'EAST', 3: 'SOUTH', 4: 'WEST' };
+                                        
+                                        function openHotspot(slot) {
+                                        const name = SLOT_NAMES[slot] || slot;
+                                        
+                                        // ── NORTH = command + T → blank tab ──
+                                        if (Number(slot) === 1) {
+                                        const w = window.open('file:///Users/olympynetworkco/Desktop/', '_blank');
+                                        if (!w || w.closed) { showToast('❋ Pop-up blocked.'); return; }
+                                        w.focus();
+                                        showToast('📂 north → new tab');
+                                        return;
+                                        }
+                                        
+                                        // ── SOUTH = its own dedicated panel, stays open alongside WEST/EAST ──
+                                        if (Number(slot) === 3) {
+                                        const southPanel = document.getElementById('hotspotPanelSouth');
+                                        southPanel.classList.add('open');
+                                        showToast('📌 hotspot SOUTH');
+                                        return;
+                                        }
+                                        
+                                        // ── EAST = its own dedicated panel, stays open alongside WEST/SOUTH ──
+                                        if (Number(slot) === 2) {
+                                        const eastPanel = document.getElementById('hotspotPanelEast');
+                                        eastPanel.classList.add('open');
+                                        showToast('📌 hotspot EAST');
+                                        if (!liveDirHandle) {
+                                        connectDataFolder().then(() => loadEastTimeline());
+                                        } else {
+                                        loadEastTimeline();
+                                        }
+                                        return;
+                                        }
+                                        
+                                        // ── everything else (WEST) keeps the old panel behavior ──
+                                        hotspotPanel.dataset.slot = slot;
+                                        hpTitle.textContent = 'hotspot ' + name;
+                                        hotspotPanel.classList.add('open');
+                                        showToast('📌 hotspot ' + name);
+                                        
+                                        const hpHelp = document.getElementById('hpHelp');
+                                        if (Number(slot) === 4) {
+                                        
+                                        
+                                        hpHelp.textContent =
+                                        'pluto hotspot north  → new desktop tab\n' +
+                                        'pluto hotspot east   → east timeline\n' +
+                                        'pluto hotspot south  → south slot\n' +
+                                        'pluto hotspot west   → this help\n' +
+                                        'pluto rabbit         → rabbit widget\n' +
+                                        'pluto open iframe    → bing frame\n' +
+                                        'pluto search <x>     → bing search\n' +
+                                        'open tab / close tab\n' +
+                                        'done                 → send';
+                                        hpHelp.style.display = 'block';
+                                        } else {
+                                        hpHelp.style.display = 'none';
+                                        }
+                                        }
+                                        
+                                        
+                                        function closeHotspot() {
+                                        hotspotPanel.classList.remove('open');
+                                        }
+                                        
+                                        hpClose.addEventListener('click', closeHotspot);
+                                        
+                                        const hpCloseSouth = document.getElementById('hpCloseSouth');
+                                        const hotspotPanelSouth = document.getElementById('hotspotPanelSouth');
+                                        hpCloseSouth && hpCloseSouth.addEventListener('click', () => {
+                                        hotspotPanelSouth.classList.remove('open');
+                                        });
+                                        
+                                        const hpCloseEast = document.getElementById('hpCloseEast');
+                                        const hotspotPanelEast = document.getElementById('hotspotPanelEast');
+                                        hpCloseEast && hpCloseEast.addEventListener('click', () => {
+                                        hotspotPanelEast.classList.remove('open');
+                                        });
+                                        
+                                        document.querySelectorAll('.hotspot-plus').forEach(el => {
+                                        el.addEventListener('click', () => {
+                                        openHotspot(el.dataset.slot);
+                                        });
+                                        });
+                                        
+                                        
+                                        // ══════════════════════════════════════════════════
+                                        // EAST TIMELINE — reads wp_timeline.txt from the data folder
+                                        // ══════════════════════════════════════════════════
+                                        
+                                        // pick the data folder once, remember it forever
+                                        async function connectEastFolder() {
+                                        if (!window.showDirectoryPicker) { showToast('❋ Needs Chrome or Edge'); return; }
+                                        try {
+                                        const handle = await window.showDirectoryPicker({ id: 'pluto-data', mode: 'read' });
+                                        liveDirHandle = handle;
+                                        await idbSetHandle('dataDir', handle);
+                                        showToast('📁 Connected: ' + handle.name);
+                                        console.log('[EAST] folder connected:', handle.name);
+                                        loadEastTimeline();  // fire immediately after connecting
+                                        } catch(e) { /* cancelled */ }
+                                        }
+                                        
+                                        // read wp_timeline.txt and render each line as a card
+                                        async function loadEastTimeline() {
+                                        const hpTextEl = document.getElementById('hpTextEast');
+                                        if (!hpTextEl) return;
+                                        
+                                        if (!liveDirHandle) {
+                                        hpTextEl.value = 'Choose Desktop/data/ to load…';
+                                        return connectDataFolder().then(() => loadEastTimeline());
+                                        }
+                                        
+                                        try {
+                                        hpTextEl.style.display = 'none';
+                                        
+                                        let tl = document.getElementById('eastTimeline');
+                                        if (!tl) {
+                                        tl = document.createElement('div');
+                                        tl.id = 'eastTimeline';
+                                        tl.className = 'east-timeline';
+                                        hpTextEl.parentNode.insertBefore(tl, hpTextEl.nextSibling);
+                                        }
+                                        tl.style.display = 'block';
+                                        
+                                        // ─── GRAB THE TXT ───
+                                        const fileHandle = await liveDirHandle.getFileHandle('yahoo_live_scoreboard.txt');
+                                        const file = await fileHandle.getFile();
+                                        const text = await file.text();
+                                        
+                                        // ─── EVERY LINE = ONE CARD ───
+                                        const lines = text
+                                        .split('\n')
+                                        .map(l => l.trimEnd())
+                                        .filter(l => l.trim().length > 0);
+                                        
+                                        if (!lines.length) {
+                                        tl.innerHTML = '<div style="font-size:11px;color:#999;padding:8px 0;">File is empty.</div>';
+                                        return;
+                                        }
+                                        
+                                        // ─── EAST VOICE: compare to last snapshot, speak changes ───
+                                        const oldScores = await eastLoadSnapshot();
+                                        const newScores = eastParseScores(lines);
+                                        eastSpeakChanges(oldScores, newScores);
+                                        await eastSaveSnapshot(newScores);
+                                        
+                                        tl.innerHTML = lines.map(line => `
+                                        <div class="east-row">
+                                          <div class="east-dot">
+                                          </div>
+                                          <div class="east-card">
+                                            <div class="east-play">${line.replace(/</g,'&lt;')}</div>
+                                            </div>
+                                          </div>
+                                          `).join('');
+                                          
+                                          console.log('[EAST] rendered', lines.length, 'lines');
+                                          } catch (err) {
+                                          if (hpTextEl) hpTextEl.textContent = 'Could not read file: ' + err.message;
+                                          console.log('[EAST] read failed:', err);
+                                          }
+                                          }
+                                          
+                                          
+                                          
+                                          // ─── INIT ───
+                                          async function init() {
+                                          recognition = initSpeech();
+                                          if (!recognition) {
+                                          badge.textContent = '❋ no speech';
+                                          badge.title = 'Speech not supported';
+                                          } else {
+                                          await initMicPermissionMemory();
+                                          await updateHistory();
+                                          }
+                                          console.log('☁︎ Nueral Heartbeat · Tab Commander');
+                                          console.log('🗂️  Say "open tab", "open iframe", "pluto search <x>", or "close tab"');
+                                          }
+                                          
+                                          
+                                          
+                                          // ══════════════════════════════════════════════════
+                                          // EAST VOICE — parse scores, diff, speak via alfred voice
+                                          // ══════════════════════════════════════════════════
+                                          
+                                          function eastParseScores(lines) {
+                                          const out = {};
+                                          for (const line of lines) {
+                                          // "  1. Away Score — Score Home ⚾ Status"
+                                          const m = line.match(/^\s*\d+\.\s+(.+?)\s+(\d+)\s+—\s+(\d+)\s+(.+?)\s+⚾\s*(\w+)/);
+                                          if (!m) continue;
+                                          const key = `${m[1].trim()}@${m[4].trim()}`;
+                                          out[key] = {
+                                          away: m[1].trim(), awayScore: m[2],
+                                          home: m[4].trim(), homeScore: m[3],
+                                          status: m[5]
+                                          };
+                                          }
+                                          return out;
+                                          }
+                                          
+                                          function eastSpeakChanges(oldScores, newScores) {
+                                          if (!eastVoiceOn) return;
+                                          const parts = [];
+                                          for (const key in newScores) {
+                                          const n = newScores[key];
+                                          const o = oldScores[key];
+                                          if (!o) continue;   // brand-new game, don't announce
+                                          if (o.awayScore === n.awayScore && o.homeScore === n.homeScore) continue;
+                                          parts.push(`${n.away} ${n.awayScore}, ${n.home} ${n.homeScore}. From ${o.awayScore} ${o.homeScore}.`);
+                                          }
+                                          if (!parts.length) return;
+                                          if (!('speechSynthesis' in window)) return;
+                                          speechSynthesis.cancel();
+                                          const utter = new SpeechSynthesisUtterance('Sir. ' + parts.join(' ') + ' Source: data.');
+                                          if (alfredVoice) utter.voice = alfredVoice;
+                                          utter.rate = 1.0;
+                                          utter.pitch = 0.8;
+                                          speechSynthesis.speak(utter);
+                                          }
+                                          
+                                          async function eastLoadSnapshot() {
+                                          const db = await openDB();
+                                          return new Promise((res) => {
+                                          const tx = db.transaction('handles', 'readonly');
+                                          const rq = tx.objectStore('handles').get('eastLastScores');
+                                          rq.onsuccess = () => res(rq.result || {});
+                                          rq.onerror = () => res({});
+                                          });
+                                          }
+                                          async function eastSaveSnapshot(scores) {
+                                          const db = await openDB();
+                                          const tx = db.transaction('handles', 'readwrite');
+                                          tx.objectStore('handles').put(scores, 'eastLastScores');
+                                          }
+                                          
+                                          // ─── UI SCALE — measure once, apply to everything ───
+                                          function applyUIScale() {
+                                          const scale = Math.min(
+                                          window.innerWidth  / 996,
+                                          window.innerHeight / 662
+                                          );
+                                          const s = Math.max(0.4, Math.min(1, scale));   // clamp 40%–100%
+                                          
+                                          // feed it to CSS as a variable
+                                          document.documentElement.style.setProperty('--ui-scale', s);
+                                          
+                                          // and expose it for JS (Alfred, panels, etc.)
+                                          window.uiScale = s;
+                                          
+                                          console.log(`[UI] scale ${s.toFixed(2)} (${window.innerWidth}x${window.innerHeight})`);
+                                          }
+                                          
+                                          window.addEventListener('resize', applyUIScale);
+
+
+window.addEventListener('pySpeechState', (e) => {
+  const s = e.detail && e.detail.state;
+  if (s === 'listening') {
+    heartbeat.classList.add('listening');
+    badge.classList.add('listening');
+    badge.textContent = '☁︎ listening...';
+  } else {
+    heartbeat.classList.remove('listening');
+    badge.classList.remove('listening');
+    badge.textContent = '☁︎ tap to speak';
+  }
+});
+
+window.addEventListener('pySpeech', (e) => {
+  const t = e.detail && e.detail.text;
+  if (!t) return;
+  // feed it into the same path the browser-mic uses
+  saveToHistory(t).then(updateHistory);
+  badge.textContent = '☁︎ ' + t;
+  showToast('✅ ' + t);
+});
+
+                                          applyUIScale();   // ← fires BEFORE init()
+                                          init();
+                                          openHotspot(3);
+                                          openHotspot(4);
+                                          setInterval(() => { if (liveDirHandle) loadEastTimeline(); }, 20000);
+                                          
+                                        </script>
+                                      </body>
+                                    </html>

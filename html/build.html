@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ོ⎚-⎚Builder ⏣</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'Segoe UI', 'Courier New', monospace;
+            background: #0a0a12;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            color: #e0e0e0;
+        }
+
+        .header {
+            background: #1a1a2e;
+            padding: 10px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 3px solid #6d8cff;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .header h1 {
+            font-size: 1.6rem;
+            font-weight: 900;
+            letter-spacing: 1px;
+            color: #6d8cff;
+        }
+        .header h1 span { color: #a78bfa; }
+        .header-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .header-actions button {
+            background: #2a2a4a;
+            color: #c8d8ff;
+            border: 2px solid #4a4a6a;
+            padding: 6px 14px;
+            font-weight: bold;
+            font-size: 0.8rem;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .header-actions button:hover {
+            background: #4a4a7a;
+            border-color: #6d8cff;
+            transform: translateY(-2px);
+        }
+        .header-actions button.primary {
+            background: #6d8cff;
+            color: #0a0a12;
+            border-color: #6d8cff;
+        }
+        .header-actions button.primary:hover {
+            background: #8aa4ff;
+        }
+        .header-actions button.success {
+            background: #4ade80;
+            color: #0a0a12;
+            border-color: #4ade80;
+        }
+        .header-actions button.success:hover {
+            background: #6ee8a0;
+        }
+
+        .doc-header {
+            background: #0d0d1a;
+            border-bottom: 1px solid #2a2a4a;
+            padding: 4px 24px;
+            font-size: 0.65rem;
+            color: #444466;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+            font-family: 'Courier New', monospace;
+        }
+        .doc-header .doc-path { color: #6d8cff; }
+        .doc-header .doc-encoding { color: #4ade80; }
+        .doc-header .doc-status { color: #8888aa; }
+
+        .app {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            gap: 6px;
+            padding: 6px;
+            background: #0a0a12;
+        }
+
+        .left-panel {
+            background: #12121e;
+            border: 2px solid #2a2a4a;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            width: 50%;
+            min-width: 300px;
+            overflow: hidden;
+        }
+        .panel-header {
+            background: #1a1a2e;
+            padding: 8px 14px;
+            border-bottom: 2px solid #2a2a4a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        .panel-header .panel-title {
+            font-weight: 700;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #6d8cff;
+        }
+        .panel-header .badge {
+            font-size: 0.65rem;
+            background: #2a2a4a;
+            padding: 2px 10px;
+            border-radius: 12px;
+            color: #8888aa;
+        }
+        .panel-header .loaded-count {
+            font-size: 0.7rem;
+            color: #fbbf24;
+            font-weight: 700;
+        }
+
+        .panel-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 8px;
+            overflow: hidden;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 4px;
+            background: #1a1a2e;
+            padding: 4px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+        .tab {
+            flex: 1;
+            min-width: 50px;
+            padding: 6px 8px;
+            border: none;
+            border-radius: 6px;
+            background: transparent;
+            color: #666688;
+            font-weight: 700;
+            font-size: 0.65rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: inherit;
+            text-align: center;
+        }
+        .tab:hover { color: #c8d8ff; }
+        .tab.active { background: #2a2a4a; color: #6d8cff; }
+        .tab.loaded { color: #4ade80; }
+        .tab .tab-icon { margin-right: 3px; }
+
+        .editor-wrap {
+            flex: 1;
+            border: 2px solid #2a2a4a;
+            border-radius: 8px;
+            background: #0a0a12;
+            overflow: auto;
+            position: relative;
+            min-height: 180px;
+        }
+        .editor-wrap textarea {
+            width: 100%;
+            height: 100%;
+            border: none;
+            padding: 14px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            resize: none;
+            outline: none;
+            background: #0a0a12;
+            color: #c8d8ff;
+            line-height: 1.6;
+            min-height: 200px;
+            tab-size: 2;
+        }
+        .editor-wrap textarea::selection { background: #6d8cff44; }
+        .editor-wrap.drag-over { border-color: #6d8cff; background: #1a1a2e; }
+
+        .right-panel {
+            flex: 1;
+            background: #0a0a12;
+            border: 2px solid #2a2a4a;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-width: 300px;
+        }
+        .preview-container {
+            flex: 1;
+            background: #0a0a12;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .preview-container iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            border-radius: 8px;
+        }
+        .preview-container .placeholder {
+            color: #444466;
+            font-size: 1.2rem;
+            text-align: center;
+            padding: 20px;
+            line-height: 1.8;
+        }
+        .preview-container .placeholder code {
+            background: #1a1a2e;
+            padding: 4px 12px;
+            border-radius: 6px;
+            color: #6d8cff;
+            font-size: 0.9rem;
+        }
+
+        .footer {
+            background: #1a1a2e;
+            border-top: 2px solid #2a2a4a;
+            padding: 6px 24px;
+            text-align: center;
+            font-size: 0.7rem;
+            color: #444466;
+            flex-shrink: 0;
+        }
+
+        @media (max-width: 768px) {
+            .app { flex-direction: column; }
+            .left-panel { width: 100%; min-width: unset; max-height: 50vh; }
+            .right-panel { min-width: unset; max-height: 50vh; }
+            .tabs .tab { font-size: 0.55rem; padding: 4px 6px; min-width: 40px; }
+        }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0a0a12; }
+        ::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4a4a6a; }
+    </style>
+</head>
+<body>
+
+    <div class="doc-header">
+        <span class="doc-path">📄 <span id="docPath">~/untitled.html</span></span>
+        <span class="doc-encoding">UTF-8 · <span id="docLineCount">0</span> lines</span>
+        <span class="doc-status" id="docStatus">⏳ waiting</span>
+    </div>
+
+    <header class="header">
+        <h1>Donatello TheBuilder ⏣<span>· Donatello</span></h1>
+        <div class="header-actions">
+            <button onclick="synthesize()" class="primary" id="synthBtn">🎛️ SYNTHESIZE</button>
+            <button onclick="resetAll()">⟲ RESET</button>
+            <button onclick="downloadHTML()">📥 DOWNLOAD</button>
+        </div>
+    </header>
+
+    <div class="app">
+
+        <div class="left-panel">
+            <div class="panel-header">
+                <span class="panel-title">📝 <span id="stepDisplay">1</span>/6</span>
+                <span class="loaded-count" id="loadedCount">📦 0 loaded</span>
+                <span class="badge" id="lineCount">0 lines</span>
+            </div>
+            <div class="panel-content">
+
+                <div class="tabs" id="tabs">
+                    <button class="tab active" data-step="1" onclick="switchTab(1)">
+                        <span class="tab-icon">📄</span> HTML
+                    </button>
+                    <button class="tab" data-step="2" onclick="switchTab(2)">
+                        <span class="tab-icon">🎨</span> CSS
+                    </button>
+                    <button class="tab" data-step="3" onclick="switchTab(3)">
+                        <span class="tab-icon">🔷</span> SCSS
+                    </button>
+                    <button class="tab" data-step="4" onclick="switchTab(4)">
+                        <span class="tab-icon">⚡</span> JS
+                    </button>
+                    <button class="tab" data-step="5" onclick="switchTab(5)">
+                        <span class="tab-icon">📘</span> TS
+                    </button>
+                    <button class="tab" data-step="6" onclick="switchTab(6)">
+                        <span class="tab-icon">🔮</span> BEBL
+                    </button>
+                </div>
+
+                <div class="editor-wrap" id="editorWrap">
+                    <textarea id="htmlEditor" spellcheck="false" placeholder="Drop your HTML here... (any combination works!)"></textarea>
+                </div>
+
+                <div style="display:flex; gap:8px; margin-top:8px; flex-shrink:0;">
+                    <button onclick="prevStep()" id="prevBtn" style="background:#2a2a4a;color:#8888aa;border:2px solid #2a2a4a;padding:6px 16px;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:bold;">← PREV</button>
+                    <button onclick="nextStep()" id="nextBtn" style="background:#6d8cff;color:#0a0a12;border:2px solid #6d8cff;padding:6px 16px;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:bold;flex:1;">NEXT →</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <div class="panel-header">
+                <span class="panel-title">🎛️ SYNTHESIZER</span>
+                <span style="font-size:0.7rem; color:#4a4a6a;" id="statusText">waiting for build</span>
+            </div>
+            <div class="preview-container" id="previewContainer">
+                <div class="placeholder" id="placeholder">
+                    <div style="font-size:3rem; margin-bottom:12px;">⚒</div>
+                    <div>Drop your HTML → CSS → SCSS → JS → TS → BEBL</div>
+                    <div style="margin-top:8px; font-size:0.8rem; color:#444466;">
+                        <strong style="color:#fbbf24;">Any combination works!</strong> — just build what you have
+                    </div>
+                    <div style="margin-top:12px; display:flex; gap:12px; justify-content:center; font-size:0.65rem; color:#444466; flex-wrap:wrap;">
+                        <span id="step1status">⬜ HTML</span>
+                        <span id="step2status">⬜ CSS</span>
+                        <span id="step3status">⬜ SCSS</span>
+                        <span id="step4status">⬜ JS</span>
+                        <span id="step5status">⬜ TS</span>
+                        <span id="step6status">⬜ BEBL</span>
+                    </div>
+                </div>
+                <iframe id="previewIframe" style="display:none;width:100%;height:100%;border:none;border-radius:8px;"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        ོ⎚-⎚ Synth · 6-Step Builder — <strong style="color:#fbbf24;">Any combination works</strong> · Auto-detects libraries
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js">
+    </script>
+
+    <script>
+        // ============================================================
+        // STATE
+        // ============================================================
+
+        const state = {
+            currentStep: 1,
+            html: '',
+            css: '',
+            scss: '',
+            js: '',
+            ts: '',
+            bebl: '',
+            htmlLoaded: false,
+            cssLoaded: false,
+            scssLoaded: false,
+            jsLoaded: false,
+            tsLoaded: false,
+            beblLoaded: false,
+        };
+
+        const editor = document.getElementById('htmlEditor');
+        const placeholder = document.getElementById('placeholder');
+        const previewIframe = document.getElementById('previewIframe');
+
+        // ============================================================
+        // TAB SWITCHING
+        // ============================================================
+
+        function switchTab(step) {
+            saveCurrentStep();
+            state.currentStep = step;
+            updateTabs();
+            loadStepContent(step);
+            updateStepDisplay();
+            updateDocHeader();
+        }
+
+        function saveCurrentStep() {
+            const content = editor.value;
+            if (state.currentStep === 1) state.html = content;
+            else if (state.currentStep === 2) state.css = content;
+            else if (state.currentStep === 3) state.scss = content;
+            else if (state.currentStep === 4) state.js = content;
+            else if (state.currentStep === 5) state.ts = content;
+            else if (state.currentStep === 6) state.bebl = content;
+
+            state.htmlLoaded = state.html.trim().length > 0;
+            state.cssLoaded = state.css.trim().length > 0;
+            state.scssLoaded = state.scss.trim().length > 0;
+            state.jsLoaded = state.js.trim().length > 0;
+            state.tsLoaded = state.ts.trim().length > 0;
+            state.beblLoaded = state.bebl.trim().length > 0;
+
+            updateTabs();
+            updateStatusIndicators();
+            updateLoadedCount();
+            updateDocHeader();
+        }
+
+        function loadStepContent(step) {
+            const contents = ['html', 'css', 'scss', 'js', 'ts', 'bebl'];
+            const labels = ['HTML', 'CSS', 'SCSS', 'JS', 'TS', 'BEBL'];
+            const idx = step - 1;
+            editor.value = state[contents[idx]] || '';
+            editor.placeholder = `Step ${step}: Drop your ${labels[idx]} here... (or leave empty)`;
+            updateLineCount();
+            updateDocHeader();
+        }
+
+        function updateTabs() {
+            document.querySelectorAll('.tab').forEach(tab => {
+                const step = parseInt(tab.dataset.step);
+                tab.classList.toggle('active', step === state.currentStep);
+                const loaded = step === 1 ? state.htmlLoaded :
+                    step === 2 ? state.cssLoaded :
+                    step === 3 ? state.scssLoaded :
+                    step === 4 ? state.jsLoaded :
+                    step === 5 ? state.tsLoaded :
+                    state.beblLoaded;
+                if (loaded) tab.classList.add('loaded');
+                else tab.classList.remove('loaded');
+            });
+        }
+
+        function updateStatusIndicators() {
+            const ids = ['step1status', 'step2status', 'step3status', 'step4status', 'step5status', 'step6status'];
+            const labels = ['HTML', 'CSS', 'SCSS', 'JS', 'TS', 'BEBL'];
+            const states = [state.htmlLoaded, state.cssLoaded, state.scssLoaded, state.jsLoaded, state.tsLoaded, state
+                .beblLoaded
+            ];
+            ids.forEach((id, i) => {
+                document.getElementById(id).textContent = states[i] ? '✅ ' + labels[i] : '⬜ ' + labels[i];
+                document.getElementById(id).style.color = states[i] ? '#4ade80' : '#444466';
+            });
+        }
+
+        function updateLoadedCount() {
+            const count = [state.htmlLoaded, state.cssLoaded, state.scssLoaded, state.jsLoaded, state.tsLoaded, state
+                .beblLoaded
+            ].filter(Boolean).length;
+            document.getElementById('loadedCount').textContent = `📦 ${count}/6 loaded`;
+            document.getElementById('loadedCount').style.color = count > 0 ? '#fbbf24' : '#444466';
+        }
+
+        function updateStepDisplay() {
+            const steps = ['📥 HTML', '🎨 CSS', '🔷 SCSS', '⚡ JS', '📘 TS', '🔮 BEBL'];
+            document.getElementById('stepDisplay').textContent = state.currentStep + '/6';
+            document.getElementById('prevBtn').style.visibility = state.currentStep > 1 ? 'visible' : 'hidden';
+            const nextText = state.currentStep < 6 ? 'NEXT →' : '🎛️ SYNTHESIZE';
+            document.getElementById('nextBtn').textContent = nextText;
+            document.getElementById('nextBtn').style.background = state.currentStep === 6 ? '#4ade80' : '#6d8cff';
+            document.getElementById('nextBtn').style.borderColor = state.currentStep === 6 ? '#4ade80' : '#6d8cff';
+        }
+
+        function updateLineCount() {
+            const lines = editor.value.split('\n').length;
+            document.getElementById('lineCount').textContent = lines + ' lines';
+            document.getElementById('docLineCount').textContent = lines;
+        }
+
+        function updateDocHeader() {
+            const loaded = [state.htmlLoaded, state.cssLoaded, state.scssLoaded, state.jsLoaded, state.tsLoaded, state
+                .beblLoaded
+            ];
+            const count = loaded.filter(Boolean).length;
+            const stepName = ['html', 'css', 'scss', 'js', 'ts', 'bebl'][state.currentStep - 1] || 'untitled';
+            document.getElementById('docPath').textContent = `~/step-${state.currentStep}-${stepName}.html`;
+            document.getElementById('docStatus').textContent = count > 0 ? `📦 ${count} files loaded` : '⏳ waiting for files';
+            document.getElementById('docStatus').style.color = count > 0 ? '#fbbf24' : '#8888aa';
+        }
+
+        // ============================================================
+        // NAVIGATION
+        // ============================================================
+
+        function nextStep() {
+            saveCurrentStep();
+            if (state.currentStep === 6) {
+                synthesize();
+                return;
+            }
+            switchTab(state.currentStep + 1);
+        }
+
+        function prevStep() {
+            saveCurrentStep();
+            if (state.currentStep > 1) {
+                switchTab(state.currentStep - 1);
+            }
+        }
+
+        // ============================================================
+        // SCSS → CSS COMPILER
+        // ============================================================
+
+        function compileSCSS(scss) {
+            if (!scss || !scss.trim()) return '';
+            let css = scss;
+
+            css = css.replace(/\/\/.*$/gm, '');
+            css = css.replace(/\/\*[\s\S]*?\*\//g, '');
+
+            const varRegex = /\$([a-zA-Z0-9_-]+)\s*:\s*([^;]+);/g;
+            let match;
+            const vars = {};
+            while ((match = varRegex.exec(scss)) !== null) {
+                vars[match[1]] = match[2].trim();
+            }
+            for (const [key, value] of Object.entries(vars)) {
+                const regex = new RegExp('\\$' + key, 'g');
+                css = css.replace(regex, value);
+            }
+
+            const lines = css.split('\n');
+            let result = [];
+            let indentLevel = 0;
+            let parentSelectors = [];
+
+            for (let line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed) continue;
+
+                const selectorMatch = trimmed.match(/^([&.]?[a-zA-Z0-9_.\-:]+)\s*\{/);
+                if (selectorMatch) {
+                    let selector = selectorMatch[1];
+                    if (selector.startsWith('&')) {
+                        const parent = parentSelectors[parentSelectors.length - 1] || '';
+                        selector = parent + selector.substring(1);
+                    }
+                    parentSelectors.push(selector);
+                    indentLevel++;
+                    result.push('  '.repeat(indentLevel - 1) + selector + ' {');
+                } else if (trimmed === '}') {
+                    indentLevel--;
+                    parentSelectors.pop();
+                    result.push('  '.repeat(indentLevel) + '}');
+                } else if (trimmed.startsWith('&') && trimmed.includes('{')) {
+                    const parent = parentSelectors[parentSelectors.length - 1] || '';
+                    const newSelector = parent + trimmed.substring(1);
+                    result.push('  '.repeat(indentLevel) + newSelector);
+                } else {
+                    result.push('  '.repeat(indentLevel) + trimmed);
+                }
+            }
+
+            return result.join('\n');
+        }
+
+        // ============================================================
+        // TypeScript → JavaScript COMPILER
+        // ============================================================
+
+// ============================================================
+// SYNTHESIZE — BUILDS WHATEVER IS LOADED
+// ============================================================
+
+function synthesize() {
+    saveCurrentStep();
+
+    const loaded = [state.htmlLoaded, state.cssLoaded, state.scssLoaded,
+        state.jsLoaded, state.tsLoaded, state.beblLoaded
+    ];
+    const count = loaded.filter(Boolean).length;
+
+    if (count === 0) {
+        alert('⚠️ Drop at least one file to build!');
+        return;
+    }
+
+    document.getElementById('statusText').textContent = `🔨 building ${count} files...`;
+
+    let finalHTML = '<!DOCTYPE html>\n<html>\n<head>\n<meta charset="UTF-8" />\n';
+
+    // Add CSS if loaded
+    if (state.cssLoaded && state.css.trim()) {
+        finalHTML += `<style>${state.css}</style>\n`;
+    }
+
+    // Add SCSS if loaded (compile it)
+    if (state.scssLoaded && state.scss.trim()) {
+        const compiledCSS = compileSCSS(state.scss);
+        if (compiledCSS) {
+            finalHTML += `<style>/* SCSS compiled */\n${compiledCSS}</style>\n`;
+        }
+    }
+
+    finalHTML += '</head>\n<body>\n';
+
+    // Add HTML if loaded
+    if (state.htmlLoaded && state.html.trim()) {
+        finalHTML += state.html + '\n';
+    }
+
+    // AUTO-DETECT LIBRARIES
+    const allJS = (state.js || '') + (state.ts || '');
+
+    if (allJS.includes('THREE.') || allJS.includes('WebGLRenderer') ||
+        allJS.includes('RawShaderMaterial')) {
+        finalHTML += `<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>\n`;
+    }
+
+    if (allJS.includes('gsap') || allJS.includes('GSAP') || allJS.includes('timeline')) {
+        finalHTML += `<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"><\/script>\n`;
+    }
+
+    if (allJS.includes('Chart') || allJS.includes('chart')) {
+        finalHTML += `<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"><\/script>\n`;
+    }
+
+    if (allJS.includes('d3.') || allJS.includes('D3')) {
+        finalHTML += `<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"><\/script>\n`;
+    }
+
+    if (allJS.includes('anime') || allJS.includes('Anime')) {
+        finalHTML += `<script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"><\/script>\n`;
+    }
+
+    // Add JS if loaded
+    if (state.jsLoaded && state.js.trim()) {
+        finalHTML += `<script>\n${state.js}\n<\/script>\n`;
+    }
+
+    // Add TS if loaded (compile it)
+    if (state.tsLoaded && state.ts.trim()) {
+        const compiledTS = compileTS(state.ts);
+        if (compiledTS) {
+            finalHTML += `<script>/* TypeScript compiled */\n${compiledTS}\n<\/script>\n`;
+        }
+    }
+
+    // Add BEBL if loaded
+    if (state.beblLoaded && state.bebl.trim()) {
+        finalHTML += state.bebl + '\n';
+    }
+
+    if (!finalHTML.includes('</body>')) finalHTML += '</body>\n';
+    if (!finalHTML.includes('</html>')) finalHTML += '</html>';
+
+    // ============================================================
+    // RENDER using srcdoc (NO cross-origin errors!)
+    // ============================================================
+
+    placeholder.style.display = 'none';
+    previewIframe.style.display = 'block';
+
+    // Set srcdoc attribute — NO cross-origin issues!
+    previewIframe.setAttribute('srcdoc', finalHTML);
+
+    // Wait for iframe to load
+    previewIframe.onload = function() {
+        document.getElementById('statusText').textContent = `✅ ${count} files rendered`;
+        document.getElementById('synthBtn').textContent = '🔄 RE-RENDER';
+        document.getElementById('docStatus').textContent = `✅ ${count} files built`;
+        document.getElementById('docLineCount').textContent = finalHTML.split('\n').length + ' lines';
+        previewIframe.onload = null;
+    };
+
+    // Fallback timeout if onload doesn't fire
+    setTimeout(() => {
+        if (document.getElementById('statusText').textContent.includes('building')) {
+            document.getElementById('statusText').textContent = `✅ ${count} files rendered`;
+            document.getElementById('synthBtn').textContent = '🔄 RE-RENDER';
+        }
+    }, 1000);
+}
+
+        // ============================================================
+        // RESET
+        // ============================================================
+
+        function resetAll() {
+            if (!confirm('Reset everything?')) return;
+
+            state.html = '';
+            state.css = '';
+            state.scss = '';
+            state.js = '';
+            state.ts = '';
+            state.bebl = '';
+            state.htmlLoaded = false;
+            state.cssLoaded = false;
+            state.scssLoaded = false;
+            state.jsLoaded = false;
+            state.tsLoaded = false;
+            state.beblLoaded = false;
+
+            previewIframe.style.display = 'none';
+            previewIframe.src = 'about:blank';
+            placeholder.style.display = 'block';
+
+            document.getElementById('statusText').textContent = 'waiting for build';
+            document.getElementById('synthBtn').textContent = '🎛️ SYNTHESIZE';
+            document.getElementById('docStatus').textContent = '⏳ reset';
+
+            switchTab(1);
+            updateTabs();
+            updateStatusIndicators();
+            updateLoadedCount();
+            updateStepDisplay();
+            updateDocHeader();
+            updateLineCount();
+        }
+
+        // ============================================================
+        // DOWNLOAD
+        // ============================================================
+
+        function downloadHTML() {
+            saveCurrentStep();
+
+            const loaded = [state.htmlLoaded, state.cssLoaded, state.scssLoaded,
+                state.jsLoaded, state.tsLoaded, state.beblLoaded
+            ];
+            const count = loaded.filter(Boolean).length;
+
+            if (count === 0) {
+                alert('⚠️ Nothing to download! Add some code first.');
+                return;
+            }
+
+            let finalHTML = '<!DOCTYPE html>\n<html>\n<head>\n<meta charset="UTF-8" />\n';
+
+            if (state.cssLoaded && state.css.trim()) {
+                finalHTML += `<style>${state.css}</style>\n`;
+            }
+
+            if (state.scssLoaded && state.scss.trim()) {
+                const compiledCSS = compileSCSS(state.scss);
+                if (compiledCSS) {
+                    finalHTML += `<style>/* SCSS compiled */\n${compiledCSS}</style>\n`;
+                }
+            }
+
+            finalHTML += '</head>\n<body>\n';
+
+            if (state.htmlLoaded && state.html.trim()) {
+                finalHTML += state.html + '\n';
+            }
+
+            const allJS = (state.js || '') + (state.ts || '');
+
+            if (allJS.includes('THREE.') || allJS.includes('WebGLRenderer') ||
+                allJS.includes('RawShaderMaterial')) {
+                finalHTML += `<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>\n`;
+            }
+
+            if (allJS.includes('gsap') || allJS.includes('GSAP') || allJS.includes('timeline')) {
+                finalHTML += `<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"><\/script>\n`;
+            }
+
+            if (allJS.includes('Chart') || allJS.includes('chart')) {
+                finalHTML += `<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"><\/script>\n`;
+            }
+
+            if (allJS.includes('d3.') || allJS.includes('D3')) {
+                finalHTML += `<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"><\/script>\n`;
+            }
+
+            if (allJS.includes('anime') || allJS.includes('Anime')) {
+                finalHTML += `<script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"><\/script>\n`;
+            }
+
+            if (state.jsLoaded && state.js.trim()) {
+                finalHTML += `<script>\n${state.js}\n<\/script>\n`;
+            }
+
+            if (state.tsLoaded && state.ts.trim()) {
+                const compiledTS = compileTS(state.ts);
+                if (compiledTS) {
+                    finalHTML += `<script>/* TypeScript compiled */\n${compiledTS}\n<\/script>\n`;
+                }
+            }
+
+            if (state.beblLoaded && state.bebl.trim()) {
+                finalHTML += state.bebl + '\n';
+            }
+
+            if (!finalHTML.includes('</body>')) finalHTML += '</body>\n';
+            if (!finalHTML.includes('</html>')) finalHTML += '</html>';
+
+            const blob = new Blob([finalHTML], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'index.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // ============================================================
+        // DRAG & DROP — AUTO-RENDER ON DROP
+        // ============================================================
+
+        const editorWrap = document.getElementById('editorWrap');
+
+        function handleFileDrop(file) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                editor.value = ev.target.result;
+                saveCurrentStep();
+                const step = state.currentStep;
+                if (step === 1) state.htmlLoaded = true;
+                else if (step === 2) state.cssLoaded = true;
+                else if (step === 3) state.scssLoaded = true;
+                else if (step === 4) state.jsLoaded = true;
+                else if (step === 5) state.tsLoaded = true;
+                else if (step === 6) state.beblLoaded = true;
+                updateTabs();
+                updateStatusIndicators();
+                updateLoadedCount();
+                updateLineCount();
+                updateDocHeader();
+
+                // AUTO-RENDER after drop
+                setTimeout(() => {
+                    const loaded = [state.htmlLoaded, state.cssLoaded, state.scssLoaded,
+                        state.jsLoaded, state.tsLoaded, state.beblLoaded
+                    ];
+                    if (loaded.some(Boolean)) {
+                        synthesize();
+                    }
+                }, 300);
+            };
+            reader.readAsText(file);
+        }
+
+        editorWrap.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            editorWrap.classList.add('drag-over');
+        });
+        editorWrap.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            editorWrap.classList.remove('drag-over');
+        });
+        editorWrap.addEventListener('drop', (e) => {
+            e.preventDefault();
+            editorWrap.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileDrop(files[0]);
+            }
+        });
+
+        editor.addEventListener('dragover', (e) => e.preventDefault());
+        editor.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileDrop(files[0]);
+            }
+        });
+
+        // ============================================================
+        // KEYBOARD SHORTCUTS
+        // ============================================================
+
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                synthesize();
+            }
+            if (e.key === 'ArrowRight' && e.ctrlKey) {
+                e.preventDefault();
+                nextStep();
+            }
+            if (e.key === 'ArrowLeft' && e.ctrlKey) {
+                e.preventDefault();
+                prevStep();
+            }
+        });
+
+        // ============================================================
+        // INIT — LOAD EXAMPLE
+        // ============================================================
+
+        function loadExample() {
+            state.html = `<canvas id="webgl-canvas"></canvas>
+
+        <script id="js-vertex-shader" type="x-shader/x-vertex">
+        attribute vec3 position;
+        void main() {
+          gl_Position = vec4(position, 1.0);
+        }
+        <\/script>
+
+        <script id="js-fragment-shader" type="x-shader/x-fragment">
+        precision highp float;
+        uniform vec2 resolution;
+        uniform float time;
+        uniform float xScale;
+        uniform float yScale;
+        uniform float distortion;
+
+        void main() {
+          vec2 p = (gl_FragCoord.xy * 2.0 - resolution) / min(resolution.x, resolution.y);
+          float d = length(p) * distortion;
+          float rx = p.x * (1.0 + d);
+          float gx = p.x;
+          float bx = p.x * (1.0 - d);
+          float r = 0.05 / abs(p.y + sin((rx + time) * xScale) * yScale);
+          float g = 0.05 / abs(p.y + sin((gx + time) * xScale) * yScale);
+          float b = 0.05 / abs(p.y + sin((bx + time) * xScale) * yScale);
+          gl_FragColor = vec4(r, g, b, 1.0);
+        }
+        <\/script>`;
+
+            state.css = `body { margin: 0; overflow: hidden; background: #0a0a12; }
+        canvas { display: block; width: 100vw; height: 100vh; }`;
+
+            state.scss = `$bg: #0a0a12;
+        $text: #4ade80;
+
+        body {
+          margin: 0;
+          overflow: hidden;
+          background: $bg;
+
+          canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+          }
+        }`;
+
+            state.js = `// STAGE
+        class Stage {
+          constructor() {
+            this.renderParam = { clearColor: 0x0a0a12, width: window.innerWidth, height: window.innerHeight };
+            this.cameraParam = { left: -1, right: 1, top: 1, bottom: -1, near: 0, far: 1 };
+            this.scene = null; this.camera = null; this.renderer = null;
+            this.isInitialized = false;
+          }
+          init() { this._setScene(); this._setRender(); this._setCamera(); this.isInitialized = true; }
+          _setScene() { this.scene = new THREE.Scene(); }
+          _setRender() {
+            const canvas = document.getElementById("webgl-canvas");
+            this.renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            this.renderer.setClearColor(new THREE.Color(this.renderParam.clearColor));
+            this.renderer.setSize(this.renderParam.width, this.renderParam.height);
+          }
+          _setCamera() {
+            const w = this.renderParam.width, h = this.renderParam.height;
+            const aspect = w / h;
+            let l = -1, r = 1, t = 1, b = -1;
+            if (aspect > 1) { l *= aspect; r *= aspect; } else { t /= aspect; b /= aspect; }
+            this.camera = new THREE.OrthographicCamera(l, r, t, b, this.cameraParam.near, this.cameraParam.far);
+            this.camera.updateProjectionMatrix();
+          }
+          onResize() {
+            const w = window.innerWidth, h = window.innerHeight;
+            this.renderParam.width = w; this.renderParam.height = h;
+            this.renderer.setSize(w, h);
+            this._setCamera();
+          }
+          onRaf() { this.renderer.render(this.scene, this.camera); }
+        }
+
+        // MESH
+        class Mesh {
+          constructor(stage) {
+            this.stage = stage;
+            this.uniforms = {
+              resolution: { type: "v2", value: [window.innerWidth, window.innerHeight] },
+              time: { type: "f", value: 0.0 },
+              xScale: { type: "f", value: 1.0 },
+              yScale: { type: "f", value: 0.5 },
+              distortion: { type: "f", value: 0.05 }
+            };
+            this.mesh = null;
+          }
+          init() {
+            const pos = [-1,-1,0, 1,-1,0, -1,1,0, 1,-1,0, -1,1,0, 1,1,0];
+            const geom = new THREE.BufferGeometry();
+            geom.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pos), 3));
+            const mat = new THREE.RawShaderMaterial({
+              vertexShader: document.getElementById("js-vertex-shader").textContent,
+              fragmentShader: document.getElementById("js-fragment-shader").textContent,
+              uniforms: this.uniforms,
+              side: THREE.DoubleSide
+            });
+            this.mesh = new THREE.Mesh(geom, mat);
+            this.stage.scene.add(this.mesh);
+          }
+          onRaf() { this.uniforms.time.value += 0.01; }
+        }
+
+        // RUN
+        const stage = new Stage();
+        stage.init();
+
+        const mesh = new Mesh(stage);
+        mesh.init();
+
+        window.addEventListener("resize", () => stage.onResize());
+
+        function loop() {
+          stage.onRaf();
+          mesh.onRaf();
+          requestAnimationFrame(loop);
+        }
+        loop();
+
+        console.log('⚒ Synth running!');`;
+
+            state.ts = `// TypeScript example
+        interface Config {
+          width: number;
+          height: number;
+          bg: string;
+        }
+
+        const config: Config = {
+          width: window.innerWidth,
+          height: window.innerHeight,
+          bg: '#0a0a12'
+        };
+
+        console.log('TS compiled:', config);`;
+
+            state.bebl = `<!-- BEBL: Custom injection -->
+        <div style="position:fixed; bottom:10px; right:16px; background:rgba(0,0,0,0.7); color:#4ade80; padding:6px 14px; border-radius:20px; font-size:0.7rem; font-family:monospace; border:1px solid #4ade8033; pointer-events:none; z-index:999;">
+          ོ⎚-⎚ BEBL · TS+SCSS
+        </div>`;
+
+            state.htmlLoaded = true;
+            state.cssLoaded = true;
+            state.scssLoaded = true;
+            state.jsLoaded = true;
+            state.tsLoaded = true;
+            state.beblLoaded = true;
+
+            switchTab(1);
+            updateTabs();
+            updateStatusIndicators();
+            updateLoadedCount();
+            updateStepDisplay();
+            editor.value = state.html;
+            updateLineCount();
+            updateDocHeader();
+
+            setTimeout(synthesize, 400);
+        }
+
+        // INIT
+        updateTabs();
+        updateStatusIndicators();
+        updateLoadedCount();
+        updateStepDisplay();
+        updateDocHeader();
+        loadExample();
+
+        console.log('Donatello TheBuilder ⏣ loaded');
+        console.log('✅ ANY combination works — build what you have!');
+        console.log('⌨️  Ctrl+Enter = Synthesize');
+        console.log('📦 Drop a file → auto-renders');
+    </script>
+
+</body>
+</html>
