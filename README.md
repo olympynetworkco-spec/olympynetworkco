@@ -3,6 +3,7 @@ Ready, Set, Oly ! with OlympyNetworkCo Tm : be the president in your virtual env
 https://northstarconnector-pippera.netlify.app/
 downlaod https://www.python.org/downloads/release/python-390/
 than use a wrapper method
+<img width="800" height="598" alt="black-oly" src="https://github.com/user-attachments/assets/3ac51ede-b1ee-4f62-a956-6dbcedc93642" />
 
 
 this will create your shims to use any python method by using shebang method 
